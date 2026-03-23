@@ -1,0 +1,80 @@
+<svg width="900" height="220" viewBox="0 0 900 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="silver" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F2F5FA"/>
+      <stop offset="45%" stop-color="#B3BAC8"/>
+      <stop offset="100%" stop-color="#66748F"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFC861"/>
+      <stop offset="45%" stop-color="#FF9800"/>
+      <stop offset="100%" stop-color="#C86800"/>
+    </linearGradient>
+    <filter id="glowOrange" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glowSilver" x="-20%" y="-50%" width="140%" height="200%">
+      <feGaussianBlur stdDeviation="3.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <g transform="translate(8 18) skewX(-12)">
+    <text
+      x="0"
+      y="90"
+      fill="url(#silver)"
+      filter="url(#glowSilver)"
+      font-family="Arial Black, Arial, sans-serif"
+      font-size="82"
+      font-weight="900"
+      letter-spacing="-2"
+    >
+      TDT
+    </text>
+    <text
+      x="148"
+      y="90"
+      fill="url(#orange)"
+      filter="url(#glowOrange)"
+      font-family="Arial Black, Arial, sans-serif"
+      font-size="82"
+      font-weight="900"
+      letter-spacing="1"
+    >
+      POWER
+    </text>
+    <text
+      x="480"
+      y="90"
+      fill="url(#silver)"
+      filter="url(#glowSilver)"
+      font-family="Arial Black, Arial, sans-serif"
+      font-size="82"
+      font-weight="900"
+      letter-spacing="1"
+    >
+      STEEL
+    </text>
+  </g>
+
+  <text
+    x="112"
+    y="164"
+    fill="url(#silver)"
+    opacity="0.92"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="34"
+    font-weight="700"
+    letter-spacing="1.8"
+  >
+    THE NO.1 STEEL SUPPLIER
+  </text>
+</svg>
