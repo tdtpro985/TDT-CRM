@@ -24,16 +24,36 @@
   display: block;
 }
 
-.brand-logo {
+.brand-head {
   display: grid;
-  gap: 8px;
+  gap: 14px;
 }
 
-.brand-logo-image {
-  width: 100%;
-  max-width: 258px;
+.brand-logo {
+  width: min(100%, 240px);
   height: auto;
+  display: block;
   object-fit: contain;
+}
+
+.brand-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.brand-kicker {
+  margin: 0;
+  color: var(--accent-strong);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.brand-title {
+  color: var(--text-strong);
+  font-size: 1.7rem;
+  line-height: 1;
 }
 
 .sidebar-label,
@@ -49,9 +69,9 @@
 }
 
 .brand-name {
-  margin-top: 4px;
+  margin-top: 2px;
   color: var(--text-strong);
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   line-height: 1.45;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1121,6 +1141,153 @@
   line-height: 1.6;
 }
 
+.metrics-grid--five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.principles-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.principle-card {
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+}
+
+.principle-card strong {
+  display: block;
+  color: var(--text-strong);
+  font-size: 1rem;
+}
+
+.principle-card p {
+  margin-top: 8px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.database-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tab-button {
+  padding: 0.52rem 0.82rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: capitalize;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.tab-button:hover,
+.tab-button:focus-visible {
+  border-color: rgba(255, 152, 0, 0.34);
+  outline: none;
+}
+
+.tab-button.is-active {
+  background: rgba(255, 152, 0, 0.16);
+  border-color: rgba(255, 152, 0, 0.38);
+  color: var(--accent-strong);
+}
+
+.pipeline-board {
+  margin-top: 22px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(240px, 1fr));
+  gap: 14px;
+  align-items: start;
+  overflow-x: auto;
+}
+
+.pipeline-lane {
+  min-width: 240px;
+  padding: 16px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border);
+}
+
+.pipeline-lane__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.pipeline-lane__header div {
+  display: grid;
+  gap: 4px;
+}
+
+.pipeline-lane__header strong,
+.pipeline-card strong {
+  color: var(--text-strong);
+}
+
+.pipeline-lane__header span,
+.pipeline-card p,
+.pipeline-card__meta span {
+  color: var(--text-muted);
+}
+
+.pipeline-lane__cards {
+  margin-top: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.pipeline-card {
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+}
+
+.pipeline-card--empty {
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.pipeline-card__top,
+.pipeline-card__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.pipeline-card p {
+  margin-top: 10px;
+  line-height: 1.6;
+}
+
+.pipeline-card__meta {
+  margin-top: 10px;
+}
+
+.field--compact {
+  margin-top: 12px;
+}
+
+.field--compact select {
+  padding: 0.72rem 0.82rem;
+}
+
 @keyframes rise-in {
   from {
     opacity: 0;
@@ -1145,13 +1312,15 @@
 
 @media (max-width: 1100px) {
   .metrics-grid,
+  .metrics-grid--five,
   .metrics-grid--compact,
   .content-grid--2,
   .content-grid--primary,
   .hero-panel,
   .preview-stats,
   .rep-grid,
-  .report-grid {
+  .report-grid,
+  .principles-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1185,7 +1354,8 @@
   .hero-highlights,
   .detail-list,
   .form-grid,
-  .preview-stats {
+  .preview-stats,
+  .principles-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1210,5 +1380,9 @@
   .chart-frame {
     grid-template-columns: repeat(5, minmax(78px, 1fr));
     overflow-x: auto;
+  }
+
+  .pipeline-board {
+    grid-template-columns: 1fr;
   }
 }
