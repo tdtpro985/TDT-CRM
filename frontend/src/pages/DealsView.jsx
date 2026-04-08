@@ -118,9 +118,7 @@ export default function DealsView({
               </label>
               <label className="field">
                 <span>Owner</span>
-                <select name="owner" value={dealForm.owner} onChange={handleDealFormChange}>
-                  {salesTeam.map(rep => <option key={rep.id} value={rep.name}>{rep.name}</option>)}
-                </select>
+                <input name="owner" value={dealForm.owner} onChange={handleDealFormChange} placeholder="Enter owner name" />
               </label>
               <label className="field">
                 <span>Stage</span>

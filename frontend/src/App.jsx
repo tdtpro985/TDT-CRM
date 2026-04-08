@@ -33,10 +33,10 @@ const NAV_CONFIG = [
 ]
 
 const VIEW_META = {
-  dashboard: { eyebrow: 'In-house CRM prototype', title: 'TDT Powersteel CRM dashboard built around clean data and visibility', description: 'Track leads, deals, and sales activities efficiently while keeping the first release focused on the essentials.', searchPlaceholder: 'Search leads, deals, tasks, or companies' },
-  database:  { eyebrow: 'Clean data', title: 'One record per lead, contact, and company', description: 'Keep customer data linked properly so follow-ups, deal ownership, and reporting stay reliable.', searchPlaceholder: 'Search leads, contacts, companies, or owners' },
-  pipeline:  { eyebrow: 'Pipeline visibility', title: 'See every opportunity and expected revenue clearly', description: 'Track stages, expected close dates, and pipeline value in one simple view.', searchPlaceholder: 'Search deal, company, stage, or owner' },
-  tasks:     { eyebrow: 'Activity tracking', title: 'Keep follow-ups, calls, and next actions on schedule', description: 'Simple task tracking keeps sales activity visible and fast to update.', searchPlaceholder: 'Search tasks, deals, owners, or due dates' },
+  dashboard: { eyebrow: 'In-house CRM prototype', title: 'Dashboard', description: '', searchPlaceholder: 'Search leads, deals, tasks, or companies' },
+  database:  { eyebrow: 'Clean data', title: 'Customer Database', description: '', searchPlaceholder: 'Search leads, contacts, companies, or owners' },
+  pipeline:  { eyebrow: 'Pipeline visibility', title: 'Pipeline', description: '', searchPlaceholder: 'Search deal, company, stage, or owner' },
+  tasks:     { eyebrow: 'Activity tracking', title: 'Tasks', description: '', searchPlaceholder: 'Search tasks, deals, owners, or due dates' },
 }
 
 function getProbabilityForStage(stage) { return STAGE_PROBABILITY[stage] ?? 100 }
@@ -68,6 +68,15 @@ export default function App() {
   const [taskForm, setTaskForm] = useState({ title: '', type: TASK_TYPES[1], owner: '', dealId: '', dueDate: '', priority: 'Medium' })
 
   const [notice, setNotice] = useState('TDT Powersteel CRM is focused on clean data, pipeline visibility, activity tracking, and a 5 KPI dashboard.')
+  const [showLeadForm, setShowLeadForm] = useState(false)
+  const [showDealForm, setShowDealForm] = useState(false)
+  const [showTaskForm, setShowTaskForm] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  function showToast(message) {
+    setToast(message)
+    setTimeout(() => setToast(null), 3000)
+  }
 
   // ─── Data fetching ──────────────────────────────────────────────────────────
 
@@ -242,6 +251,7 @@ export default function App() {
 
     setDeals((current) => [newDeal, ...current])
     setDealForm({ name: '', companyId: '', contactId: '', leadId: '', stage: DEAL_STAGES[0], value: '', expectedClose: '', owner: teamMembers[0] ?? '' })
+    showToast(`Deal "${newDeal.name}" saved successfully!`)
 
     try {
       await fetch(`${API_BASE}/api/deals`, {
@@ -261,6 +271,7 @@ export default function App() {
 
     setTasks((current) => [newTask, ...current])
     setTaskForm({ title: '', type: TASK_TYPES[1], owner: teamMembers[0] ?? '', dealId: deals[0]?.id ?? '', dueDate: '', priority: 'Medium' })
+    showToast(`Task "${newTask.title}" saved successfully!`)
 
     try {
       await fetch(`${API_BASE}/api/activities`, {
@@ -312,12 +323,22 @@ export default function App() {
   function handleViewChange(viewId) {
     setActiveView(viewId)
     setSearchQuery('')
+    setShowLeadForm(false)
+    setShowDealForm(false)
+    setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId].title} is active.`)
   }
 
   function handlePrimaryAction() {
-    if (activeView === 'dashboard' || activeView === 'database') return focusSection('database', 'lead-form', 'Fast lead entry is ready.')
-    if (activeView === 'pipeline') return focusSection('pipeline', 'deal-form', 'Deal entry is ready.')
+    if (activeView === 'dashboard' || activeView === 'database') {
+      setShowLeadForm(true)
+      return focusSection('database', 'lead-form', 'Fast lead entry is ready.')
+    }
+    if (activeView === 'pipeline') {
+      setShowDealForm(true)
+      return focusSection('pipeline', 'deal-form', 'Deal entry is ready.')
+    }
+    setShowTaskForm(true)
     focusSection('tasks', 'task-form', 'Task entry is ready.')
   }
 
@@ -390,6 +411,8 @@ export default function App() {
           handleCreateLead={handleCreateLead}
           handleLeadStatusChange={handleLeadStatusChange}
           linkHealth={linkHealth}
+          showLeadForm={showLeadForm}
+          setShowLeadForm={setShowLeadForm}
         />
       )
     }
@@ -415,6 +438,8 @@ export default function App() {
           handleDealFormChange={handleDealFormChange}
           handleCreateDeal={handleCreateDeal}
           handleDealStageChange={handleDealStageChange}
+          showDealForm={showDealForm}
+          setShowDealForm={setShowDealForm}
         />
       )
     }
@@ -436,6 +461,8 @@ export default function App() {
         handleTaskFormChange={handleTaskFormChange}
         handleCreateTask={handleCreateTask}
         handleTaskStatusToggle={handleTaskStatusToggle}
+        showTaskForm={showTaskForm}
+        setShowTaskForm={setShowTaskForm}
       />
     )
   }
@@ -446,23 +473,12 @@ export default function App() {
     <div className="crm-shell">
       <aside className="sidebar">
         <div className="brand-block">
-          <div className="brand-head">
-            <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
-            <div className="brand-copy">
-              <p className="brand-kicker"></p>
-              <h1 className="brand-title">TDT Powersteel</h1>
-              <p className="brand-name">In-house customer relationship management</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="sidebar-card">
-          <p className="sidebar-label">Workspace status</p>
-          <strong>Built for lead, deal, and activity tracking</strong>
-          <span>Focused on clean customer data, pipeline visibility, task tracking, and a five-KPI dashboard for the first three-month prototype.</span>
+          <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
+          <p className="brand-name">Sales CRM</p>
         </div>
 
         <nav className="sidebar-nav" aria-label="Primary CRM navigation">
+          <p className="nav-section-label">Navigation</p>
           {navItems.map((item) => (
             <button
               key={item.id}
@@ -523,6 +539,13 @@ export default function App() {
 
         {loading ? <p style={{ padding: '2rem' }}>Loading data…</p> : renderView()}
       </main>
+
+      {toast && (
+        <div className="toast" role="status">
+          <span className="toast__icon">✓</span>
+          <span>{toast}</span>
+        </div>
+      )}
     </div>
   )
 }

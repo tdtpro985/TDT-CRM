@@ -3,6 +3,32 @@ import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import { formatDateLabel, getToneClass } from '../utils'
 
+function DealCombobox({ deals, dealId, onChange }) {
+  const displayValue = deals.find((d) => d.id === dealId)?.name ?? dealId
+
+  function handleChange(e) {
+    const typed = e.target.value
+    const match = deals.find((d) => d.name.toLowerCase() === typed.toLowerCase())
+    onChange({ target: { name: 'dealId', value: match ? match.id : typed } })
+  }
+
+  return (
+    <>
+      <input
+        name="dealId"
+        value={displayValue}
+        onChange={handleChange}
+        placeholder="Type deal name..."
+        list="deal-options"
+        autoComplete="off"
+      />
+      <datalist id="deal-options">
+        {deals.map((d) => <option key={d.id} value={d.name} />)}
+      </datalist>
+    </>
+  )
+}
+
 export default function TasksView({
   filteredTasks,
   tasks,
@@ -19,6 +45,8 @@ export default function TasksView({
   handleTaskFormChange,
   handleCreateTask,
   handleTaskStatusToggle,
+  showTaskForm,
+  setShowTaskForm,
 }) {
   const focusQueue = [...openTasks]
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
@@ -108,54 +136,54 @@ export default function TasksView({
             </div>
           </Panel>
 
-          <Panel
-            id="task-form"
-            kicker="Fast entry"
-            title="Log a task quickly"
-            detail="Fast task entry supports the ease-of-use principle from the updated outline."
-          >
-            <form className="form-grid" onSubmit={handleCreateTask}>
-              <label className="field field--span-2">
-                <span>Task title</span>
-                <input name="title" value={taskForm.title} onChange={handleTaskFormChange} placeholder="Enter task title" required />
-              </label>
+          {showTaskForm && (
+            <Panel
+              id="task-form"
+              kicker="Fast entry"
+              title="Log a task quickly"
+            >
+              <form className="form-grid" onSubmit={(e) => { handleCreateTask(e); setShowTaskForm(false) }}>
+                <label className="field field--span-2">
+                  <span>Task title</span>
+                  <input name="title" value={taskForm.title} onChange={handleTaskFormChange} placeholder="Enter task title" required autoFocus />
+                </label>
 
-              <label className="field">
-                <span>Type</span>
-                <select name="type" value={taskForm.type} onChange={handleTaskFormChange}>
-                  {taskTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </label>
+                <label className="field">
+                  <span>Type</span>
+                  <select name="type" value={taskForm.type} onChange={handleTaskFormChange}>
+                    {taskTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </label>
 
-              <label className="field">
-                <span>Owner</span>
-                <select name="owner" value={taskForm.owner} onChange={handleTaskFormChange}>
-                  {teamMembers.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </label>
+                <label className="field">
+                  <span>Owner</span>
+                  <input name="owner" value={taskForm.owner} onChange={handleTaskFormChange} placeholder="Enter owner name" />
+                </label>
 
-              <label className="field field--span-2">
-                <span>Linked deal</span>
-                <select name="dealId" value={taskForm.dealId} onChange={handleTaskFormChange}>
-                  {deals.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              </label>
+                <label className="field field--span-2">
+                  <span>Linked deal</span>
+                  <DealCombobox deals={deals} dealId={taskForm.dealId} onChange={handleTaskFormChange} />
+                </label>
 
-              <label className="field">
-                <span>Due date</span>
-                <input name="dueDate" type="date" value={taskForm.dueDate} onChange={handleTaskFormChange} required />
-              </label>
+                <label className="field">
+                  <span>Due date</span>
+                  <input name="dueDate" type="date" value={taskForm.dueDate} onChange={handleTaskFormChange} required />
+                </label>
 
-              <label className="field">
-                <span>Priority</span>
-                <select name="priority" value={taskForm.priority} onChange={handleTaskFormChange}>
-                  {taskPriorities.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </label>
+                <label className="field">
+                  <span>Priority</span>
+                  <select name="priority" value={taskForm.priority} onChange={handleTaskFormChange}>
+                    {taskPriorities.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </label>
 
-              <button type="submit" className="primary-button field--span-2">Save task</button>
-            </form>
-          </Panel>
+                <div className="form-actions field--span-2">
+                  <button type="submit" className="primary-button">Save task</button>
+                  <button type="button" className="secondary-button" onClick={() => setShowTaskForm(false)}>Cancel</button>
+                </div>
+              </form>
+            </Panel>
+          )}
         </div>
       </section>
     </>

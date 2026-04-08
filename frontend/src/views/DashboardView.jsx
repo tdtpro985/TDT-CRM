@@ -20,7 +20,6 @@ export default function DashboardView({
     <>
       <section className="hero-panel">
         <div className="hero-copy">
-          <span className="status-badge">Build target: 3 months</span>
           <p className="hero-text">
             TDT Powersteel CRM is a HubSpot-inspired in-house prototype designed to track
             leads, deals, and sales activities efficiently while making the pipeline easy to

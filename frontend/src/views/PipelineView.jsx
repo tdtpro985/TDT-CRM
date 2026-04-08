@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel } from '../utils'
@@ -20,7 +21,11 @@ export default function PipelineView({
   handleDealFormChange,
   handleCreateDeal,
   handleDealStageChange,
+  showDealForm,
+  setShowDealForm,
 }) {
+  const [selectedDeal, setSelectedDeal] = useState(null)
+
   const closingThisMonth = activeDeals.filter((d) => d.expectedClose?.startsWith(CURRENT_MONTH)).length
 
   const pipelineStageSummary = dealStages.map((stage) => {
@@ -92,15 +97,9 @@ export default function PipelineView({
                             <span>{formatCurrencyCompact(deal.value)}</span>
                             <span>Close {formatDateLabel(deal.expectedClose)}</span>
                           </div>
-                          <label className="field field--compact">
-                            <span>Update stage</span>
-                            <select
-                              value={deal.stage}
-                              onChange={(e) => handleDealStageChange(deal.id, e.target.value)}
-                            >
-                              {dealStages.map((o) => <option key={o} value={o}>{o}</option>)}
-                            </select>
-                          </label>
+                          <div className="field--compact" style={{ textAlign: 'center' }}>
+                            <button type="button" className="ghost-button" onClick={() => setSelectedDeal(deal)}>View details</button>
+                          </div>
                         </article>
                       ))
                     )}
@@ -130,62 +129,132 @@ export default function PipelineView({
             </div>
           </Panel>
 
-          <Panel
-            id="deal-form"
-            kicker="Fast entry"
-            title="Add a new opportunity"
-            detail="Simple deal entry keeps pipeline visibility current and easy to maintain."
-          >
-            <form className="form-grid" onSubmit={handleCreateDeal}>
-              <label className="field field--span-2">
-                <span>Deal name</span>
-                <input name="name" value={dealForm.name} onChange={handleDealFormChange} placeholder="Enter opportunity name" required />
-              </label>
+          {showDealForm && (
+            <Panel
+              id="deal-form"
+              kicker="Fast entry"
+              title="Add a new opportunity"
+            >
+              <form className="form-grid" onSubmit={(e) => { handleCreateDeal(e); setShowDealForm(false) }}>
+                <label className="field field--span-2">
+                  <span>Deal name</span>
+                  <input name="name" value={dealForm.name} onChange={handleDealFormChange} placeholder="Enter opportunity name" required autoFocus />
+                </label>
 
-              <label className="field">
-                <span>Company</span>
-                <input name="companyId" value={dealForm.companyId} onChange={handleDealFormChange} placeholder="Enter company name" />
-              </label>
+                <label className="field">
+                  <span>Company</span>
+                  <input name="companyId" value={dealForm.companyId} onChange={handleDealFormChange} placeholder="Enter company name" />
+                </label>
 
-              <label className="field">
-                <span>Contact</span>
-                <input name="contactId" value={dealForm.contactId} onChange={handleDealFormChange} placeholder="Enter contact name" />
-              </label>
+                <label className="field">
+                  <span>Contact</span>
+                  <input name="contactId" value={dealForm.contactId} onChange={handleDealFormChange} placeholder="Enter contact name" />
+                </label>
 
-              <label className="field">
-                <span>Linked lead</span>
-                <input name="leadId" value={dealForm.leadId} onChange={handleDealFormChange} placeholder="Enter linked lead" />
-              </label>
+                <label className="field">
+                  <span>Linked lead</span>
+                  <input name="leadId" value={dealForm.leadId} onChange={handleDealFormChange} placeholder="Enter linked lead" />
+                </label>
 
-              <label className="field">
-                <span>Stage</span>
-                <select name="stage" value={dealForm.stage} onChange={handleDealFormChange}>
-                  {dealStages.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
+                <label className="field">
+                  <span>Stage</span>
+                  <select name="stage" value={dealForm.stage} onChange={handleDealFormChange}>
+                    {dealStages.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </label>
 
-              <label className="field">
-                <span>Value</span>
-                <input name="value" type="number" min="0" value={dealForm.value} onChange={handleDealFormChange} placeholder="Enter value" required />
-              </label>
+                <label className="field">
+                  <span>Value</span>
+                  <input name="value" type="number" min="0" value={dealForm.value} onChange={handleDealFormChange} placeholder="Enter value" required />
+                </label>
 
-              <label className="field">
-                <span>Expected close</span>
-                <input name="expectedClose" type="date" value={dealForm.expectedClose} onChange={handleDealFormChange} required />
-              </label>
+                <label className="field">
+                  <span>Expected close</span>
+                  <input name="expectedClose" type="date" value={dealForm.expectedClose} onChange={handleDealFormChange} required />
+                </label>
 
-              <label className="field field--span-2">
-                <span>Owner</span>
-                <select name="owner" value={dealForm.owner} onChange={handleDealFormChange}>
-                  {teamMembers.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </label>
+                <label className="field field--span-2">
+                  <span>Owner</span>
+                  <input name="owner" value={dealForm.owner} onChange={handleDealFormChange} placeholder="Enter owner name" />
+                </label>
 
-              <button type="submit" className="primary-button field--span-2">Save deal</button>
-            </form>
-          </Panel>
+                <div className="form-actions field--span-2">
+                  <button type="submit" className="primary-button">Save deal</button>
+                  <button type="button" className="secondary-button" onClick={() => setShowDealForm(false)}>Cancel</button>
+                </div>
+              </form>
+            </Panel>
+          )}
         </div>
       </section>
+
+      {selectedDeal && (
+        <div className="deal-modal-overlay" onClick={() => setSelectedDeal(null)}>
+          <div className="deal-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="deal-modal__header">
+              <div>
+                <span className="deal-modal__kicker">Deal details</span>
+                <h2>{selectedDeal.name}</h2>
+              </div>
+              <button type="button" className="deal-modal__close" onClick={() => setSelectedDeal(null)}>✕</button>
+            </div>
+
+            <div className="deal-modal__grid">
+              <div className="deal-modal__field">
+                <span>Company</span>
+                <strong>{companyMap[selectedDeal.companyId]?.name ?? selectedDeal.companyId ?? '—'}</strong>
+              </div>
+              <div className="deal-modal__field">
+                <span>Owner</span>
+                <strong>{selectedDeal.owner || '—'}</strong>
+              </div>
+              <div className="deal-modal__field">
+                <span>Stage</span>
+                <strong>{selectedDeal.stage}</strong>
+              </div>
+              <div className="deal-modal__field">
+                <span>Probability</span>
+                <strong>{selectedDeal.probability}%</strong>
+              </div>
+              <div className="deal-modal__field">
+                <span>Value</span>
+                <strong>{formatCurrencyCompact(selectedDeal.value)}</strong>
+              </div>
+              <div className="deal-modal__field">
+                <span>Expected close</span>
+                <strong>{formatDateLabel(selectedDeal.expectedClose)}</strong>
+              </div>
+              {selectedDeal.contactId && (
+                <div className="deal-modal__field">
+                  <span>Contact</span>
+                  <strong>{selectedDeal.contactId}</strong>
+                </div>
+              )}
+              {selectedDeal.leadId && (
+                <div className="deal-modal__field">
+                  <span>Linked lead</span>
+                  <strong>{selectedDeal.leadId}</strong>
+                </div>
+              )}
+            </div>
+
+            <div className="deal-modal__footer">
+              <label className="field">
+                <span>Update stage</span>
+                <select
+                  value={selectedDeal.stage}
+                  onChange={(e) => {
+                    handleDealStageChange(selectedDeal.id, e.target.value)
+                    setSelectedDeal((d) => ({ ...d, stage: e.target.value }))
+                  }}
+                >
+                  {dealStages.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
