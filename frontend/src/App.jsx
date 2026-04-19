@@ -537,7 +537,13 @@ export default function App() {
           <span>{notice}</span>
         </div>
 
-        {loading ? <p style={{ padding: '2rem' }}>Loading data…</p> : renderView()}
+        {loading ? (
+          <p style={{ padding: '2rem' }}>Loading data…</p>
+        ) : (
+          <div className="view-content">
+            {renderView()}
+          </div>
+        )}
       </main>
 
       {toast && (

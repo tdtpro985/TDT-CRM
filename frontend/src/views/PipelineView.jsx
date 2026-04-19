@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
+import Modal from '../components/Modal'
 import { formatCurrencyCompact, formatDateLabel } from '../utils'
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
@@ -128,65 +129,64 @@ export default function PipelineView({
               ))}
             </div>
           </Panel>
-
-          {showDealForm && (
-            <Panel
-              id="deal-form"
-              kicker="Fast entry"
-              title="Add a new opportunity"
-            >
-              <form className="form-grid" onSubmit={(e) => { handleCreateDeal(e); setShowDealForm(false) }}>
-                <label className="field field--span-2">
-                  <span>Deal name</span>
-                  <input name="name" value={dealForm.name} onChange={handleDealFormChange} placeholder="Enter opportunity name" required autoFocus />
-                </label>
-
-                <label className="field">
-                  <span>Company</span>
-                  <input name="companyId" value={dealForm.companyId} onChange={handleDealFormChange} placeholder="Enter company name" />
-                </label>
-
-                <label className="field">
-                  <span>Contact</span>
-                  <input name="contactId" value={dealForm.contactId} onChange={handleDealFormChange} placeholder="Enter contact name" />
-                </label>
-
-                <label className="field">
-                  <span>Linked lead</span>
-                  <input name="leadId" value={dealForm.leadId} onChange={handleDealFormChange} placeholder="Enter linked lead" />
-                </label>
-
-                <label className="field">
-                  <span>Stage</span>
-                  <select name="stage" value={dealForm.stage} onChange={handleDealFormChange}>
-                    {dealStages.map((s) => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </label>
-
-                <label className="field">
-                  <span>Value</span>
-                  <input name="value" type="number" min="0" value={dealForm.value} onChange={handleDealFormChange} placeholder="Enter value" required />
-                </label>
-
-                <label className="field">
-                  <span>Expected close</span>
-                  <input name="expectedClose" type="date" value={dealForm.expectedClose} onChange={handleDealFormChange} required />
-                </label>
-
-                <label className="field field--span-2">
-                  <span>Owner</span>
-                  <input name="owner" value={dealForm.owner} onChange={handleDealFormChange} placeholder="Enter owner name" />
-                </label>
-
-                <div className="form-actions field--span-2">
-                  <button type="submit" className="primary-button">Save deal</button>
-                  <button type="button" className="secondary-button" onClick={() => setShowDealForm(false)}>Cancel</button>
-                </div>
-              </form>
-            </Panel>
-          )}
         </div>
       </section>
+
+      <Modal
+        isOpen={showDealForm}
+        onClose={() => setShowDealForm(false)}
+        title="Add a new opportunity"
+        kicker="Fast entry"
+      >
+        <form className="form-grid" style={{ padding: '0 24px 24px' }} onSubmit={(e) => { handleCreateDeal(e); setShowDealForm(false) }}>
+          <label className="field field--span-2">
+            <span>Deal name</span>
+            <input name="name" value={dealForm.name} onChange={handleDealFormChange} placeholder="Enter opportunity name" required autoFocus />
+          </label>
+
+          <label className="field">
+            <span>Company</span>
+            <input name="companyId" value={dealForm.companyId} onChange={handleDealFormChange} placeholder="Enter company name" />
+          </label>
+
+          <label className="field">
+            <span>Contact</span>
+            <input name="contactId" value={dealForm.contactId} onChange={handleDealFormChange} placeholder="Enter contact name" />
+          </label>
+
+          <label className="field">
+            <span>Linked lead</span>
+            <input name="leadId" value={dealForm.leadId} onChange={handleDealFormChange} placeholder="Enter linked lead" />
+          </label>
+
+          <label className="field">
+            <span>Stage</span>
+            <select name="stage" value={dealForm.stage} onChange={handleDealFormChange}>
+              {dealStages.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Value</span>
+            <input name="value" type="number" min="0" value={dealForm.value} onChange={handleDealFormChange} placeholder="Enter value" required />
+          </label>
+
+          <label className="field">
+            <span>Expected close</span>
+            <input name="expectedClose" type="date" value={dealForm.expectedClose} onChange={handleDealFormChange} required />
+          </label>
+
+          <label className="field field--span-2">
+            <span>Owner</span>
+            <input name="owner" value={dealForm.owner} onChange={handleDealFormChange} placeholder="Enter owner name" />
+          </label>
+
+          <div className="form-actions field--span-2">
+            <button type="submit" className="primary-button">Save deal</button>
+            <button type="button" className="secondary-button" onClick={() => setShowDealForm(false)}>Cancel</button>
+          </div>
+        </form>
+      </Modal>
 
       {selectedDeal && (
         <div className="deal-modal-overlay" onClick={() => setSelectedDeal(null)}>

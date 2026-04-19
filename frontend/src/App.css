@@ -8,6 +8,15 @@
    Type    : --fs-xs .72 | --fs-sm .8 | --fs-base .875 | --fs-md 1 | --fs-lg 1.25 | --fs-xl 1.5
    ============================================================ */
 
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
 :root {
   --r-sm:   10px;
   --r-md:   14px;
@@ -27,8 +36,11 @@
   --pad-card:    16px;         /* metric cards, small cards*/
   --pad-panel:   20px;         /* panels, sidebar          */
   --pad-pill:    3px 9px;      /* badges, tone pills       */
-}
 
+  /* Fluid tokens for cleaner scaling */
+  --gap-fluid: clamp(10px, 1.5vw, 20px);
+  --pad-fluid: clamp(16px, 2.5vw, 24px);
+}
 
 /* ── 1. Shell & Layout ──────────────────────────────────────── */
 
@@ -36,13 +48,15 @@
   height: 100vh;
   overflow: hidden;
   display: flex;
-  gap: 12px;
-  padding: 12px;
+  gap: var(--gap-fluid);
+  padding: var(--gap-fluid);
+  background: #0a0e17;
 }
 
 .sidebar {
-  width: 256px;
-  min-width: 200px;
+  width: 260px;
+  min-width: 220px;
+  max-width: 280px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -258,18 +272,44 @@
 .dashboard {
   flex: 1;
   min-width: 0;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--gap-fluid);
   height: 100%;
   overflow-y: auto;
   scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
+  padding-right: 2px;
 }
 
-.dashboard > * { flex-shrink: 0; }
+.view-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-fluid);
+}
+
+.view-content > section:last-of-type {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ensure the dashboard doesn't stretch infinitely on huge monitors */
+@media (min-width: 2000px) {
+  .dashboard {
+    max-width: 1800px;
+    margin: 0 auto;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+}
+
+.dashboard > header,
+.dashboard > .notice-bar {
+  flex-shrink: 0;
+}
 
 .top-bar,
 .notice-bar,
@@ -441,8 +481,8 @@
 
 .hero-panel {
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: var(--pad-panel);
   padding: var(--pad-panel);
   border-radius: var(--r-lg);
   background:
@@ -553,15 +593,16 @@
 .metrics-grid--five {
   display: grid;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .metrics-grid,
 .metrics-grid--compact {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(max(240px, 20%), 1fr));
 }
 
 .metrics-grid--five {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(max(200px, 18%), 1fr));
 }
 
 .metric-card {
@@ -619,14 +660,24 @@
 .content-grid {
   display: grid;
   gap: 12px;
+  flex: 1 1 0%;
+  grid-template-rows: 1fr;
+  align-items: stretch;
 }
 
 .content-grid--2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.content-grid--primary {
-  grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+section.content-grid--primary {
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  section.content-grid--primary {
+    grid-template-columns: 1fr;
+  }
 }
 
 .panel,
@@ -640,12 +691,21 @@
   border: 1px solid var(--border);
   background: rgba(22,33,62,0.7);
   box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  height: 100%;
 }
 
 .panel-stack {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  align-content: start;
+  flex: 1;
+}
+
+.panel-stack > .panel {
+  flex: 1;
 }
 
 .panel-header {
@@ -1401,7 +1461,9 @@
   margin-top: 10px;
   display: grid;
   gap: 8px;
-  max-height: 420px;
+  flex: 1; /* Allow cards container to fill the lane */
+  min-height: 200px;
+  max-height: 60vh; /* Scalable max height */
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
@@ -1495,6 +1557,14 @@
   width: min(520px, 92vw);
   box-shadow: 0 24px 64px rgba(0,0,0,0.5);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+}
+
+.modal-body-scroll {
+  overflow-y: auto;
+  padding-bottom: 24px;
 }
 
 .deal-modal__header {
@@ -1615,11 +1685,11 @@
 
 .kanban-board {
   display: grid;
-  grid-template-columns: repeat(5, minmax(260px, 1fr));
-  gap: 10px;
-  padding-bottom: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  padding-bottom: 24px;
   overflow-x: auto;
-  min-height: 400px;
+  min-height: 60vh;
 }
 
 .kanban-column {
@@ -1667,6 +1737,7 @@
   flex-direction: column;
   gap: 8px;
   flex: 1;
+  min-height: 100px;
 }
 
 .kanban-card {
@@ -1914,14 +1985,19 @@
 
 /* ── 22. Responsive Breakpoints ─────────────────────────────── */
 
-@media (max-width: 1280px) {
+@media (max-width: 1440px) {
   .metrics-grid,
-  .metrics-grid--compact {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .metrics-grid--compact,
+  .metrics-grid--five {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+}
 
-  .content-grid--primary {
-    grid-template-columns: 1fr;
+@media (max-width: 1100px) {
+  .metrics-grid,
+  .metrics-grid--compact,
+  .metrics-grid--five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1930,7 +2006,6 @@
   .metrics-grid--five,
   .metrics-grid--compact,
   .content-grid--2,
-  .content-grid--primary,
   .hero-panel,
   .preview-stats,
   .rep-grid,
@@ -1953,8 +2028,48 @@
   .sidebar {
     width: 100%;
     height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 10px;
+    gap: 8px;
     overflow-y: visible;
   }
+
+  .brand-block {
+    padding: 0;
+    margin: 0;
+    border: 0;
+    flex-direction: row;
+    gap: 10px;
+    width: auto;
+  }
+
+  .brand-logo { width: 40px; padding: 4px; }
+  .brand-name { display: none; }
+
+  .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .nav-section-label { display: none; }
+
+  .nav-item {
+    width: auto;
+    padding: 8px 12px;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .nav-item__description { display: none; }
+  .nav-item__badge { position: absolute; top: -4px; right: -4px; font-size: 10px; padding: 1px 4px; }
+  .nav-item { position: relative; }
+
+  .sidebar-footer { display: none; }
 
   .dashboard {
     height: auto;
@@ -1993,4 +2108,9 @@
   .kanban-board {
     grid-template-columns: 1fr;
   }
+
+  /* Specific view fixes */
+  .detail-list { grid-template-columns: 1fr; }
+  .database-tabs { overflow-x: auto; padding-bottom: 4px; }
+  .table-wrap { width: 100%; overflow-x: auto; }
 }
