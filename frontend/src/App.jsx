@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import './App.css'
-import { formatCurrencyCompact, matchesSearch, createRecordId } from './utils'
+import { formatCurrencyCompact, matchesSearch } from './utils'
 import DashboardView from './views/DashboardView'
 import DatabaseView  from './views/DatabaseView'
 import PipelineView  from './views/PipelineView'
 import TasksView     from './views/TasksView'
+import useCRMData    from './hooks/useCRMData'
 
-const API_BASE    = 'http://localhost:5000'
 const CURRENT_DATE = new Date().toISOString().split('T')[0]
 
 const LEAD_STATUSES  = ['New', 'Working', 'Qualified', 'Converted']
@@ -14,14 +14,6 @@ const DEAL_STAGES    = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation
 const TASK_TYPES     = ['Call', 'Follow-up', 'Meeting', 'Email']
 const TASK_PRIORITIES = ['Low', 'Medium', 'High']
 const LEAD_SOURCES   = ['Website', 'Referral', 'Outbound', 'Event', 'Email']
-
-const STAGE_PROBABILITY = {
-  'New Opportunity': 20,
-  Qualified: 40,
-  Proposal: 60,
-  Negotiation: 80,
-  'Closed Won': 100,
-}
 
 const SHORT_STAGE_LABEL = { 'New Opportunity': 'New', 'Closed Won': 'Won' }
 
@@ -39,8 +31,7 @@ const VIEW_META = {
   tasks:     { eyebrow: 'Activity tracking', title: 'Tasks', description: '', searchPlaceholder: 'Search tasks, deals, owners, or due dates' },
 }
 
-function getProbabilityForStage(stage) { return STAGE_PROBABILITY[stage] ?? 100 }
-function shortStageLabel(stage)        { return SHORT_STAGE_LABEL[stage] ?? stage }
+function shortStageLabel(stage) { return SHORT_STAGE_LABEL[stage] ?? stage }
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -51,24 +42,14 @@ export default function App() {
   const [stageFilter, setStageFilter]       = useState('all')
   const [taskFilter, setTaskFilter]         = useState('open')
 
-  const [companies,    setCompanies]    = useState([])
-  const [contacts,     setContacts]     = useState([])
-  const [leads,        setLeads]        = useState([])
-  const [deals,        setDeals]        = useState([])
-  const [tasks,        setTasks]        = useState([])
-  const [teamMembers,  setTeamMembers]  = useState([])
-  const [loading,      setLoading]      = useState(true)
-
   const [selectedLeadId,    setSelectedLeadId]    = useState(null)
   const [selectedContactId, setSelectedContactId] = useState(null)
   const [selectedCompanyId, setSelectedCompanyId] = useState(null)
 
-  const [leadForm, setLeadForm] = useState({ name: '', companyId: '', phone: '', source: LEAD_SOURCES[0], owner: '', nextStep: '' })
-  const [dealForm, setDealForm] = useState({ name: '', companyId: '', contactId: '', leadId: '', stage: DEAL_STAGES[0], value: '', expectedClose: '', owner: teamMembers[0] ?? '' })
-  const [taskForm, setTaskForm] = useState({ title: '', type: TASK_TYPES[1], owner: '', dealId: '', dueDate: '', priority: 'Medium' })
-
   const [notice, setNotice] = useState('TDT Powersteel CRM is focused on clean data, pipeline visibility, activity tracking, and a 5 KPI dashboard.')
   const [showLeadForm, setShowLeadForm] = useState(false)
+  const [showContactForm, setShowContactForm] = useState(false)
+  const [showCompanyForm, setShowCompanyForm] = useState(false)
   const [showDealForm, setShowDealForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [toast, setToast] = useState(null)
@@ -78,79 +59,13 @@ export default function App() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  // ─── Data fetching ──────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    async function loadAll() {
-      try {
-        const [companiesRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes] =
-          await Promise.all([
-            fetch(`${API_BASE}/api/companies`),
-            fetch(`${API_BASE}/api/contacts`),
-            fetch(`${API_BASE}/api/leads`),
-            fetch(`${API_BASE}/api/deals`),
-            fetch(`${API_BASE}/api/activities`),
-            fetch(`${API_BASE}/api/team`),
-          ])
-
-        setCompanies(await companiesRes.json())
-        setContacts(
-          (await contactsRes.json()).map((c) => ({ ...c, lastActivity: c.lastTouch ?? '' })),
-        )
-        setLeads(await leadsRes.json())
-        setDeals(
-          (await dealsRes.json()).map((d) => ({
-            ...d,
-            expectedClose: d.closeDate ?? '',
-            probability: d.probability ?? getProbabilityForStage(d.stage),
-          })),
-        )
-        setTasks(
-          (await activitiesRes.json()).map((a) => ({
-            ...a,
-            title: a.subject ?? a.title ?? '',
-            priority: a.priority ?? 'Medium',
-            status: ['Completed', 'Open'].includes(a.status) ? a.status : 'Open',
-          })),
-        )
-        setTeamMembers((await teamRes.json()).map((u) => u.name))
-      } catch {
-        setNotice('Backend is not reachable. Start the Flask server to load live data.')
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadAll()
-  }, [])
-
-  // Auto-select first record when data loads
-  useEffect(() => { if (leads.length    && !selectedLeadId)    setSelectedLeadId(leads[0].id)        }, [leads])
-  useEffect(() => { if (contacts.length && !selectedContactId) setSelectedContactId(contacts[0].id)  }, [contacts])
-  useEffect(() => { if (companies.length && !selectedCompanyId) setSelectedCompanyId(companies[0].id) }, [companies])
-
-  // Pre-fill form defaults once data loads
-  useEffect(() => {
-    if (teamMembers.length && !leadForm.owner) {
-      setLeadForm((f) => ({ ...f, owner: teamMembers[0] }))
-    }
-  }, [teamMembers])
-
-  useEffect(() => {
-    if (teamMembers.length && !dealForm.owner) {
-      setDealForm((f) => ({ ...f, owner: teamMembers[0] }))
-    }
-  }, [teamMembers])
-
-  useEffect(() => {
-    if (deals.length && !taskForm.dealId) {
-      setTaskForm((f) => ({ ...f, dealId: deals[0].id, owner: teamMembers[0] ?? '' }))
-    }
-  }, [deals, teamMembers])
+  const { data, actions } = useCRMData({ setNotice, showToast })
+  const { companies, contacts, leads, deals, tasks, teamMembers, loading } = data
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
-  const companyMap   = Object.fromEntries(companies.map((c) => [c.id, c]))
-  const contactMap   = Object.fromEntries(contacts.map((c) => [c.id, c]))
+  const companyMap   = useMemo(() => Object.fromEntries(companies.map((c) => [c.id, c])), [companies])
+  const contactMap   = useMemo(() => Object.fromEntries(contacts.map((c) => [c.id, c])), [contacts])
   const activeDeals  = deals.filter((d) => d.stage !== 'Closed Won')
   const pipelineValue = activeDeals.reduce((sum, d) => sum + d.value, 0)
   const openTasks    = tasks.filter((t) => t.status !== 'Completed')
@@ -203,107 +118,34 @@ export default function App() {
       matchesSearch(searchQuery, [t.title, t.type, t.owner, deals.find((d) => d.id === t.dealId)?.name]),
   )
 
-  // ─── Form change handlers ───────────────────────────────────────────────────
+  // ─── Actions Wrapper ─────────────────────────────────────────────────────────
 
-  function handleLeadFormChange(e) {
-    const { name, value } = e.target
-    setLeadForm((current) => ({ ...current, [name]: value }))
-  }
-
-  function handleDealFormChange(e) {
-    const { name, value } = e.target
-    setDealForm((current) => ({ ...current, [name]: value }))
-  }
-
-  function handleTaskFormChange(e) {
-    const { name, value } = e.target
-    setTaskForm((current) => ({ ...current, [name]: value }))
-  }
-
-  // ─── Create handlers ────────────────────────────────────────────────────────
-
-  async function handleCreateLead(e) {
-    e.preventDefault()
-    const newLead = { id: createRecordId('lead'), ...leadForm, name: leadForm.name.trim(), status: 'New', createdAt: CURRENT_DATE, nextStep: leadForm.nextStep.trim() }
-
-    setLeads((current) => [newLead, ...current])
+  const handleCreateLead = async (form) => {
+    const newLead = await actions.createLead(form);
     setSelectedLeadId(newLead.id)
-    setSelectedContactId(null)
+    setSelectedContactId(newLead.contactId)
     setSelectedCompanyId(newLead.companyId)
     setDatabaseTab('leads')
-    setLeadForm({ name: '', companyId: '', phone: '', source: LEAD_SOURCES[0], owner: teamMembers[0] ?? '', nextStep: '' })
-
-    try {
-      await fetch(`${API_BASE}/api/leads`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newLead),
-      })
-      setNotice(`${newLead.name} was saved to the database.`)
-    } catch {
-      setNotice(`${newLead.name} was added locally — backend not reachable.`)
-    }
   }
 
-  async function handleCreateDeal(e) {
-    e.preventDefault()
-    const newDeal = { id: createRecordId('deal'), ...dealForm, name: dealForm.name.trim(), value: Number(dealForm.value), probability: getProbabilityForStage(dealForm.stage) }
-
-    setDeals((current) => [newDeal, ...current])
-    setDealForm({ name: '', companyId: '', contactId: '', leadId: '', stage: DEAL_STAGES[0], value: '', expectedClose: '', owner: teamMembers[0] ?? '' })
-    showToast(`Deal "${newDeal.name}" saved successfully!`)
-
-    try {
-      await fetch(`${API_BASE}/api/deals`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newDeal, closeDate: newDeal.expectedClose }),
-      })
-      setNotice(`${newDeal.name} was saved to the database.`)
-    } catch {
-      setNotice(`${newDeal.name} was added locally — backend not reachable.`)
-    }
+  const handleCreateContact = async (form) => {
+    const newContact = await actions.createContact(form);
+    setSelectedContactId(newContact.id)
+    setDatabaseTab('contacts')
   }
 
-  async function handleCreateTask(e) {
-    e.preventDefault()
-    const newTask = { id: createRecordId('task'), ...taskForm, title: taskForm.title.trim(), status: 'Open' }
-
-    setTasks((current) => [newTask, ...current])
-    setTaskForm({ title: '', type: TASK_TYPES[1], owner: teamMembers[0] ?? '', dealId: deals[0]?.id ?? '', dueDate: '', priority: 'Medium' })
-    showToast(`Task "${newTask.title}" saved successfully!`)
-
-    try {
-      await fetch(`${API_BASE}/api/activities`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newTask, subject: newTask.title }),
-      })
-      setNotice(`${newTask.title} was saved to the database.`)
-    } catch {
-      setNotice(`${newTask.title} was added locally — backend not reachable.`)
-    }
+  const handleCreateCompany = async (form) => {
+    const newCompany = await actions.createCompany(form);
+    setSelectedCompanyId(newCompany.id)
+    setDatabaseTab('companies')
   }
 
-  // ─── Status / stage update handlers ────────────────────────────────────────
-
-  function handleLeadStatusChange(leadId, nextStatus) {
-    setLeads((current) => current.map((l) => l.id === leadId ? { ...l, status: nextStatus } : l))
-    setNotice('Lead status updated in the clean-data registry.')
+  const handleCreateDeal = async (form) => {
+    await actions.createDeal(form);
   }
 
-  function handleDealStageChange(dealId, nextStage) {
-    setDeals((current) =>
-      current.map((d) => d.id === dealId ? { ...d, stage: nextStage, probability: getProbabilityForStage(nextStage) } : d),
-    )
-    setNotice('Pipeline stage updated successfully.')
-  }
-
-  function handleTaskStatusToggle(taskId) {
-    setTasks((current) =>
-      current.map((t) => t.id === taskId ? { ...t, status: t.status === 'Completed' ? 'Open' : 'Completed' } : t),
-    )
-    setNotice('Task status updated in the activity tracker.')
+  const handleCreateTask = async (form) => {
+    await actions.createTask(form, DEAL_STAGES);
   }
 
   // ─── Navigation helpers ─────────────────────────────────────────────────────
@@ -324,15 +166,29 @@ export default function App() {
     setActiveView(viewId)
     setSearchQuery('')
     setShowLeadForm(false)
+    setShowContactForm(false)
+    setShowCompanyForm(false)
     setShowDealForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId].title} is active.`)
   }
 
   function handlePrimaryAction() {
-    if (activeView === 'dashboard' || activeView === 'database') {
+    if (activeView === 'dashboard') {
       setShowLeadForm(true)
       return focusSection('database', 'lead-form', 'Fast lead entry is ready.')
+    }
+    if (activeView === 'database') {
+      if (databaseTab === 'contacts') {
+        setShowContactForm(true)
+        return setNotice('New contact form is ready.')
+      }
+      if (databaseTab === 'companies') {
+        setShowCompanyForm(true)
+        return setNotice('New company form is ready.')
+      }
+      setShowLeadForm(true)
+      return setNotice('Fast lead entry is ready.')
     }
     if (activeView === 'pipeline') {
       setShowDealForm(true)
@@ -352,7 +208,12 @@ export default function App() {
     }
   }
 
-  const primaryActionLabel = activeView === 'pipeline' ? 'New deal' : activeView === 'tasks' ? 'Add task' : 'New lead'
+  const primaryActionLabel =
+    activeView === 'pipeline' ? 'New deal'
+    : activeView === 'tasks' ? 'Add task'
+    : activeView === 'database' && databaseTab === 'contacts' ? 'New contact'
+    : activeView === 'database' && databaseTab === 'companies' ? 'New company'
+    : 'New lead'
 
   const navItems = NAV_CONFIG.map((item) => ({
     ...item,
@@ -406,13 +267,17 @@ export default function App() {
           contactMap={contactMap}
           leadStatuses={LEAD_STATUSES}
           leadSources={LEAD_SOURCES}
-          leadForm={leadForm}
-          handleLeadFormChange={handleLeadFormChange}
-          handleCreateLead={handleCreateLead}
-          handleLeadStatusChange={handleLeadStatusChange}
+          onCreateLead={handleCreateLead}
+          handleLeadStatusChange={actions.updateLeadStatus}
           linkHealth={linkHealth}
           showLeadForm={showLeadForm}
           setShowLeadForm={setShowLeadForm}
+          showContactForm={showContactForm}
+          setShowContactForm={setShowContactForm}
+          showCompanyForm={showCompanyForm}
+          setShowCompanyForm={setShowCompanyForm}
+          onCreateContact={handleCreateContact}
+          onCreateCompany={handleCreateCompany}
         />
       )
     }
@@ -434,10 +299,8 @@ export default function App() {
           setStageFilter={setStageFilter}
           setNotice={setNotice}
           companyMap={companyMap}
-          dealForm={dealForm}
-          handleDealFormChange={handleDealFormChange}
-          handleCreateDeal={handleCreateDeal}
-          handleDealStageChange={handleDealStageChange}
+          onCreateDeal={handleCreateDeal}
+          handleDealStageChange={actions.updateDealStage}
           showDealForm={showDealForm}
           setShowDealForm={setShowDealForm}
         />
@@ -457,10 +320,8 @@ export default function App() {
         teamMembers={teamMembers}
         taskFilter={taskFilter}
         setTaskFilter={setTaskFilter}
-        taskForm={taskForm}
-        handleTaskFormChange={handleTaskFormChange}
-        handleCreateTask={handleCreateTask}
-        handleTaskStatusToggle={handleTaskStatusToggle}
+        onCreateTask={handleCreateTask}
+        handleTaskStatusToggle={actions.toggleTaskStatus}
         showTaskForm={showTaskForm}
         setShowTaskForm={setShowTaskForm}
       />

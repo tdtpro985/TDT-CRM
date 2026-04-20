@@ -4,6 +4,9 @@ import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
 import { formatCurrencyCompact, formatDateLabel, getToneClass } from '../utils'
+import LeadForm from '../components/forms/LeadForm'
+import ContactForm from '../components/forms/ContactForm'
+import CompanyForm from '../components/forms/CompanyForm'
 
 export default function DatabaseView({
   databaseTab,
@@ -27,18 +30,22 @@ export default function DatabaseView({
   contactMap,
   leadStatuses,
   leadSources,
-  leadForm,
-  handleLeadFormChange,
-  handleCreateLead,
-  handleLeadStatusChange,
-  linkHealth,
   showLeadForm,
   setShowLeadForm,
+  showContactForm,
+  setShowContactForm,
+  showCompanyForm,
+  setShowCompanyForm,
+  onCreateLead,
+  onCreateContact,
+  onCreateCompany,
+  handleLeadStatusChange,
+  linkHealth
 }) {
   const [leadPage, setLeadPage] = useState(1);
   const [contactPage, setContactPage] = useState(1);
   const [companyPage, setCompanyPage] = useState(1);
-  const ITEMS_PER_PAGE = 5; // Change to your preferred number
+  const ITEMS_PER_PAGE = 5;
 
   // Reset to first page if the search or filter results change
   useEffect(() => setLeadPage(1), [filteredLeads]);
@@ -336,53 +343,49 @@ export default function DatabaseView({
         title="Add a new lead"
         kicker="Fast entry"
       >
-        <form className="form-grid" style={{ padding: '0 24px 24px' }} onSubmit={(e) => { handleCreateLead(e); setShowLeadForm(false) }}>
-          <label className="field field--span-2">
-            <span>Lead name</span>
-            <input name="name" value={leadForm.name} onChange={handleLeadFormChange} placeholder="Full name of the lead" required minLength={2} maxLength={100} autoFocus />
-          </label>
+        <LeadForm
+          companies={companies}
+          contacts={contacts}
+          teamMembers={teamMembers}
+          onCancel={() => setShowLeadForm(false)}
+          onSubmit={(form) => {
+            onCreateLead(form)
+            setShowLeadForm(false)
+          }}
+        />
+      </Modal>
 
-          <label className="field">
-            <span>Company</span>
-            <input name="companyId" value={leadForm.companyId} onChange={handleLeadFormChange} placeholder="Company or organization name" required maxLength={100} />
-          </label>
+      <Modal
+        isOpen={showContactForm}
+        onClose={() => setShowContactForm(false)}
+        title="Add a new contact"
+        kicker="Directory entry"
+      >
+        <ContactForm
+          companies={companies}
+          teamMembers={teamMembers}
+          onCancel={() => setShowContactForm(false)}
+          onSubmit={(form) => {
+            onCreateContact(form)
+            setShowContactForm(false)
+          }}
+        />
+      </Modal>
 
-          <label className="field">
-            <span>Contact number</span>
-            <input
-              name="phone"
-              type="tel"
-              value={leadForm.phone}
-              onChange={handleLeadFormChange}
-              placeholder="+63 9XX XXX XXXX"
-              pattern="[0-9+\-\s()]{7,20}"
-              title="Enter a valid phone number (digits, +, -, spaces allowed)"
-              required
-            />
-          </label>
-
-          <label className="field">
-            <span>Source</span>
-            <select name="source" value={leadForm.source} onChange={handleLeadFormChange}>
-              {leadSources.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-
-          <label className="field">
-            <span>Owner</span>
-            <input name="owner" value={leadForm.owner} onChange={handleLeadFormChange} placeholder="Assigned sales owner" required maxLength={80} />
-          </label>
-
-          <label className="field field--span-2">
-            <span>Next step</span>
-            <textarea name="nextStep" value={leadForm.nextStep} onChange={handleLeadFormChange} placeholder="Describe the next action the sales team should take" required maxLength={500} />
-          </label>
-
-          <div className="form-actions field--span-2">
-            <button type="submit" className="primary-button">Save lead</button>
-            <button type="button" className="secondary-button" onClick={() => setShowLeadForm(false)}>Cancel</button>
-          </div>
-        </form>
+      <Modal
+        isOpen={showCompanyForm}
+        onClose={() => setShowCompanyForm(false)}
+        title="Add a new company"
+        kicker="Account entry"
+      >
+        <CompanyForm
+          teamMembers={teamMembers}
+          onCancel={() => setShowCompanyForm(false)}
+          onSubmit={(form) => {
+            onCreateCompany(form)
+            setShowCompanyForm(false)
+          }}
+        />
       </Modal>
     </>
   )
