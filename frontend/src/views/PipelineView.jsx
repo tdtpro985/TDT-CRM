@@ -26,7 +26,11 @@ export default function PipelineView({
   setShowDealForm,
 }) {
   const [selectedDeal, setSelectedDeal] = useState(null)
+  const [stagePages, setStagePages] = useState({})
 
+  const handlePageChange = (stage, newPage) => {
+    setStagePages(prev => ({ ...prev, [stage]: newPage }))
+  }
   const closingThisMonth = activeDeals.filter((d) => d.expectedClose?.startsWith(CURRENT_MONTH)).length
 
   const pipelineStageSummary = dealStages.map((stage) => {
@@ -71,6 +75,14 @@ export default function PipelineView({
               const stageDeals = filteredDeals.filter((d) => d.stage === stage)
               const stageValue = stageDeals.reduce((sum, d) => sum + d.value, 0)
 
+              const ITEMS_PER_PAGE = 2
+              let totalPages = Math.ceil(stageDeals.length / ITEMS_PER_PAGE) || 1
+              let currentPage = stagePages[stage] || 1
+              if (currentPage > totalPages) currentPage = totalPages
+              
+              const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+              const paginatedDeals = stageDeals.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
               return (
                 <article key={stage} className="pipeline-lane">
                   <div className="pipeline-lane__header">
@@ -87,22 +99,49 @@ export default function PipelineView({
                         No deals in this stage for the current filter.
                       </div>
                     ) : (
-                      stageDeals.map((deal) => (
-                        <article key={deal.id} className="pipeline-card">
-                          <div className="pipeline-card__top">
-                            <strong>{deal.name}</strong>
-                            <span className="tone-pill is-warning">{deal.probability}%</span>
+                      <>
+                        {paginatedDeals.map((deal) => (
+                          <article key={deal.id} className="pipeline-card">
+                            <div className="pipeline-card__top">
+                              <strong>{deal.name}</strong>
+                              <span className="tone-pill is-warning">{deal.probability}%</span>
+                            </div>
+                            <p>{companyMap[deal.companyId]?.name ?? deal.companyId} | {deal.owner}</p>
+                            <div className="pipeline-card__meta">
+                              <span>{formatCurrencyCompact(deal.value)}</span>
+                              <span>Close {formatDateLabel(deal.expectedClose)}</span>
+                            </div>
+                            <div className="field--compact" style={{ textAlign: 'center' }}>
+                              <button type="button" className="ghost-button" onClick={() => setSelectedDeal(deal)}>View details</button>
+                            </div>
+                          </article>
+                        ))}
+                        {totalPages > 1 && (
+                          <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                              disabled={currentPage === 1}
+                              onClick={() => handlePageChange(stage, Math.max(1, currentPage - 1))}
+                            >
+                              Prev
+                            </button>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              {currentPage} / {totalPages}
+                            </span>
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                              disabled={currentPage === totalPages}
+                              onClick={() => handlePageChange(stage, Math.min(totalPages, currentPage + 1))}
+                            >
+                              Next
+                            </button>
                           </div>
-                          <p>{companyMap[deal.companyId]?.name ?? deal.companyId} | {deal.owner}</p>
-                          <div className="pipeline-card__meta">
-                            <span>{formatCurrencyCompact(deal.value)}</span>
-                            <span>Close {formatDateLabel(deal.expectedClose)}</span>
-                          </div>
-                          <div className="field--compact" style={{ textAlign: 'center' }}>
-                            <button type="button" className="ghost-button" onClick={() => setSelectedDeal(deal)}>View details</button>
-                          </div>
-                        </article>
-                      ))
+                        )}
+                      </>
                     )}
                   </div>
                 </article>

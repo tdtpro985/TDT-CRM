@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
@@ -34,6 +35,16 @@ export default function DatabaseView({
   showLeadForm,
   setShowLeadForm,
 }) {
+  const [leadPage, setLeadPage] = useState(1);
+  const [contactPage, setContactPage] = useState(1);
+  const [companyPage, setCompanyPage] = useState(1);
+  const ITEMS_PER_PAGE = 5; // Change to your preferred number
+
+  // Reset to first page if the search or filter results change
+  useEffect(() => setLeadPage(1), [filteredLeads]);
+  useEffect(() => setContactPage(1), [filteredContacts]);
+  useEffect(() => setCompanyPage(1), [filteredCompanies]);
+
   const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? leads[0] ?? null
   const selectedContact = contacts.find((c) => c.id === selectedContactId) ?? contacts[0] ?? null
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId) ?? companies[0] ?? null
@@ -55,7 +66,42 @@ export default function DatabaseView({
     : databaseTab === 'contacts' ? 'Contact Directory'
     : 'Company Accounts'
 
+  const getPaginatedData = (data, page) => {
+    const startIndex = (page - 1) * ITEMS_PER_PAGE;
+    return data.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  };
 
+  const renderPagination = (totalItems, currentPage, setPage) => {
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+    if (totalPages <= 1) return null;
+    return (
+      <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid var(--border)' }}>
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={currentPage === 1}
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+        >
+          Previous
+        </button>
+        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          type="button"
+          className="secondary-button"
+          disabled={currentPage === totalPages}
+          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+        >
+          Next
+        </button>
+      </div>
+    );
+  };
+
+  const paginatedLeads = getPaginatedData(filteredLeads, leadPage);
+  const paginatedContacts = getPaginatedData(filteredContacts, contactPage);
+  const paginatedCompanies = getPaginatedData(filteredCompanies, companyPage);
 
   return (
     <>
@@ -93,30 +139,33 @@ export default function DatabaseView({
             filteredLeads.length === 0
               ? <EmptyState title="No leads match this search" copy="Clear the search box to see the full lead registry." />
               : (
-                <div className="contact-list">
-                  {filteredLeads.map((lead) => (
-                    <button
-                      key={lead.id}
-                      type="button"
-                      className={`contact-card ${selectedLeadId === lead.id ? 'is-selected' : ''}`}
-                      onClick={() => {
-                        setSelectedLeadId(lead.id)
-                        setSelectedContactId(lead.contactId)
-                        setSelectedCompanyId(lead.companyId)
-                      }}
-                    >
-                      <div>
-                        <strong>{lead.name}</strong>
-                        <span>{companyMap[lead.companyId]?.name}</span>
-                      </div>
-                      <p>{lead.source} lead owned by {lead.owner}</p>
-                      <div className="contact-card__meta">
-                        <span>{formatDateLabel(lead.createdAt)}</span>
-                        <span className={`tone-pill ${getToneClass(lead.status)}`}>{lead.status}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="contact-list">
+                    {paginatedLeads.map((lead) => (
+                      <button
+                        key={lead.id}
+                        type="button"
+                        className={`contact-card ${selectedLeadId === lead.id ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          setSelectedLeadId(lead.id)
+                          setSelectedContactId(lead.contactId)
+                          setSelectedCompanyId(lead.companyId)
+                        }}
+                      >
+                        <div>
+                          <strong>{lead.name}</strong>
+                          <span>{companyMap[lead.companyId]?.name}</span>
+                        </div>
+                        <p>{lead.source} lead owned by {lead.owner}</p>
+                        <div className="contact-card__meta">
+                          <span>{formatDateLabel(lead.createdAt)}</span>
+                          <span className={`tone-pill ${getToneClass(lead.status)}`}>{lead.status}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  {renderPagination(filteredLeads.length, leadPage, setLeadPage)}
+                </>
               )
           )}
 
@@ -124,29 +173,32 @@ export default function DatabaseView({
             filteredContacts.length === 0
               ? <EmptyState title="No contacts match this search" copy="Clear the search box to see the full contact directory." />
               : (
-                <div className="contact-list">
-                  {filteredContacts.map((contact) => (
-                    <button
-                      key={contact.id}
-                      type="button"
-                      className={`contact-card ${selectedContactId === contact.id ? 'is-selected' : ''}`}
-                      onClick={() => {
-                        setSelectedContactId(contact.id)
-                        setSelectedCompanyId(contact.companyId)
-                      }}
-                    >
-                      <div>
-                        <strong>{contact.name}</strong>
-                        <span>{contact.role}</span>
-                      </div>
-                      <p>{companyMap[contact.companyId]?.name}</p>
-                      <div className="contact-card__meta">
-                        <span>{contact.owner}</span>
-                        <span className="tone-pill is-neutral">Contact</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="contact-list">
+                    {paginatedContacts.map((contact) => (
+                      <button
+                        key={contact.id}
+                        type="button"
+                        className={`contact-card ${selectedContactId === contact.id ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          setSelectedContactId(contact.id)
+                          setSelectedCompanyId(contact.companyId)
+                        }}
+                      >
+                        <div>
+                          <strong>{contact.name}</strong>
+                          <span>{contact.role}</span>
+                        </div>
+                        <p>{companyMap[contact.companyId]?.name}</p>
+                        <div className="contact-card__meta">
+                          <span>{contact.owner}</span>
+                          <span className="tone-pill is-neutral">Contact</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  {renderPagination(filteredContacts.length, contactPage, setContactPage)}
+                </>
               )
           )}
 
@@ -154,26 +206,29 @@ export default function DatabaseView({
             filteredCompanies.length === 0
               ? <EmptyState title="No companies match this search" copy="Clear the search box to see all company records." />
               : (
-                <div className="contact-list">
-                  {filteredCompanies.map((company) => (
-                    <button
-                      key={company.id}
-                      type="button"
-                      className={`contact-card ${selectedCompanyId === company.id ? 'is-selected' : ''}`}
-                      onClick={() => setSelectedCompanyId(company.id)}
-                    >
-                      <div>
-                        <strong>{company.name}</strong>
-                        <span>{company.industry}</span>
-                      </div>
-                      <p>{company.city} | owner {company.owner}</p>
-                      <div className="contact-card__meta">
-                        <span>{company.status}</span>
-                        <span className={`tone-pill ${getToneClass(company.status)}`}>{company.status}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="contact-list">
+                    {paginatedCompanies.map((company) => (
+                      <button
+                        key={company.id}
+                        type="button"
+                        className={`contact-card ${selectedCompanyId === company.id ? 'is-selected' : ''}`}
+                        onClick={() => setSelectedCompanyId(company.id)}
+                      >
+                        <div>
+                          <strong>{company.name}</strong>
+                          <span>{company.industry}</span>
+                        </div>
+                        <p>{company.city} | owner {company.owner}</p>
+                        <div className="contact-card__meta">
+                          <span>{company.status}</span>
+                          <span className={`tone-pill ${getToneClass(company.status)}`}>{company.status}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  {renderPagination(filteredCompanies.length, companyPage, setCompanyPage)}
+                </>
               )
           )}
         </Panel>
