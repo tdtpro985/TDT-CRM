@@ -40,7 +40,8 @@ export default function DatabaseView({
   onCreateContact,
   onCreateCompany,
   handleLeadStatusChange,
-  linkHealth
+  linkHealth,
+  currentUser,
 }) {
   const [leadPage, setLeadPage] = useState(1);
   const [contactPage, setContactPage] = useState(1);
@@ -56,20 +57,17 @@ export default function DatabaseView({
   const selectedContact = contacts.find((c) => c.id === selectedContactId) ?? contacts[0] ?? null
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId) ?? companies[0] ?? null
 
-  const selectedLeadCompany  = selectedLead ? companyMap[selectedLead.companyId] : null
-  const selectedLeadDeal     = selectedLead ? deals.find((d) => d.leadId === selectedLead.id) : null
-
   const selectedContactCompany = selectedContact ? companyMap[selectedContact.companyId] : null
-  const selectedContactLeads   = leads.filter((l) => l.contactId === selectedContact?.id)
+  const selectedContactLeads   = leads.filter((l) => l.sr === selectedContact?.name)
   const selectedContactDeals   = deals.filter((d) => d.contactId === selectedContact?.id)
 
   const selectedCompanyContacts = contacts.filter((c) => c.companyId === selectedCompany?.id)
-  const selectedCompanyLeads    = leads.filter((l) => l.companyId === selectedCompany?.id)
+  const selectedCompanyLeads    = leads.filter((l) => l.branch === selectedCompany?.name)
   const selectedCompanyDeals    = deals.filter((d) => d.companyId === selectedCompany?.id)
   const selectedCompanyValue    = selectedCompanyDeals.reduce((sum, d) => sum + d.value, 0)
 
   const recordTitle =
-    databaseTab === 'leads' ? 'Lead Registry'
+    databaseTab === 'leads' ? 'Customer Registry'
     : databaseTab === 'contacts' ? 'Contact Directory'
     : 'Company Accounts'
 
@@ -113,10 +111,10 @@ export default function DatabaseView({
   return (
     <>
       <section className="metrics-grid metrics-grid--compact">
-        <MetricCard label="Leads"       value={leads.length.toLocaleString()}    meta="Tracked with linked contact and company references"    accent="accent"  />
-        <MetricCard label="Contacts"    value={contacts.length.toLocaleString()} meta="Customer-facing records tied to account ownership"      accent="surface" />
-        <MetricCard label="Companies"   value={companies.length.toLocaleString()} meta="Accounts organized for cleaner pipeline reporting"    accent="alt"     />
-        <MetricCard label="Link Health" value={`${linkHealth}%`}                 meta="Lead records linked to both contact and company"        accent="surface" />
+        <MetricCard label="Customers"    value={leads.length.toLocaleString()}    meta="Customer records tracked in the database"               accent="accent"  />
+        <MetricCard label="Contacts"     value={contacts.length.toLocaleString()} meta="Customer-facing records tied to account ownership"      accent="surface" />
+        <MetricCard label="Companies"    value={companies.length.toLocaleString()} meta="Accounts organized for cleaner pipeline reporting"     accent="alt"     />
+        <MetricCard label="Data Quality" value={`${linkHealth}%`}                 meta="Customer records with contact number and region filled" accent="surface" />
       </section>
 
       <section className="content-grid content-grid--primary">
@@ -144,7 +142,7 @@ export default function DatabaseView({
         >
           {databaseTab === 'leads' && (
             filteredLeads.length === 0
-              ? <EmptyState title="No leads match this search" copy="Clear the search box to see the full lead registry." />
+              ? <EmptyState title="No customers match this search" copy="Clear the search box to see the full customer registry." />
               : (
                 <>
                   <div className="contact-list">
@@ -153,17 +151,13 @@ export default function DatabaseView({
                         key={lead.id}
                         type="button"
                         className={`contact-card ${selectedLeadId === lead.id ? 'is-selected' : ''}`}
-                        onClick={() => {
-                          setSelectedLeadId(lead.id)
-                          setSelectedContactId(lead.contactId)
-                          setSelectedCompanyId(lead.companyId)
-                        }}
+                        onClick={() => setSelectedLeadId(lead.id)}
                       >
                         <div>
-                          <strong>{lead.name}</strong>
-                          <span>{companyMap[lead.companyId]?.name}</span>
+                          <strong>{lead.customerName}</strong>
+                          <span>{lead.region}</span>
                         </div>
-                        <p>{lead.source} lead owned by {lead.owner}</p>
+                        <p>SR: {lead.sr} &mdash; {lead.branch}</p>
                         <div className="contact-card__meta">
                           <span>{formatDateLabel(lead.createdAt)}</span>
                           <span className={`tone-pill ${getToneClass(lead.status)}`}>{lead.status}</span>
@@ -243,9 +237,9 @@ export default function DatabaseView({
         <div className="panel-stack">
           {databaseTab === 'leads' && (
             <Panel
-              kicker="Lead detail"
-              title={selectedLead?.name ?? 'Select a lead'}
-              detail="Review source, ownership, links, and next step before moving the lead deeper into the pipeline."
+              kicker="Customer detail"
+              title={selectedLead?.customerName ?? 'Select a customer'}
+              detail="Full customer record linked to a branch and assigned sales representative."
               action={
                 selectedLead ? (
                   <label className="filter-wrap">
@@ -263,20 +257,17 @@ export default function DatabaseView({
               {selectedLead ? (
                 <>
                   <div className="detail-list">
-                    <div><span>Company</span><strong>{selectedLeadCompany?.name ?? selectedLead.companyId ?? '—'}</strong></div>
-                    <div><span>Contact number</span><strong>{selectedLead.phone ?? '—'}</strong></div>
-                    <div><span>Source</span><strong>{selectedLead.source}</strong></div>
-                    <div><span>Owner</span><strong>{selectedLead.owner}</strong></div>
-                    <div><span>Created</span><strong>{formatDateLabel(selectedLead.createdAt)}</strong></div>
-                    <div><span>Linked deal</span><strong>{selectedLeadDeal?.name ?? 'No deal yet'}</strong></div>
+                    <div><span>Customer Name</span><strong>{selectedLead.customerName ?? '—'}</strong></div>
+                    <div><span>Contact Number</span><strong>{selectedLead.contactNum ?? '—'}</strong></div>
+                    <div><span>Address</span><strong>{selectedLead.address ?? '—'}</strong></div>
+                    <div><span>Region</span><strong>{selectedLead.region ?? '—'}</strong></div>
+                    <div><span>SR</span><strong>{selectedLead.sr ?? '—'}</strong></div>
+                    <div><span>Branch</span><strong>{selectedLead.branch ?? '—'}</strong></div>
+                    <div><span>Date Added</span><strong>{formatDateLabel(selectedLead.createdAt)}</strong></div>
                   </div>
-                  <article className="detail-card">
-                    <strong>Next step</strong>
-                    <p>{selectedLead.nextStep}</p>
-                  </article>
                 </>
               ) : (
-                <EmptyState title="No lead selected" copy="Choose a lead from the registry to review its linked customer data." />
+                <EmptyState title="No customer selected" copy="Choose a customer from the registry to review their details." />
               )}
             </Panel>
           )}
@@ -340,13 +331,12 @@ export default function DatabaseView({
       <Modal
         isOpen={showLeadForm}
         onClose={() => setShowLeadForm(false)}
-        title="Add a new lead"
-        kicker="Fast entry"
+        title="Add new customer"
+        kicker="Customer entry"
       >
         <LeadForm
-          companies={companies}
-          contacts={contacts}
           teamMembers={teamMembers}
+          branch={currentUser?.branch ?? ''}
           onCancel={() => setShowLeadForm(false)}
           onSubmit={(form) => {
             onCreateLead(form)

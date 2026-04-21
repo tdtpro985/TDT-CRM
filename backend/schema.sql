@@ -7,10 +7,13 @@ USE tdt_crm;
 
 -- ─── Team / Users ────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS team (
-    id    INT AUTO_INCREMENT PRIMARY KEY,
-    name  VARCHAR(255) NOT NULL,
-    email VARCHAR(255),
-    role  VARCHAR(100) DEFAULT 'Sales Rep'
+    id       INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    name     VARCHAR(255) NOT NULL,
+    email    VARCHAR(255),
+    role     VARCHAR(100) DEFAULT 'Sales Rep',
+    branch   VARCHAR(100) NOT NULL
 );
 
 -- ─── Companies ───────────────────────────────────────────────────────────────
@@ -42,17 +45,15 @@ CREATE TABLE IF NOT EXISTS contacts (
 
 -- ─── Leads ────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS leads (
-    id         VARCHAR(100) PRIMARY KEY,
-    name       VARCHAR(255) NOT NULL,
-    company_id VARCHAR(100),
-    contact_id VARCHAR(100),
-    source     VARCHAR(100),
-    owner      VARCHAR(255),
-    next_step  TEXT,
-    status     VARCHAR(50) DEFAULT 'New',
-    created_at DATE        DEFAULT (CURRENT_DATE),
-    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL,
-    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+    id            VARCHAR(100) PRIMARY KEY,
+    customer_name VARCHAR(255) NOT NULL,
+    contact_num   VARCHAR(50),
+    address       TEXT,
+    region        VARCHAR(100),
+    sr            VARCHAR(255),
+    branch        VARCHAR(100),
+    status        VARCHAR(50)  DEFAULT 'New',
+    created_at    DATE         DEFAULT (CURRENT_DATE)
 );
 
 -- ─── Deals ────────────────────────────────────────────────────────────────────
@@ -69,8 +70,8 @@ CREATE TABLE IF NOT EXISTS deals (
     owner       VARCHAR(255),
     created_at  DATE           DEFAULT (CURRENT_DATE),
     FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL,
-    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL,
-    FOREIGN KEY (lead_id)    REFERENCES leads(id)    ON DELETE SET NULL
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
+    -- Removed foreign key to leads because leads table structure completely changed
 );
 
 -- ─── Activities (Tasks) ───────────────────────────────────────────────────────
@@ -100,7 +101,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 
 -- ─── Seed: Sample team members ────────────────────────────────────────────────
-INSERT IGNORE INTO team (name, email, role) VALUES
-    ('Juan dela Cruz',  'juan@tdt.com',  'Sales Rep'),
-    ('Maria Santos',    'maria@tdt.com', 'Sales Rep'),
-    ('Carlo Reyes',     'carlo@tdt.com', 'Sales Manager');
+INSERT IGNORE INTO team (username, password, name, email, role, branch) VALUES
+    ('manila.tdtpowersteel', 'password123', 'Juan dela Cruz (Manila)',  'juan@tdt.com',  'Sales Rep', 'Manila'),
+    ('cebu.tdtpowersteel', 'password123', 'Maria Santos (Cebu)',    'maria@tdt.com', 'Sales Rep', 'Cebu'),
+    ('hq.tdtpowersteel', 'admin123', 'Carlo Reyes (HQ)',     'carlo@tdt.com', 'Sales Manager', 'Headquarters');

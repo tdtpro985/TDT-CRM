@@ -6,6 +6,7 @@ import DatabaseView  from './views/DatabaseView'
 import PipelineView  from './views/PipelineView'
 import TasksView     from './views/TasksView'
 import useCRMData    from './hooks/useCRMData'
+import LoginPage     from './components/LoginPage'
 
 const CURRENT_DATE = new Date().toISOString().split('T')[0]
 
@@ -53,13 +54,24 @@ export default function App() {
   const [showDealForm, setShowDealForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [toast, setToast] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
+
+  function handleLogin(user) {
+    setCurrentUser(user)
+    setNotice(`Welcome back, ${user.name}! You are logged in to the ${user.branch} branch.`)
+  }
+
+  function handleLogout() {
+    setCurrentUser(null)
+    setNotice('You have been logged out.')
+  }
 
   function showToast(message) {
     setToast(message)
     setTimeout(() => setToast(null), 3000)
   }
 
-  const { data, actions } = useCRMData({ setNotice, showToast })
+  const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
   const { companies, contacts, leads, deals, tasks, teamMembers, loading } = data
 
   // ─── Derived data ───────────────────────────────────────────────────────────
@@ -75,7 +87,7 @@ export default function App() {
   const newLeads         = leads.filter((l) => l.createdAt?.startsWith(currentMonth))
   const convertedLeads   = leads.filter((l) => l.status === 'Converted')
   const conversionRate   = leads.length ? Math.round((convertedLeads.length / leads.length) * 100) : 0
-  const linkedLeadCount  = leads.filter((l) => l.companyId && l.phone).length
+  const linkedLeadCount  = leads.filter((l) => l.contactNum && l.region).length
   const linkHealth       = leads.length ? Math.round((linkedLeadCount / leads.length) * 100) : 100
   const averageDealSize  = activeDeals.length ? Math.round(pipelineValue / activeDeals.length) : 0
 
@@ -89,17 +101,17 @@ export default function App() {
     .join(' | ')
 
   const topKpis = [
-    { label: 'New Leads',       value: newLeads.length.toLocaleString(),    meta: 'Leads created this month',                                    accent: 'accent'  },
+    { label: 'New Customers',   value: newLeads.length.toLocaleString(),    meta: 'Customers added this month',                                   accent: 'accent'  },
     { label: 'Active Deals',    value: activeDeals.length.toLocaleString(), meta: 'Open opportunities being worked',                              accent: 'surface' },
     { label: 'Deals per Stage', value: `${stageSummary.filter((s) => s.count > 0).length} stages`, meta: stageBreakdown,                         accent: 'alt'     },
-    { label: 'Conversion Rate', value: `${conversionRate}%`,                meta: `${convertedLeads.length} of ${leads.length} leads converted`,  accent: 'surface' },
+    { label: 'Conversion Rate', value: `${conversionRate}%`,                meta: `${convertedLeads.length} of ${leads.length} customers converted`,  accent: 'surface' },
     { label: 'Pipeline Value',  value: formatCurrencyCompact(pipelineValue), meta: 'Expected revenue across active deals',                        accent: 'accent'  },
   ]
 
   // ─── Filtered lists ─────────────────────────────────────────────────────────
 
   const filteredLeads = leads.filter((l) =>
-    matchesSearch(searchQuery, [l.name, companyMap[l.companyId]?.name, l.phone, l.source, l.owner, l.status, l.nextStep]),
+    matchesSearch(searchQuery, [l.customerName, l.contactNum, l.address, l.region, l.sr, l.branch, l.status]),
   )
   const filteredContacts = contacts.filter((c) =>
     matchesSearch(searchQuery, [c.name, companyMap[c.companyId]?.name, c.role, c.owner, c.email]),
@@ -123,8 +135,6 @@ export default function App() {
   const handleCreateLead = async (form) => {
     const newLead = await actions.createLead(form);
     setSelectedLeadId(newLead.id)
-    setSelectedContactId(newLead.contactId)
-    setSelectedCompanyId(newLead.companyId)
     setDatabaseTab('leads')
   }
 
@@ -278,6 +288,7 @@ export default function App() {
           setShowCompanyForm={setShowCompanyForm}
           onCreateContact={handleCreateContact}
           onCreateCompany={handleCreateCompany}
+          currentUser={currentUser}
         />
       )
     }
@@ -328,6 +339,11 @@ export default function App() {
     )
   }
 
+  // ─── Guard: show login if not authenticated ──────────────────────────────────
+  if (!currentUser) {
+    return <LoginPage onLogin={handleLogin} />
+  }
+
   // ─── Shell ──────────────────────────────────────────────────────────────────
 
   return (
@@ -336,6 +352,7 @@ export default function App() {
         <div className="brand-block">
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
           <p className="brand-name">Sales CRM</p>
+          <div className="brand-branch-badge">{currentUser.branch}</div>
         </div>
 
         <nav className="sidebar-nav" aria-label="Primary CRM navigation">
@@ -358,7 +375,7 @@ export default function App() {
         </nav>
 
         <div className="sidebar-footer">
-          <p className="sidebar-label">Today&apos;s pulse</p>
+          <p className="sidebar-label">Today's pulse</p>
           <div className="sidebar-stat">
             <strong>{newLeads.length}</strong>
             <span>New leads logged for the current month</span>
@@ -366,6 +383,10 @@ export default function App() {
           <div className="sidebar-stat">
             <strong>{openTasks.length}</strong>
             <span>Open tasks still waiting on follow-through</span>
+          </div>
+          <div className="sidebar-user">
+            <span className="sidebar-user__name">{currentUser.name}</span>
+            <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
         </div>
       </aside>

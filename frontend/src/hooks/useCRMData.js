@@ -14,7 +14,7 @@ const STAGE_PROBABILITY = {
 
 function getProbabilityForStage(stage) { return STAGE_PROBABILITY[stage] ?? 100 }
 
-export default function useCRMData({ setNotice, showToast }) {
+export default function useCRMData({ setNotice, showToast, currentUser }) {
   const [companies, setCompanies] = useState([])
   const [contacts, setContacts] = useState([])
   const [leads, setLeads] = useState([])
@@ -23,18 +23,27 @@ export default function useCRMData({ setNotice, showToast }) {
   const [teamMembers, setTeamMembers] = useState([])
   const [loading, setLoading] = useState(true)
 
+  const branch = currentUser?.branch ?? ''
+
   useEffect(() => {
+    if (!currentUser) return
     async function loadAll() {
       try {
-        const [companiesRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes] =
-          await Promise.all([
-            fetch(`${API_BASE}/api/companies`),
-            fetch(`${API_BASE}/api/contacts`),
-            fetch(`${API_BASE}/api/leads`),
-            fetch(`${API_BASE}/api/deals`),
-            fetch(`${API_BASE}/api/activities`),
-            fetch(`${API_BASE}/api/team`),
-          ])
+        const branchParam = branch ? `?branch=${encodeURIComponent(branch)}` : ''
+        const responses = await Promise.all([
+          fetch(`${API_BASE}/api/companies`),
+          fetch(`${API_BASE}/api/contacts`),
+          fetch(`${API_BASE}/api/leads${branchParam}`),
+          fetch(`${API_BASE}/api/deals`),
+          fetch(`${API_BASE}/api/activities`),
+          fetch(`${API_BASE}/api/team${branchParam}`),
+        ])
+
+        if (responses.some(r => !r.ok)) {
+          throw new Error('API or Database error')
+        }
+
+        const [companiesRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes] = responses
 
         setCompanies(await companiesRes.json())
         setContacts((await contactsRes.json()).map((c) => ({ ...c, lastActivity: c.lastTouch ?? '' })))
@@ -56,45 +65,25 @@ export default function useCRMData({ setNotice, showToast }) {
         )
         setTeamMembers((await teamRes.json()).map((u) => u.name))
       } catch {
-        setNotice('Backend is not reachable. Start the Flask server to load live data.')
+        setNotice('Backend is not reachable or database is down. Start the server and configure database to load live data.')
       } finally {
         setLoading(false)
       }
     }
     loadAll()
-  }, [setNotice])
+  }, [currentUser, branch, setNotice])
 
   async function createLead(leadForm) {
-    let matchedCompany = companies.find((c) => c.name.toLowerCase() === leadForm.companyName.toLowerCase())
-    let matchedContact = contacts.find((c) => c.name.toLowerCase() === leadForm.contactName.toLowerCase())
-    let companyIdToUse = matchedCompany ? matchedCompany.id : null
-    let contactIdToUse = matchedContact ? matchedContact.id : null
-
-    // Auto-create missing company
-    if (!matchedCompany && leadForm.companyName) {
-      companyIdToUse = createRecordId('company')
-      const newCompany = { id: companyIdToUse, name: leadForm.companyName.trim(), status: 'Active' }
-      setCompanies((c) => [newCompany, ...c])
-      await fetch(`${API_BASE}/api/companies`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newCompany) }).catch(() => {})
-    }
-
-    // Auto-create missing contact
-    if (!matchedContact && leadForm.contactName) {
-      contactIdToUse = createRecordId('contact')
-      const newContact = { id: contactIdToUse, name: leadForm.contactName.trim(), companyId: companyIdToUse, status: 'Active' }
-      setContacts((c) => [newContact, ...c])
-      await fetch(`${API_BASE}/api/contacts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newContact) }).catch(() => {})
-    }
-
     const newLead = {
       id: createRecordId('lead'),
-      ...leadForm,
-      companyId: companyIdToUse,
-      contactId: contactIdToUse,
-      name: leadForm.name.trim(),
+      customerName: leadForm.customerName.trim(),
+      contactNum: leadForm.contactNum,
+      address: leadForm.address,
+      region: leadForm.region,
+      sr: leadForm.sr,
+      branch: branch,
       status: 'New',
       createdAt: CURRENT_DATE,
-      nextStep: leadForm.nextStep.trim(),
     }
 
     setLeads((current) => [newLead, ...current])
@@ -106,9 +95,10 @@ export default function useCRMData({ setNotice, showToast }) {
         body: JSON.stringify(newLead),
       })
       if (!res.ok) throw new Error('Network error')
-      setNotice(`${newLead.name} was saved to the database.`)
+      setNotice(`${newLead.customerName} was saved to the database.`)
+      showToast(`Customer "${newLead.customerName}" saved successfully!`)
     } catch {
-      setNotice(`${newLead.name} was added locally — backend not reachable.`)
+      setNotice(`${newLead.customerName} was added locally — backend not reachable.`)
     }
     return newLead
   }
@@ -262,23 +252,60 @@ export default function useCRMData({ setNotice, showToast }) {
     return newTask
   }
 
-  function updateLeadStatus(leadId, nextStatus) {
+  async function updateLeadStatus(leadId, nextStatus) {
     setLeads((current) => current.map((l) => (l.id === leadId ? { ...l, status: nextStatus } : l)))
-    setNotice('Lead status updated in the clean-data registry.')
+    try {
+      const res = await fetch(`${API_BASE}/api/leads/${leadId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      })
+      if (!res.ok) throw new Error('Network error')
+      setNotice('Lead status updated.')
+    } catch {
+      setNotice('Lead status updated locally — backend not reachable.')
+    }
   }
 
-  function updateDealStage(dealId, nextStage) {
+  async function updateDealStage(dealId, nextStage) {
     setDeals((current) =>
       current.map((d) => (d.id === dealId ? { ...d, stage: nextStage, probability: getProbabilityForStage(nextStage) } : d)),
     )
-    setNotice('Pipeline stage updated successfully.')
+    try {
+      const res = await fetch(`${API_BASE}/api/deals/${dealId}/stage`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: nextStage })
+      })
+      if (!res.ok) throw new Error('Network error')
+      setNotice('Pipeline stage updated successfully.')
+    } catch {
+      setNotice('Pipeline stage updated locally — backend not reachable.')
+    }
   }
 
-  function toggleTaskStatus(taskId) {
+  async function toggleTaskStatus(taskId) {
+    let nextStatus
     setTasks((current) =>
-      current.map((t) => (t.id === taskId ? { ...t, status: t.status === 'Completed' ? 'Open' : 'Completed' } : t)),
+      current.map((t) => {
+        if (t.id === taskId) {
+          nextStatus = t.status === 'Completed' ? 'Open' : 'Completed'
+          return { ...t, status: nextStatus }
+        }
+        return t
+      })
     )
-    setNotice('Task status updated in the activity tracker.')
+    try {
+      const res = await fetch(`${API_BASE}/api/activities/${taskId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus })
+      })
+      if (!res.ok) throw new Error('Network error')
+      setNotice('Task status updated in the activity tracker.')
+    } catch {
+      setNotice('Task status updated locally — backend not reachable.')
+    }
   }
 
   return {

@@ -32,6 +32,43 @@ def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=No
     cursor.close()
 
 
+# ─── Auth / Login ─────────────────────────────────────────────────────────────
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    branch   = data.get('branch', '').strip()
+
+    if not username or not password or not branch:
+        return jsonify({'error': 'Username, password and branch are required'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT id, name, email, role, branch FROM team WHERE username = %s AND password = %s AND branch = %s',
+            (username, password, branch)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Invalid credentials or branch mismatch'}), 401
+        user = {
+            'id':       row[0],
+            'name':     row[1],
+            'email':    row[2],
+            'role':     row[3],
+            'branch':   row[4],
+            'username': username,
+        }
+        return jsonify({'message': 'Login successful', 'user': user}), 200
+    finally:
+        close_connection(conn)
+
+
 # ─── Team ─────────────────────────────────────────────────────────────────────
 
 @app.route('/api/team', methods=['GET'])
@@ -41,7 +78,11 @@ def get_team():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT id, name, email, role FROM team ORDER BY name')
+        branch = request.args.get('branch')
+        if branch and branch != 'Headquarters':
+            cursor.execute('SELECT id, name, role, branch FROM team WHERE branch = %s ORDER BY name', (branch,))
+        else:
+            cursor.execute('SELECT id, name, role, branch FROM team ORDER BY name')
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -155,11 +196,20 @@ def get_leads():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """SELECT id, name, company_id AS companyId, contact_id AS contactId,
-                      source, owner, next_step AS nextStep, status, created_at AS createdAt
-               FROM leads ORDER BY created_at DESC"""
-        )
+        branch = request.args.get('branch')
+        if branch and branch != 'Headquarters':
+            cursor.execute(
+                """SELECT id, customer_name AS customerName, contact_num AS contactNum,
+                          address, region, sr, branch, status, created_at AS createdAt
+                   FROM leads WHERE branch = %s ORDER BY created_at DESC""",
+                (branch,)
+            )
+        else:
+            cursor.execute(
+                """SELECT id, customer_name AS customerName, contact_num AS contactNum,
+                          address, region, sr, branch, status, created_at AS createdAt
+                   FROM leads ORDER BY created_at DESC"""
+            )
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -168,8 +218,8 @@ def get_leads():
 @app.route('/api/leads', methods=['POST'])
 def create_lead():
     data = request.get_json()
-    if not all(k in data for k in ['id', 'name']):
-        return jsonify({'error': 'id and name are required'}), 400
+    if not data.get('customerName'):
+        return jsonify({'error': 'customerName is required'}), 400
 
     conn = get_db_connection()
     if not conn:
@@ -177,22 +227,22 @@ def create_lead():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO leads (id, name, company_id, contact_id, source, owner, next_step, status, created_at)
+            """INSERT INTO leads (id, customer_name, contact_num, address, region, sr, branch, status, created_at)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
-                data['id'],
-                data['name'],
-                data.get('companyId'),
-                data.get('contactId'),
-                data.get('source'),
-                data.get('owner'),
-                data.get('nextStep'),
+                data.get('id'),
+                data.get('customerName'),
+                data.get('contactNum'),
+                data.get('address'),
+                data.get('region'),
+                data.get('sr'),
+                data.get('branch'),
                 data.get('status', 'New'),
                 data.get('createdAt') or None,
             ),
         )
         conn.commit()
-        return jsonify({'message': 'Lead created', 'id': data['id']}), 201
+        return jsonify({'message': 'Lead created', 'id': data.get('id')}), 201
     finally:
         close_connection(conn)
 
@@ -395,10 +445,15 @@ def get_dashboard():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+        branch = request.args.get('branch')
+        branch_filter = '' if (not branch or branch == 'Headquarters') else f"WHERE branch = '{branch}'"
+        branch_filter_and = '' if (not branch or branch == 'Headquarters') else f"AND branch = '{branch}'"
 
         # New leads this month
         cursor.execute(
-            "SELECT COUNT(*) FROM leads WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"
+            f"SELECT COUNT(*) FROM leads {branch_filter} {'AND' if branch_filter else 'WHERE'} DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')".replace(
+                'WHERE  AND', 'WHERE'
+            )
         )
         new_leads = cursor.fetchone()[0]
 
@@ -411,9 +466,9 @@ def get_dashboard():
         deals_per_stage = rows_to_list(cursor)
 
         # Conversion rate
-        cursor.execute("SELECT COUNT(*) FROM leads")
+        cursor.execute(f"SELECT COUNT(*) FROM leads {branch_filter}")
         total_leads = cursor.fetchone()[0]
-        cursor.execute("SELECT COUNT(*) FROM leads WHERE status = 'Converted'")
+        cursor.execute(f"SELECT COUNT(*) FROM leads WHERE status = 'Converted' {branch_filter_and}")
         converted = cursor.fetchone()[0]
         conversion_rate = round((converted / total_leads * 100)) if total_leads else 0
 
