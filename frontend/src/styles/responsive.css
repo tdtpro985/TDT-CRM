@@ -1,0 +1,131 @@
+/* ── 22. Responsive Breakpoints ─────────────────────────────── */
+
+@media (max-width: 1440px) {
+  .metrics-grid,
+  .metrics-grid--compact,
+  .metrics-grid--five {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .metrics-grid,
+  .metrics-grid--compact,
+  .metrics-grid--five {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .metrics-grid,
+  .metrics-grid--five,
+  .metrics-grid--compact,
+  .content-grid--2,
+  .hero-panel,
+  .preview-stats,
+  .rep-grid,
+  .report-grid,
+  .principles-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .crm-shell {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 10px;
+    gap: 8px;
+    overflow-y: visible;
+  }
+
+  .brand-block {
+    padding: 0;
+    margin: 0;
+    border: 0;
+    flex-direction: row;
+    gap: 10px;
+    width: auto;
+  }
+
+  .brand-logo { width: 40px; padding: 4px; }
+  .brand-name { display: none; }
+
+  .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+  }
+
+  .nav-section-label { display: none; }
+
+  .nav-item {
+    width: auto;
+    padding: 8px 12px;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .nav-item__description { display: none; }
+  .nav-item__badge { position: absolute; top: -4px; right: -4px; font-size: 10px; padding: 1px 4px; }
+  .nav-item { position: relative; }
+
+  .sidebar-footer { display: none; }
+
+  .dashboard {
+    height: auto;
+    overflow-y: visible;
+  }
+
+  .hero-highlights,
+  .detail-list,
+  .form-grid,
+  .preview-stats,
+  .principles-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field--span-2 { grid-column: span 1; }
+
+  .top-bar { flex-direction: column; align-items: stretch; }
+  .top-bar-actions { flex-wrap: wrap; }
+  .search-field { min-width: 0; width: 100%; }
+
+  .report-item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .report-chip {
+    grid-column: 2;
+    justify-self: flex-start;
+  }
+
+  .chart-frame {
+    grid-template-columns: repeat(5, minmax(70px, 1fr));
+    overflow-x: auto;
+  }
+
+  .pipeline-board,
+  .kanban-board {
+    grid-template-columns: 1fr;
+  }
+
+  /* Specific view fixes */
+  .detail-list { grid-template-columns: 1fr; }
+  .database-tabs { overflow-x: auto; padding-bottom: 4px; }
+  .table-wrap { width: 100%; overflow-x: auto; }
+}

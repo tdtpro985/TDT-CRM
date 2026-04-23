@@ -100,35 +100,39 @@ export default function App() {
     .map((s) => `${shortStageLabel(s.stage)} ${s.count}`)
     .join(' | ')
 
-  const topKpis = [
+  const topKpis = useMemo(() => [
     { label: 'New Customers',   value: newLeads.length.toLocaleString(),    meta: 'Customers added this month',                                   accent: 'accent'  },
     { label: 'Active Deals',    value: activeDeals.length.toLocaleString(), meta: 'Open opportunities being worked',                              accent: 'surface' },
     { label: 'Deals per Stage', value: `${stageSummary.filter((s) => s.count > 0).length} stages`, meta: stageBreakdown,                         accent: 'alt'     },
     { label: 'Conversion Rate', value: `${conversionRate}%`,                meta: `${convertedLeads.length} of ${leads.length} customers converted`,  accent: 'surface' },
     { label: 'Pipeline Value',  value: formatCurrencyCompact(pipelineValue), meta: 'Expected revenue across active deals',                        accent: 'accent'  },
-  ]
+  ], [newLeads.length, activeDeals.length, stageSummary, stageBreakdown, conversionRate, convertedLeads.length, leads.length, pipelineValue])
 
   // ─── Filtered lists ─────────────────────────────────────────────────────────
 
-  const filteredLeads = leads.filter((l) =>
+  const filteredLeads = useMemo(() => leads.filter((l) =>
     matchesSearch(searchQuery, [l.customerName, l.contactNum, l.address, l.region, l.sr, l.branch, l.status]),
-  )
-  const filteredContacts = contacts.filter((c) =>
+  ), [leads, searchQuery])
+
+  const filteredContacts = useMemo(() => contacts.filter((c) =>
     matchesSearch(searchQuery, [c.name, companyMap[c.companyId]?.name, c.role, c.owner, c.email]),
-  )
-  const filteredCompanies = companies.filter((c) =>
+  ), [contacts, searchQuery, companyMap])
+
+  const filteredCompanies = useMemo(() => companies.filter((c) =>
     matchesSearch(searchQuery, [c.name, c.industry, c.city ?? c.website, c.owner, c.status]),
-  )
-  const filteredDeals = deals.filter(
+  ), [companies, searchQuery])
+
+  const filteredDeals = useMemo(() => deals.filter(
     (d) =>
       (stageFilter === 'all' || d.stage === stageFilter) &&
       matchesSearch(searchQuery, [d.name, companyMap[d.companyId]?.name, contactMap[d.contactId]?.name, d.owner, d.stage]),
-  )
-  const filteredTasks = tasks.filter(
+  ), [deals, stageFilter, searchQuery, companyMap, contactMap])
+
+  const filteredTasks = useMemo(() => tasks.filter(
     (t) =>
       (taskFilter === 'all' || (taskFilter === 'open' && t.status === 'Open') || (taskFilter === 'completed' && t.status === 'Completed')) &&
       matchesSearch(searchQuery, [t.title, t.type, t.owner, deals.find((d) => d.id === t.dealId)?.name]),
-  )
+  ), [tasks, taskFilter, searchQuery, deals])
 
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
 
@@ -288,6 +292,7 @@ export default function App() {
           setShowCompanyForm={setShowCompanyForm}
           onCreateContact={handleCreateContact}
           onCreateCompany={handleCreateCompany}
+          onSyncGSheets={actions.syncGSheets}
           currentUser={currentUser}
         />
       )

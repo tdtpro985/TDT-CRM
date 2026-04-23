@@ -1,0 +1,24 @@
+:root {
+  --r-sm:   10px;
+  --r-md:   14px;
+  --r-lg:   20px;
+  --r-full: 999px;
+
+  --fs-xs:   0.72rem;
+  --fs-sm:   0.8rem;
+  --fs-base: 0.875rem;
+  --fs-md:   1rem;
+  --fs-lg:   1.25rem;
+  --fs-xl:   1.5rem;
+
+  /* Component-level aliases so changes are automatic */
+  --pad-control: 8px 14px;     /* buttons, fields, search */
+  --pad-item:    10px 14px;    /* nav items, list rows     */
+  --pad-card:    16px;         /* metric cards, small cards*/
+  --pad-panel:   20px;         /* panels, sidebar          */
+  --pad-pill:    3px 9px;      /* badges, tone pills       */
+
+  /* Fluid tokens for cleaner scaling */
+  --gap-fluid: clamp(10px, 1.5vw, 20px);
+  --pad-fluid: clamp(16px, 2.5vw, 24px);
+}

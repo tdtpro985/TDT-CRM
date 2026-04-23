@@ -59,8 +59,7 @@ export default function LoginPage({ onLogin }) {
     <div className="login-shell">
       <div className="login-card">
         <div className="login-brand">
-          <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="login-logo" />
-          <h1 className="login-title">TDT Powersteel</h1>
+          <img src="/Logo_tdt.png" alt="TDT Powersteel" className="login-logo" />
           <p className="login-subtitle">Sales CRM — Branch Portal</p>
         </div>
 

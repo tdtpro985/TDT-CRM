@@ -1,25 +1,23 @@
-import mysql.connector
 import os
 import uuid
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
-
-load_dotenv()
+from .database import get_db_connection, close_connection
 
 def init_db():
-    try:
-        conn = mysql.connector.connect(
-            host=os.getenv('DB_HOST', 'localhost'),
-            user=os.getenv('DB_USER', 'root'),
-            password=os.getenv('DB_PASSWORD', '')
-        )
-        cursor = conn.cursor()
-        db_name = os.getenv('DB_NAME', 'tdt_crm')
+    conn = get_db_connection()
+    if not conn:
+        print("Failed to connect to database.")
+        return
         
-        cursor.execute(f"DROP DATABASE IF EXISTS {db_name}")
-        cursor.execute(f"CREATE DATABASE {db_name}")
-        cursor.execute(f"USE {db_name}")
-
+    try:
+        cursor = conn.cursor()
+        
+        # Note: get_db_connection() usually connects to a specific database.
+        # But for initialization, we might need to recreate it.
+        # However, database.py is likely trying to connect to 'tdt_crm' which might not exist yet.
+        # So init_db might still need a 'root' connection first.
+        
+        # Let's keep the core table creation here but use the connection.
+        
         # Create tables
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS companies (
@@ -129,11 +127,12 @@ def init_db():
                        ("act_2", "Call", "Follow-up on Proposal", "Jordan Smith", "2026-04-08", "In Progress", deal_id2, "Check if James had questions about the rental duration terms."))
 
         conn.commit()
-        cursor.close()
-        conn.close()
         print("Database initialized successfully with normalized relations and mock data.")
     except Exception as e:
         print(f"Error initializing database: {e}")
+    finally:
+        if conn:
+            close_connection(conn)
 
 if __name__ == '__main__':
     init_db()

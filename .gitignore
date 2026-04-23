@@ -31,3 +31,9 @@ venv/
 # Environment variables
 .env
 backend/.env
+
+# Credentials and Cache
+backend/credentials.json
+__pycache__/
+backend/__pycache__/
+backend/database/__pycache__/

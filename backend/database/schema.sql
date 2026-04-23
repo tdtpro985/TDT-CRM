@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS contacts (
 CREATE TABLE IF NOT EXISTS leads (
     id            VARCHAR(100) PRIMARY KEY,
     customer_name VARCHAR(255) NOT NULL,
-    contact_num   VARCHAR(50),
+    contact_num   VARCHAR(255),
     address       TEXT,
     region        VARCHAR(100),
     sr            VARCHAR(255),

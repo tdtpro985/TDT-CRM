@@ -1,0 +1,496 @@
+/* ── 1. Common Text & Labels ────────────────────────────────── */
+
+.sidebar-label,
+.eyebrow,
+.panel-kicker,
+.highlight-label,
+.nav-section-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.eyebrow,
+.panel-kicker,
+.highlight-label {
+  color: var(--accent-strong);
+}
+
+.page-title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--text-strong);
+}
+
+.page-description { display: none; }
+
+/* ── 2. Search & Inputs ─────────────────────────────────────── */
+
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: var(--pad-control);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  min-width: 240px;
+}
+
+.search-field:focus-within {
+  border-color: rgba(255,152,0,0.42);
+  box-shadow: 0 0 0 1px rgba(255,152,0,0.18);
+}
+
+.search-icon {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.search-field input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+}
+
+.search-field input::placeholder {
+  color: rgba(151,163,182,0.6);
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.field span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: var(--pad-control);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  outline: none;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: rgba(151,163,182,0.55);
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: rgba(255,152,0,0.4);
+  box-shadow: 0 0 0 1px rgba(255,152,0,0.16);
+}
+
+.input--readonly {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-style: dashed !important;
+}
+
+/* ── 3. Buttons ─────────────────────────────────────────────── */
+
+.primary-button,
+.secondary-button,
+.ghost-button {
+  padding: var(--pad-control);
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.primary-button:hover,
+.secondary-button:hover,
+.ghost-button:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.primary-button {
+  background: linear-gradient(135deg, var(--accent) 0%, #ffb547 100%);
+  color: #10131f;
+  box-shadow: 0 4px 16px rgba(255,152,0,0.24);
+}
+
+.secondary-button {
+  background: rgba(255,255,255,0.04);
+  border-color: var(--border);
+  color: var(--text-strong);
+}
+
+.ghost-button {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.logout-button {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(239,68,68,0.25);
+  background: rgba(239,68,68,0.07);
+  color: #f87171;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease;
+}
+
+.logout-button:hover {
+  background: rgba(239,68,68,0.14);
+  border-color: rgba(239,68,68,0.4);
+}
+
+/* ── 4. Panels & Cards ──────────────────────────────────────── */
+
+.panel {
+  padding: var(--pad-panel);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: rgba(22,33,62,0.7);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  height: 100%;
+}
+
+.panel-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.panel-header h3 {
+  margin-top: 4px;
+  font-size: var(--fs-md);
+  font-weight: 800;
+  color: var(--text-strong);
+}
+
+.metric-card {
+  padding: var(--pad-card);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+}
+
+.metric-card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.metric-card strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-strong);
+  font-size: var(--fs-xl);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.metric-card span {
+  display: block;
+  margin-top: 6px;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+
+.metric-card--accent {
+  background:
+    radial-gradient(circle at top right, rgba(255,152,0,0.16), transparent 50%),
+    rgba(255,255,255,0.03);
+  border-color: rgba(255,152,0,0.18);
+}
+
+.metric-card--alt {
+  background:
+    radial-gradient(circle at bottom left, rgba(15,52,96,0.36), transparent 50%),
+    rgba(255,255,255,0.03);
+}
+
+.metric-card--surface {
+  background: rgba(255,255,255,0.02);
+}
+
+/* ── 5. Layout Helpers & Grids ──────────────────────────────── */
+
+.metrics-grid,
+.metrics-grid--compact,
+.metrics-grid--five {
+  display: grid;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.metrics-grid,
+.metrics-grid--compact {
+  grid-template-columns: repeat(auto-fit, minmax(max(240px, 20%), 1fr));
+}
+
+.metrics-grid--five {
+  grid-template-columns: repeat(auto-fit, minmax(max(200px, 18%), 1fr));
+}
+
+.content-grid {
+  display: grid;
+  gap: 12px;
+  flex: 1 1 0%;
+  grid-template-rows: 1fr;
+  align-items: stretch;
+}
+
+.content-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+section.content-grid--primary {
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+}
+
+.form-grid {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.field--span-2 {
+  grid-column: span 2;
+}
+
+/* ── 6. Shared Cards & Lists ────────────────────────────────── */
+
+.contact-list,
+.activity-list,
+.task-list {
+  display: grid;
+  gap: 8px;
+}
+
+.contact-card,
+.activity-card,
+.task-item {
+  padding: var(--pad-card);
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+}
+
+.contact-card {
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.contact-card:hover {
+  border-color: rgba(255,152,0,0.3);
+  background: rgba(255,152,0,0.04);
+}
+
+.contact-card.is-selected {
+  border-color: rgba(255,152,0,0.4);
+  background: rgba(255,152,0,0.06);
+}
+
+.task-item {
+  background: rgba(255,152,0,0.06);
+  border-color: rgba(255,152,0,0.14);
+}
+
+.task-item p {
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  margin: 0;
+}
+
+.task-dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(255,152,0,0.12);
+}
+
+.simple-list,
+.stage-list {
+  display: grid;
+  gap: 8px;
+}
+
+.stage-row {
+  display: grid;
+  gap: 8px;
+  padding: var(--pad-item);
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+}
+
+.stage-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.stage-meta strong {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.stage-meta span {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.stage-track {
+  height: 4px;
+  border-radius: var(--r-full);
+  background: rgba(255,255,255,0.07);
+  overflow: hidden;
+}
+
+.stage-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #ffbd59);
+}
+
+/* ── 7. Pills & Badges ──────────────────────────────────────── */
+
+.tone-pill,
+.status-badge,
+.brand-branch-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: var(--pad-pill);
+  border-radius: var(--r-full);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+
+.tone-pill.is-positive { background: rgba(52,211,153,0.1); color: var(--positive); border: 1px solid rgba(52,211,153,0.2); }
+.tone-pill.is-warning { background: rgba(255,181,71,0.1); color: var(--warning); border: 1px solid rgba(255,181,71,0.2); }
+.tone-pill.is-alert { background: rgba(251,113,133,0.1); color: var(--alert); border: 1px solid rgba(251,113,133,0.2); }
+
+.brand-branch-badge {
+  background: rgba(255,152,0,0.14);
+  border: 1px solid rgba(255,152,0,0.28);
+  color: var(--accent-strong);
+}
+
+/* ── 6. Tables & Lists ──────────────────────────────────────── */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  text-align: left;
+}
+
+.empty-state {
+  text-align: center;
+  padding: var(--pad-card);
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+}
+
+/* ── 7. Modals & Toasts ─────────────────────────────────────── */
+
+.deal-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.deal-modal {
+  background: var(--surface-card, #141e2d);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 16px);
+  width: min(520px, 92vw);
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: var(--surface-raised, #1e2a3a);
+  border: 1px solid var(--accent-strong);
+  border-radius: 99px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  color: #fff;
+  font-size: var(--fs-sm);
+  z-index: 9999;
+}

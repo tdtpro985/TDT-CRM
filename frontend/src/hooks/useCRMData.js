@@ -284,17 +284,9 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
-  async function toggleTaskStatus(taskId) {
-    let nextStatus
-    setTasks((current) =>
-      current.map((t) => {
-        if (t.id === taskId) {
-          nextStatus = t.status === 'Completed' ? 'Open' : 'Completed'
-          return { ...t, status: nextStatus }
-        }
-        return t
-      })
-    )
+  async function toggleTaskStatus(taskId, currentStatus) {
+    const nextStatus = currentStatus === 'Completed' ? 'Open' : 'Completed'
+    setTasks((current) => current.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t)))
     try {
       const res = await fetch(`${API_BASE}/api/activities/${taskId}/status`, {
         method: 'PATCH',
@@ -302,14 +294,48 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         body: JSON.stringify({ status: nextStatus })
       })
       if (!res.ok) throw new Error('Network error')
-      setNotice('Task status updated in the activity tracker.')
+      setNotice('Task status updated.')
     } catch {
       setNotice('Task status updated locally — backend not reachable.')
     }
   }
 
+  async function syncGSheets() {
+    setNotice('Synchronizing with Google Sheets...')
+    try {
+      const res = await fetch(`${API_BASE}/api/sync/gsheets`, { method: 'POST' })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Sync failed')
+      
+      // Refresh leads after sync
+      const branchParam = branch ? `?branch=${encodeURIComponent(branch)}` : ''
+      const leadsRes = await fetch(`${API_BASE}/api/leads${branchParam}`)
+      if (leadsRes.ok) {
+        setLeads(await leadsRes.json())
+      }
+      
+      const count = result.synced_count || 0
+      setNotice(`Sync complete! ${count} new leads were added from Google Sheets.`)
+      showToast(`Successfully synced ${count} new leads!`)
+      return result
+    } catch (err) {
+      setNotice(`Sync failed: ${err.message}`)
+      showToast(`Error: ${err.message}`)
+    }
+  }
+
   return {
     data: { companies, contacts, leads, deals, tasks, teamMembers, loading },
-    actions: { createLead, createContact, createCompany, createDeal, createTask, updateLeadStatus, updateDealStage, toggleTaskStatus }
+    actions: { 
+      createLead, 
+      createContact, 
+      createCompany, 
+      createDeal, 
+      createTask, 
+      updateLeadStatus, 
+      updateDealStage, 
+      toggleTaskStatus,
+      syncGSheets 
+    }
   }
 }

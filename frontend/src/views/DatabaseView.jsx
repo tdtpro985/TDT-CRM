@@ -40,9 +40,11 @@ export default function DatabaseView({
   onCreateContact,
   onCreateCompany,
   handleLeadStatusChange,
+  onSyncGSheets,
   linkHealth,
   currentUser,
 }) {
+  const [isSyncing, setIsSyncing] = useState(false);
   const [leadPage, setLeadPage] = useState(1);
   const [contactPage, setContactPage] = useState(1);
   const [companyPage, setCompanyPage] = useState(1);
@@ -137,6 +139,21 @@ export default function DatabaseView({
                   {tab}
                 </button>
               ))}
+              {databaseTab === 'leads' && (
+                <button
+                  type="button"
+                  className={`tab-button sync-button ${isSyncing ? 'is-syncing' : ''}`}
+                  onClick={async () => {
+                    setIsSyncing(true)
+                    await onSyncGSheets()
+                    setIsSyncing(false)
+                  }}
+                  disabled={isSyncing}
+                  style={{ marginLeft: 'auto', background: 'var(--accent)', color: 'white', border: 'none' }}
+                >
+                  {isSyncing ? 'Syncing...' : 'Sync with GSheets'}
+                </button>
+              )}
             </div>
           }
         >

@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from database import get_db_connection, close_connection
+from database.database import get_db_connection, close_connection
+from gsheets_sync import sync_from_sheets, sync_to_sheets
 
 app = Flask(__name__)
 CORS(app)
@@ -187,6 +188,19 @@ def create_contact():
         close_connection(conn)
 
 
+# ─── Google Sheets Sync ───────────────────────────────────────────────────────
+
+@app.route('/api/sync/gsheets', methods=['POST'])
+def trigger_gsheets_sync():
+    try:
+        result = sync_from_sheets()
+        if "error" in result:
+            return jsonify(result), 500
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # ─── Leads ────────────────────────────────────────────────────────────────────
 
 @app.route('/api/leads', methods=['GET'])
@@ -242,6 +256,13 @@ def create_lead():
             ),
         )
         conn.commit()
+        
+        # Sync to Google Sheets
+        try:
+            sync_to_sheets(data)
+        except Exception as e:
+            print(f"Failed to sync to Google Sheets: {e}")
+            
         return jsonify({'message': 'Lead created', 'id': data.get('id')}), 201
     finally:
         close_connection(conn)
