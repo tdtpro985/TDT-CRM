@@ -49,8 +49,6 @@ export default function App() {
 
   const [notice, setNotice] = useState('TDT Powersteel CRM is focused on clean data, pipeline visibility, activity tracking, and a 5 KPI dashboard.')
   const [showLeadForm, setShowLeadForm] = useState(false)
-  const [showContactForm, setShowContactForm] = useState(false)
-  const [showCompanyForm, setShowCompanyForm] = useState(false)
   const [showDealForm, setShowDealForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [toast, setToast] = useState(null)
@@ -142,18 +140,6 @@ export default function App() {
     setDatabaseTab('leads')
   }
 
-  const handleCreateContact = async (form) => {
-    const newContact = await actions.createContact(form);
-    setSelectedContactId(newContact.id)
-    setDatabaseTab('contacts')
-  }
-
-  const handleCreateCompany = async (form) => {
-    const newCompany = await actions.createCompany(form);
-    setSelectedCompanyId(newCompany.id)
-    setDatabaseTab('companies')
-  }
-
   const handleCreateDeal = async (form) => {
     await actions.createDeal(form);
   }
@@ -180,8 +166,6 @@ export default function App() {
     setActiveView(viewId)
     setSearchQuery('')
     setShowLeadForm(false)
-    setShowContactForm(false)
-    setShowCompanyForm(false)
     setShowDealForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId].title} is active.`)
@@ -193,16 +177,8 @@ export default function App() {
       return focusSection('database', 'lead-form', 'Fast lead entry is ready.')
     }
     if (activeView === 'database') {
-      if (databaseTab === 'contacts') {
-        setShowContactForm(true)
-        return setNotice('New contact form is ready.')
-      }
-      if (databaseTab === 'companies') {
-        setShowCompanyForm(true)
-        return setNotice('New company form is ready.')
-      }
       setShowLeadForm(true)
-      return setNotice('Fast lead entry is ready.')
+      return setNotice('New customer entry is ready.')
     }
     if (activeView === 'pipeline') {
       setShowDealForm(true)
@@ -225,8 +201,7 @@ export default function App() {
   const primaryActionLabel =
     activeView === 'pipeline' ? 'New deal'
     : activeView === 'tasks' ? 'Add task'
-    : activeView === 'database' && databaseTab === 'contacts' ? 'New contact'
-    : activeView === 'database' && databaseTab === 'companies' ? 'New company'
+    : activeView === 'database' ? 'New customer'
     : 'New lead'
 
   const navItems = NAV_CONFIG.map((item) => ({
@@ -286,12 +261,6 @@ export default function App() {
           linkHealth={linkHealth}
           showLeadForm={showLeadForm}
           setShowLeadForm={setShowLeadForm}
-          showContactForm={showContactForm}
-          setShowContactForm={setShowContactForm}
-          showCompanyForm={showCompanyForm}
-          setShowCompanyForm={setShowCompanyForm}
-          onCreateContact={handleCreateContact}
-          onCreateCompany={handleCreateCompany}
           onSyncGSheets={actions.syncGSheets}
           currentUser={currentUser}
         />

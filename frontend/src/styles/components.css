@@ -306,7 +306,68 @@ section.content-grid--primary {
   grid-column: span 2;
 }
 
-/* ── 6. Shared Cards & Lists ────────────────────────────────── */
+/* ── 6. Detail List & Card ──────────────────────────────────── */
+
+.detail-list {
+  display: grid;
+  gap: 2px;
+}
+
+.detail-list > div {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.detail-list > div:last-child {
+  border-bottom: none;
+}
+
+.detail-list > div > span {
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+
+.detail-list > div > strong {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+  word-break: break-word;
+}
+
+.detail-card {
+  margin-top: 12px;
+  padding: var(--pad-card);
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+}
+
+.detail-card strong {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.detail-card p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+/* ── 7. Shared Cards & Lists ────────────────────────────────── */
 
 .contact-list,
 .activity-list,

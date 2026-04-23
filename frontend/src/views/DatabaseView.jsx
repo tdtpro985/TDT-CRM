@@ -5,8 +5,6 @@ import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
 import { formatCurrencyCompact, formatDateLabel, getToneClass } from '../utils'
 import LeadForm from '../components/forms/LeadForm'
-import ContactForm from '../components/forms/ContactForm'
-import CompanyForm from '../components/forms/CompanyForm'
 
 export default function DatabaseView({
   databaseTab,
@@ -60,18 +58,18 @@ export default function DatabaseView({
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId) ?? companies[0] ?? null
 
   const selectedContactCompany = selectedContact ? companyMap[selectedContact.companyId] : null
-  const selectedContactLeads   = leads.filter((l) => l.sr === selectedContact?.name)
-  const selectedContactDeals   = deals.filter((d) => d.contactId === selectedContact?.id)
+  const selectedContactLeads = leads.filter((l) => l.sr === selectedContact?.name)
+  const selectedContactDeals = deals.filter((d) => d.contactId === selectedContact?.id)
 
   const selectedCompanyContacts = contacts.filter((c) => c.companyId === selectedCompany?.id)
-  const selectedCompanyLeads    = leads.filter((l) => l.branch === selectedCompany?.name)
-  const selectedCompanyDeals    = deals.filter((d) => d.companyId === selectedCompany?.id)
-  const selectedCompanyValue    = selectedCompanyDeals.reduce((sum, d) => sum + d.value, 0)
+  const selectedCompanyLeads = leads.filter((l) => l.branch === selectedCompany?.name)
+  const selectedCompanyDeals = deals.filter((d) => d.companyId === selectedCompany?.id)
+  const selectedCompanyValue = selectedCompanyDeals.reduce((sum, d) => sum + d.value, 0)
 
   const recordTitle =
     databaseTab === 'leads' ? 'Customer Registry'
-    : databaseTab === 'contacts' ? 'Contact Directory'
-    : 'Company Accounts'
+      : databaseTab === 'contacts' ? 'Contact Directory'
+        : 'Company Accounts'
 
   const getPaginatedData = (data, page) => {
     const startIndex = (page - 1) * ITEMS_PER_PAGE;
@@ -113,10 +111,10 @@ export default function DatabaseView({
   return (
     <>
       <section className="metrics-grid metrics-grid--compact">
-        <MetricCard label="Customers"    value={leads.length.toLocaleString()}    meta="Customer records tracked in the database"               accent="accent"  />
-        <MetricCard label="Contacts"     value={contacts.length.toLocaleString()} meta="Customer-facing records tied to account ownership"      accent="surface" />
-        <MetricCard label="Companies"    value={companies.length.toLocaleString()} meta="Accounts organized for cleaner pipeline reporting"     accent="alt"     />
-        <MetricCard label="Data Quality" value={`${linkHealth}%`}                 meta="Customer records with contact number and region filled" accent="surface" />
+        <MetricCard label="Customers" value={leads.length.toLocaleString()} meta="Customer records tracked in the database" accent="accent" />
+        <MetricCard label="Contacts" value={contacts.length.toLocaleString()} meta="Customer-facing records tied to account ownership" accent="surface" />
+        <MetricCard label="Companies" value={companies.length.toLocaleString()} meta="Accounts organized for cleaner pipeline reporting" accent="alt" />
+        <MetricCard label="Data Quality" value={`${linkHealth}%`} meta="Customer records with contact number and region filled" accent="surface" />
       </section>
 
       <section className="content-grid content-grid--primary">
@@ -205,9 +203,9 @@ export default function DatabaseView({
                       >
                         <div>
                           <strong>{contact.name}</strong>
-                          <span>{contact.role}</span>
+                          <span>{contact.role || 'Primary Contact'}</span>
                         </div>
-                        <p>{companyMap[contact.companyId]?.name}</p>
+                        <p>{companyMap[contact.companyId]?.name || 'Internal Account'}</p>
                         <div className="contact-card__meta">
                           <span>{contact.owner}</span>
                           <span className="tone-pill is-neutral">Contact</span>
@@ -235,7 +233,7 @@ export default function DatabaseView({
                       >
                         <div>
                           <strong>{company.name}</strong>
-                          <span>{company.industry}</span>
+                          <span>{company.industry || 'General Industry'}</span>
                         </div>
                         <p>{company.city} | owner {company.owner}</p>
                         <div className="contact-card__meta">
@@ -358,39 +356,6 @@ export default function DatabaseView({
           onSubmit={(form) => {
             onCreateLead(form)
             setShowLeadForm(false)
-          }}
-        />
-      </Modal>
-
-      <Modal
-        isOpen={showContactForm}
-        onClose={() => setShowContactForm(false)}
-        title="Add a new contact"
-        kicker="Directory entry"
-      >
-        <ContactForm
-          companies={companies}
-          teamMembers={teamMembers}
-          onCancel={() => setShowContactForm(false)}
-          onSubmit={(form) => {
-            onCreateContact(form)
-            setShowContactForm(false)
-          }}
-        />
-      </Modal>
-
-      <Modal
-        isOpen={showCompanyForm}
-        onClose={() => setShowCompanyForm(false)}
-        title="Add a new company"
-        kicker="Account entry"
-      >
-        <CompanyForm
-          teamMembers={teamMembers}
-          onCancel={() => setShowCompanyForm(false)}
-          onSubmit={(form) => {
-            onCreateCompany(form)
-            setShowCompanyForm(false)
           }}
         />
       </Modal>

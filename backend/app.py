@@ -240,21 +240,47 @@ def create_lead():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+        lead_id = data.get('id')
+        customer_name = data.get('customerName')
+        contact_num = data.get('contactNum')
+        branch = data.get('branch')
+        sr = data.get('sr')
+        
+        # 1. Insert into leads (Master record matching GSheets)
         cursor.execute(
             """INSERT INTO leads (id, customer_name, contact_num, address, region, sr, branch, status, created_at)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
-                data.get('id'),
-                data.get('customerName'),
-                data.get('contactNum'),
+                lead_id,
+                customer_name,
+                contact_num,
                 data.get('address'),
                 data.get('region'),
-                data.get('sr'),
-                data.get('branch'),
+                sr,
+                branch,
                 data.get('status', 'New'),
                 data.get('createdAt') or None,
             ),
         )
+        
+        # 2. Automatically create a Company record
+        # Use lead_id as company_id for direct linking
+        cursor.execute(
+            """INSERT INTO companies (id, name, city, owner, status)
+               VALUES (%s, %s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE name = VALUES(name)""",
+            (lead_id, customer_name, data.get('region'), sr, 'Active')
+        )
+        
+        # 3. Automatically create a Contact record
+        import uuid
+        contact_id = str(uuid.uuid4())
+        cursor.execute(
+            """INSERT INTO contacts (id, name, company_id, owner, phone, status)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            (contact_id, customer_name, lead_id, sr, contact_num, 'Active')
+        )
+
         conn.commit()
         
         # Sync to Google Sheets
@@ -263,7 +289,7 @@ def create_lead():
         except Exception as e:
             print(f"Failed to sync to Google Sheets: {e}")
             
-        return jsonify({'message': 'Lead created', 'id': data.get('id')}), 201
+        return jsonify({'message': 'Lead, Company, and Contact created', 'id': lead_id}), 201
     finally:
         close_connection(conn)
 
