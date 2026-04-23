@@ -45,9 +45,44 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
         const [companiesRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes] = responses
 
-        setCompanies(await companiesRes.json())
-        setContacts((await contactsRes.json()).map((c) => ({ ...c, lastActivity: c.lastTouch ?? '' })))
-        setLeads(await leadsRes.json())
+        const fetchedLeads = await leadsRes.json()
+        const leadIdSet = new Set(fetchedLeads.map((l) => l.id))
+
+        // Filter API results to only records linked to this branch's leads
+        const branchCompanies = (await companiesRes.json()).filter((c) => leadIdSet.has(c.id))
+        const branchContacts = (await contactsRes.json())
+          .filter((c) => leadIdSet.has(c.companyId))
+          .map((c) => ({ ...c, lastActivity: c.lastTouch ?? '' }))
+
+        // Derive missing companies and contacts from leads not yet in the DB
+        const companyIdSet = new Set(branchCompanies.map((c) => c.id))
+        const contactCompanyIdSet = new Set(branchContacts.map((c) => c.companyId))
+
+        const derivedCompanies = fetchedLeads
+          .filter((l) => !companyIdSet.has(l.id))
+          .map((l) => ({
+            id: l.id,
+            name: l.customerName,
+            city: l.region,
+            owner: l.sr,
+            status: 'Active',
+          }))
+
+        const derivedContacts = fetchedLeads
+          .filter((l) => !contactCompanyIdSet.has(l.id))
+          .map((l) => ({
+            id: `c-${l.id}`,
+            name: l.customerName,
+            companyId: l.id,
+            phone: l.contactNum,
+            owner: l.sr,
+            status: 'Active',
+            lastActivity: l.createdAt ?? '',
+          }))
+
+        setLeads(fetchedLeads)
+        setCompanies([...branchCompanies, ...derivedCompanies])
+        setContacts([...branchContacts, ...derivedContacts])
         setDeals(
           (await dealsRes.json()).map((d) => ({
             ...d,

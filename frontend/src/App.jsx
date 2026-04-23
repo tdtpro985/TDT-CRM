@@ -20,14 +20,14 @@ const SHORT_STAGE_LABEL = { 'New Opportunity': 'New', 'Closed Won': 'Won' }
 
 const NAV_CONFIG = [
   { id: 'dashboard', label: 'Dashboard',         description: '5 KPI overview' },
-  { id: 'database',  label: 'Customer Database',  description: 'Leads, contacts, and companies' },
+  { id: 'database',  label: 'Customer Database',  description: 'Customer records and registry' },
   { id: 'pipeline',  label: 'Pipeline',           description: 'Opportunity visibility' },
   { id: 'tasks',     label: 'Tasks',              description: 'Follow-ups and activity log' },
 ]
 
 const VIEW_META = {
   dashboard: { eyebrow: 'In-house CRM prototype', title: 'Dashboard', description: '', searchPlaceholder: 'Search leads, deals, tasks, or companies' },
-  database:  { eyebrow: 'Clean data', title: 'Customer Database', description: '', searchPlaceholder: 'Search leads, contacts, companies, or owners' },
+  database:  { eyebrow: 'Clean data', title: 'Customer Database', description: '', searchPlaceholder: 'Search customer name, region, SR, or branch' },
   pipeline:  { eyebrow: 'Pipeline visibility', title: 'Pipeline', description: '', searchPlaceholder: 'Search deal, company, stage, or owner' },
   tasks:     { eyebrow: 'Activity tracking', title: 'Tasks', description: '', searchPlaceholder: 'Search tasks, deals, owners, or due dates' },
 }
@@ -207,7 +207,7 @@ export default function App() {
   const navItems = NAV_CONFIG.map((item) => ({
     ...item,
     badge: item.id === 'dashboard' ? '05'
-      : item.id === 'database'  ? `${leads.length + contacts.length + companies.length}`
+      : item.id === 'database'  ? `${leads.length}`
       : item.id === 'pipeline'  ? `${activeDeals.length}`
       : `${openTasks.length}`,
   }))
@@ -235,33 +235,18 @@ export default function App() {
     if (activeView === 'database') {
       return (
         <DatabaseView
-          databaseTab={databaseTab}
-          setDatabaseTab={setDatabaseTab}
           setNotice={setNotice}
           filteredLeads={filteredLeads}
-          filteredContacts={filteredContacts}
-          filteredCompanies={filteredCompanies}
           leads={leads}
-          contacts={contacts}
-          companies={companies}
-          deals={deals}
           teamMembers={teamMembers}
           selectedLeadId={selectedLeadId}
           setSelectedLeadId={setSelectedLeadId}
-          selectedContactId={selectedContactId}
-          setSelectedContactId={setSelectedContactId}
-          selectedCompanyId={selectedCompanyId}
-          setSelectedCompanyId={setSelectedCompanyId}
-          companyMap={companyMap}
-          contactMap={contactMap}
           leadStatuses={LEAD_STATUSES}
-          leadSources={LEAD_SOURCES}
           onCreateLead={handleCreateLead}
           handleLeadStatusChange={actions.updateLeadStatus}
           linkHealth={linkHealth}
           showLeadForm={showLeadForm}
           setShowLeadForm={setShowLeadForm}
-          onSyncGSheets={actions.syncGSheets}
           currentUser={currentUser}
         />
       )
