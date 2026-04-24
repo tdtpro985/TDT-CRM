@@ -35,6 +35,40 @@ def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=No
 
 # ─── Auth / Login ─────────────────────────────────────────────────────────────
 
+@app.route('/api/admin/login', methods=['POST'])
+def admin_login():
+    data     = request.get_json()
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+
+    if not username or not password:
+        return jsonify({'error': 'Username and password are required'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, name, email, role, branch FROM team WHERE username = %s AND password = %s AND role = 'Admin'",
+            (username, password)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Invalid credentials or account is not an Admin.'}), 401
+        user = {
+            'id':       row[0],
+            'name':     row[1],
+            'email':    row[2],
+            'role':     row[3],
+            'branch':   row[4],
+            'username': username,
+        }
+        return jsonify({'message': 'Login successful', 'user': user}), 200
+    finally:
+        close_connection(conn)
+
+
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.get_json()

@@ -280,6 +280,21 @@
 
 /* ── Analytics ──────────────────────────────────────────────── */
 
+.analytics-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+.analytics-pagination__label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
 .analytics-bar-track {
   height: 6px;
   border-radius: var(--r-full);
@@ -485,52 +500,18 @@
 
 .admin-search::placeholder { color: rgba(151,163,182,0.6); }
 
-/* Form */
-
-.admin-form-wrap {
-  margin: 16px 20px;
-  border: 1px solid rgba(255,152,0,0.25);
-  border-radius: var(--r-lg);
-  background: rgba(255,152,0,0.04);
-  overflow: hidden;
-}
-
-.admin-form-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(255,152,0,0.15);
-}
-
-.admin-form-title {
-  margin: 0;
-  font-size: var(--fs-base);
-  font-weight: 700;
-  color: var(--text-strong);
-}
-
-.admin-form-close {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: var(--fs-base);
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: var(--r-sm);
-  transition: color 0.15s;
-}
-
-.admin-form-close:hover { color: var(--text-strong); }
+/* Form (rendered inside Modal) */
 
 .admin-form {
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .admin-form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
 
 .admin-form .field input,
@@ -566,7 +547,6 @@
   display: flex;
   gap: 10px;
   justify-content: flex-end;
-  margin-top: 18px;
 }
 
 /* Table */

@@ -20,18 +20,14 @@ export default function AdminLoginPage({ onLogin }) {
     }
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/login`, {
+      const res = await fetch(`${API_BASE}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, branch: 'Headquarters' }),
+        body: JSON.stringify(form),
       })
       const data = await res.json()
       if (!res.ok) {
-        setError('Invalid credentials. Admin accounts must be in Headquarters.')
-        return
-      }
-      if (data.user?.role !== 'Admin') {
-        setError('Access denied. This portal is for Admin accounts only.')
+        setError(data.error || 'Invalid credentials.')
         return
       }
       onLogin(data.user)

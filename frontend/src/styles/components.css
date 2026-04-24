@@ -531,11 +531,70 @@ section.content-grid--primary {
   background: var(--surface-card, #141e2d);
   border: 1px solid var(--border);
   border-radius: var(--r-lg, 16px);
-  width: min(520px, 92vw);
+  width: min(640px, 94vw);
+  max-height: 90vh;
   box-shadow: 0 24px 64px rgba(0,0,0,0.5);
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.deal-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.deal-modal__kicker {
+  display: block;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent-strong);
+  margin-bottom: 4px;
+}
+
+.deal-modal__header h2 {
+  margin: 0;
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  color: var(--text-strong);
+  line-height: 1.2;
+}
+
+.deal-modal__close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  font-size: var(--fs-base);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  margin-top: 2px;
+}
+
+.deal-modal__close:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--text-strong);
+}
+
+.modal-body-scroll {
+  overflow-y: auto;
+  padding: 24px 28px;
+  flex: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
 
 .toast {

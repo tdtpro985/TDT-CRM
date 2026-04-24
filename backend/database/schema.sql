@@ -100,9 +100,22 @@ CREATE TABLE IF NOT EXISTS audit_log (
     changed_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- ─── Seed: Sample team members ────────────────────────────────────────────────
+-- ─── Seed: Branch accounts ────────────────────────────────────────────────────
 INSERT IGNORE INTO team (username, password, name, email, role, branch) VALUES
-    ('manila.tdtpowersteel', 'password123', 'Juan dela Cruz (Manila)',  'juan@tdt.com',  'Sales Rep', 'Manila'),
-    ('cebu.tdtpowersteel', 'password123', 'Maria Santos (Cebu)',    'maria@tdt.com', 'Sales Rep', 'Cebu'),
-    ('hq.tdtpowersteel', 'admin123', 'Carlo Reyes (HQ)',     'carlo@tdt.com', 'Sales Manager', 'Headquarters'),
+    ('manila.tdtpowersteel',     'TDTbranch2024!', 'Manila Branch',     'manila@tdt.com',     'Sales Rep', 'Manila'),
+    ('batangas.tdtpowersteel',   'TDTbranch2024!', 'Batangas Branch',   'batangas@tdt.com',   'Sales Rep', 'Batangas'),
+    ('cavite.tdtpowersteel',     'TDTbranch2024!', 'Cavite Branch',     'cavite@tdt.com',     'Sales Rep', 'Cavite'),
+    ('cdo.tdtpowersteel',        'TDTbranch2024!', 'CDO Branch',        'cdo@tdt.com',        'Sales Rep', 'CDO'),
+    ('cebu.tdtpowersteel',       'TDTbranch2024!', 'Cebu Branch',       'cebu@tdt.com',       'Sales Rep', 'Cebu'),
+    ('davao.tdtpowersteel',      'TDTbranch2024!', 'Davao Branch',      'davao@tdt.com',      'Sales Rep', 'Davao'),
+    ('isabela.tdtpowersteel',    'TDTbranch2024!', 'Isabela Branch',    'isabela@tdt.com',    'Sales Rep', 'Isabela'),
+    ('iloilo.tdtpowersteel',     'TDTbranch2024!', 'Iloilo Branch',     'iloilo@tdt.com',     'Sales Rep', 'Iloilo'),
+    ('ilocos.tdtpowersteel',     'TDTbranch2024!', 'Ilocos Branch',     'ilocos@tdt.com',     'Sales Rep', 'Ilocos'),
+    ('gensan.tdtpowersteel',     'TDTbranch2024!', 'Gensan Branch',     'gensan@tdt.com',     'Sales Rep', 'Gensan'),
+    ('legazpi.tdtpowersteel',    'TDTbranch2024!', 'Legazpi Branch',    'legazpi@tdt.com',    'Sales Rep', 'Legazpi'),
+    ('palawan.tdtpowersteel',    'TDTbranch2024!', 'Palawan Branch',    'palawan@tdt.com',    'Sales Rep', 'Palawan'),
+    ('powerstore.tdtpowersteel', 'TDTbranch2024!', 'Powerstore Branch', 'powerstore@tdt.com', 'Sales Rep', 'Powerstore');
+
+-- ─── Seed: Admin accounts ─────────────────────────────────────────────────────
+INSERT IGNORE INTO team (username, password, name, email, role, branch) VALUES
     ('admin.tdtpowersteel', 'TDTadmin2024!', 'System Administrator', 'admin@tdt.com', 'Admin', 'Headquarters');

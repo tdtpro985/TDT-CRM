@@ -20,10 +20,13 @@ function timeAgo(dateStr) {
   return `${Math.floor(h / 24)}d ago`
 }
 
+const PAGE_SIZE = 5
+
 export default function AdminAnalyticsView() {
-  const [data, setData]     = useState(null)
+  const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError]   = useState('')
+  const [error, setError]     = useState('')
+  const [page, setPage]       = useState(1)
 
   useEffect(() => {
     fetch(`${API_BASE}/api/admin/analytics`)
@@ -54,6 +57,8 @@ export default function AdminAnalyticsView() {
     branchMap[key].pipeline = r.pipeline_value
   })
   const branchRows = Object.values(branchMap).sort((a, b) => a.branch?.localeCompare(b.branch))
+  const totalPages = Math.ceil(branchRows.length / PAGE_SIZE)
+  const pagedRows  = branchRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const maxLeads = Math.max(...branchRows.map((r) => r.leads), 1)
 
@@ -88,7 +93,7 @@ export default function AdminAnalyticsView() {
                 </tr>
               </thead>
               <tbody>
-                {branchRows.map((r) => {
+                {pagedRows.map((r) => {
                   const rate = r.leads ? Math.round((r.converted / r.leads) * 100) : 0
                   const barW = Math.round((r.leads / maxLeads) * 100)
                   return (
@@ -115,10 +120,34 @@ export default function AdminAnalyticsView() {
               </tbody>
             </table>
           </div>
+
+          {totalPages > 1 && (
+            <div className="analytics-pagination">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                ← Prev
+              </button>
+              <span className="analytics-pagination__label">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={page === totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </Panel>
 
         {/* Right column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}>
 
           {/* Role distribution */}
           <Panel kicker="Access levels" title="Role Distribution">
