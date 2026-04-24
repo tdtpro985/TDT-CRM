@@ -1,27 +1,10 @@
 import { useState } from 'react'
 
-const BRANCHES = [
-  'Manila',
-  'Batangas',
-  'Cavite',
-  'CDO',
-  'Cebu',
-  'Davao',
-  'Isabela',
-  'Iloilo',
-  'Ilocos',
-  'Gensan',
-  'Legazpi',
-  'Palawan',
-  'Powerstore',
-  'Headquarters',
-]
-
 const API_BASE = 'http://localhost:5000'
 
-export default function LoginPage({ onLogin }) {
-  const [form, setForm] = useState({ username: '', password: '', branch: '' })
-  const [error, setError] = useState('')
+export default function AdminLoginPage({ onLogin }) {
+  const [form, setForm]     = useState({ username: '', password: '' })
+  const [error, setError]   = useState('')
   const [loading, setLoading] = useState(false)
 
   function handleChange(e) {
@@ -31,8 +14,8 @@ export default function LoginPage({ onLogin }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!form.username || !form.password || !form.branch) {
-      setError('Please fill in all fields.')
+    if (!form.username || !form.password) {
+      setError('Please enter your username and password.')
       return
     }
     setLoading(true)
@@ -40,14 +23,18 @@ export default function LoginPage({ onLogin }) {
       const res = await fetch(`${API_BASE}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, branch: 'Headquarters' }),
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Login failed. Check your credentials and branch.')
-      } else {
-        onLogin(data.user)
+        setError('Invalid credentials. Admin accounts must be in Headquarters.')
+        return
       }
+      if (data.user?.role !== 'Admin') {
+        setError('Access denied. This portal is for Admin accounts only.')
+        return
+      }
+      onLogin(data.user)
     } catch {
       setError('Cannot reach the server. Make sure the backend is running.')
     } finally {
@@ -56,23 +43,23 @@ export default function LoginPage({ onLogin }) {
   }
 
   return (
-    <div className="login-shell">
-      <div className="login-card">
+    <div className="login-shell admin-login-shell">
+      <div className="login-card admin-login-card">
         <div className="login-brand">
           <img src="/Logo_tdt.png" alt="TDT Powersteel" className="login-logo" />
-          <p className="login-subtitle">Sales CRM — Branch Portal</p>
+          <p className="login-subtitle">Admin Portal</p>
+          <span className="admin-login-badge">Restricted Access</span>
         </div>
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           <label className="login-field">
-            <span>Username</span>
+            <span>Admin Username</span>
             <input
-              id="login-username"
               name="username"
               type="text"
               value={form.username}
               onChange={handleChange}
-              placeholder="e.g. manila.tdtpowersteel"
+              placeholder="e.g. admin.tdtpowersteel"
               autoComplete="username"
               autoFocus
             />
@@ -81,47 +68,32 @@ export default function LoginPage({ onLogin }) {
           <label className="login-field">
             <span>Password</span>
             <input
-              id="login-password"
               name="password"
               type="password"
               value={form.password}
               onChange={handleChange}
-              placeholder="Enter your password"
+              placeholder="Enter admin password"
               autoComplete="current-password"
             />
           </label>
 
-          <label className="login-field">
-            <span>Branch</span>
-            <select
-              id="login-branch"
-              name="branch"
-              value={form.branch}
-              onChange={handleChange}
-            >
-              <option value="" disabled>Select your branch…</option>
-              {BRANCHES.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
-          </label>
-
           {error && (
-            <div className="login-error" role="alert">
-              {error}
-            </div>
+            <div className="login-error" role="alert">{error}</div>
           )}
 
           <button
-            id="login-submit"
             type="submit"
             className="primary-button login-submit"
             disabled={loading}
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? 'Verifying…' : 'Sign in to Admin'}
           </button>
         </form>
 
+        <p className="login-footer admin-login-footer">
+          Not an admin?{' '}
+          <a href="/" className="admin-login-link">Go to Branch Portal →</a>
+        </p>
         <p className="login-footer">© {new Date().getFullYear()} TDT Powersteel. All rights reserved.</p>
       </div>
     </div>

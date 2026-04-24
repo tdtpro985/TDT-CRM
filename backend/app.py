@@ -534,6 +534,180 @@ def get_dashboard():
         close_connection(conn)
 
 
+# ─── Admin: Analytics ─────────────────────────────────────────────────────────
+
+@app.route('/api/admin/analytics', methods=['GET'])
+def admin_analytics():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+
+        # Users per branch (exclude Headquarters — admin-only, not a sales branch)
+        cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY branch ORDER BY branch")
+        users_per_branch = rows_to_list(cursor)
+
+        # Role distribution (exclude Headquarters admins from sales role stats)
+        cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY role ORDER BY role")
+        role_distribution = rows_to_list(cursor)
+
+        # Leads per branch
+        cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads GROUP BY branch ORDER BY branch')
+        leads_per_branch = rows_to_list(cursor)
+
+        # Deals per branch (via leads join)
+        cursor.execute('''
+            SELECT l.branch,
+                   COUNT(d.id)              AS deal_count,
+                   COALESCE(SUM(d.value),0) AS pipeline_value
+            FROM deals d
+            LEFT JOIN leads l ON d.lead_id = l.id
+            GROUP BY l.branch
+            ORDER BY l.branch
+        ''')
+        deals_per_branch = rows_to_list(cursor)
+
+        # Totals (branch staff only, excluding Headquarters admins)
+        cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters'")
+        total_users = cursor.fetchone()[0]
+
+        cursor.execute('SELECT COUNT(*) FROM leads')
+        total_leads = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM deals WHERE stage != 'Closed Won'")
+        active_deals = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COALESCE(SUM(value),0) FROM deals WHERE stage != 'Closed Won'")
+        pipeline_value = float(cursor.fetchone()[0])
+
+        # Recent audit log (last 20)
+        cursor.execute('SELECT * FROM audit_log ORDER BY changed_at DESC LIMIT 20')
+        audit_log = rows_to_list(cursor)
+
+        return jsonify({
+            'usersPerBranch':   users_per_branch,
+            'roleDistribution': role_distribution,
+            'leadsPerBranch':   leads_per_branch,
+            'dealsPerBranch':   deals_per_branch,
+            'totals': {
+                'users':        total_users,
+                'leads':        total_leads,
+                'activeDeals':  active_deals,
+                'pipelineValue': pipeline_value,
+            },
+            'auditLog': audit_log,
+        })
+    finally:
+        close_connection(conn)
+
+
+# ─── Admin: User Management ───────────────────────────────────────────────────
+
+@app.route('/api/admin/users', methods=['GET'])
+def admin_get_users():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        branch = request.args.get('branch')
+        if branch and branch != 'Headquarters':
+            cursor.execute(
+                "SELECT id, username, name, email, role, branch FROM team WHERE branch = %s AND branch != 'Headquarters' ORDER BY branch, name",
+                (branch,)
+            )
+        else:
+            cursor.execute(
+                "SELECT id, username, name, email, role, branch FROM team WHERE branch != 'Headquarters' ORDER BY branch, name"
+            )
+        return jsonify(rows_to_list(cursor))
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/users', methods=['POST'])
+def admin_create_user():
+    data = request.get_json()
+    required = ['username', 'password', 'name', 'branch']
+    if not all(data.get(k, '').strip() for k in required):
+        return jsonify({'error': 'username, password, name, and branch are required'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO team (username, password, name, email, role, branch) VALUES (%s, %s, %s, %s, %s, %s)',
+            (
+                data['username'].strip(),
+                data['password'],
+                data['name'].strip(),
+                data.get('email', '').strip(),
+                data.get('role', 'Sales Rep'),
+                data['branch'],
+            )
+        )
+        conn.commit()
+        return jsonify({'message': 'User created', 'id': cursor.lastrowid}), 201
+    except Exception as e:
+        if 'Duplicate entry' in str(e):
+            return jsonify({'error': 'Username already exists'}), 409
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['PUT'])
+def admin_update_user(user_id):
+    data = request.get_json()
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM team WHERE id = %s', (user_id,))
+        if not cursor.fetchone():
+            return jsonify({'error': 'User not found'}), 404
+
+        fields, values = [], []
+        for col in ['name', 'email', 'role', 'branch', 'username']:
+            if col in data:
+                fields.append(f'{col} = %s')
+                values.append(data[col])
+        if data.get('password'):
+            fields.append('password = %s')
+            values.append(data['password'])
+
+        if not fields:
+            return jsonify({'error': 'No fields to update'}), 400
+
+        values.append(user_id)
+        cursor.execute(f'UPDATE team SET {", ".join(fields)} WHERE id = %s', values)
+        conn.commit()
+        return jsonify({'message': 'User updated'})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+def admin_delete_user(user_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM team WHERE id = %s', (user_id,))
+        if not cursor.fetchone():
+            return jsonify({'error': 'User not found'}), 404
+        cursor.execute('DELETE FROM team WHERE id = %s', (user_id,))
+        conn.commit()
+        return jsonify({'message': 'User deleted'})
+    finally:
+        close_connection(conn)
+
+
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':

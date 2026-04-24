@@ -283,3 +283,58 @@
   background: rgba(255,255,255,0.02);
   border: 1px solid var(--border);
 }
+
+/* ── Mobile Sidebar Overlay ──────────────────────────────────── */
+
+.sidebar-overlay {
+  display: none;
+}
+
+.hamburger-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.hamburger-btn span {
+  display: block;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--text-strong);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.hamburger-btn.is-open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+.hamburger-btn.is-open span:nth-child(2) { opacity: 0; }
+.hamburger-btn.is-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+.mobile-brand {
+  display: none;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobile-brand img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  background: #c8cdd8;
+  border-radius: var(--r-sm);
+  padding: 4px;
+}
+
+.mobile-brand span {
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}

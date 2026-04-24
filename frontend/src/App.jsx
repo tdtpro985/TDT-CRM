@@ -53,6 +53,7 @@ export default function App() {
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function handleLogin(user) {
     setCurrentUser(user)
@@ -169,6 +170,7 @@ export default function App() {
     setShowDealForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId].title} is active.`)
+    setSidebarOpen(false)
   }
 
   function handlePrimaryAction() {
@@ -307,7 +309,14 @@ export default function App() {
 
   return (
     <div className="crm-shell">
-      <aside className="sidebar">
+      {/* Mobile sidebar overlay */}
+      <div
+        className={`sidebar-overlay ${sidebarOpen ? 'is-open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
+      <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
         <div className="brand-block">
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
           <p className="brand-name">Sales CRM</p>
@@ -331,6 +340,7 @@ export default function App() {
               <span className="nav-item__badge">{item.badge}</span>
             </button>
           ))}
+
         </nav>
 
         <div className="sidebar-footer">
@@ -352,6 +362,18 @@ export default function App() {
 
       <main className="dashboard" id="crm-main-content">
         <header className="top-bar">
+          <button
+            type="button"
+            className={`hamburger-btn ${sidebarOpen ? 'is-open' : ''}`}
+            onClick={() => setSidebarOpen((v) => !v)}
+            aria-label="Toggle navigation"
+          >
+            <span /><span /><span />
+          </button>
+          <div className="mobile-brand">
+            <img src="/tdt-powersteel-logo.png" alt="TDT" />
+            <span>Sales CRM</span>
+          </div>
           <div>
             <p className="eyebrow">{currentMeta.eyebrow}</p>
             <h2 className="page-title">{currentMeta.title}</h2>

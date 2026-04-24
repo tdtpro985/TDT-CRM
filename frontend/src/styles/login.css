@@ -118,9 +118,68 @@
   transform: none; 
 }
 
-.login-footer { 
-  margin: 0; 
-  text-align: center; 
-  color: var(--text-muted); 
-  font-size: var(--fs-xs); 
+.login-footer {
+  margin: 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+
+/* --- Admin Login Variants ------------------------------------- */
+
+.admin-login-shell {
+  background:
+    radial-gradient(ellipse at 80% 50%, rgba(100,160,255,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse at 20% 20%, rgba(15,52,96,0.5) 0%, transparent 60%),
+    #0a0e17;
+}
+
+.admin-login-card {
+  border-color: rgba(100,160,255,0.2);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(100,160,255,0.06);
+}
+
+.admin-login-badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: var(--r-full);
+  background: rgba(220,53,69,0.12);
+  border: 1px solid rgba(220,53,69,0.3);
+  color: #ff6b7a;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.admin-login-footer {
+  margin-bottom: -8px;
+}
+
+.admin-login-link {
+  color: var(--accent-strong);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.admin-login-link:hover {
+  text-decoration: underline;
+}
+
+.admin-portal-badge {
+  background: rgba(100,160,255,0.12);
+  border: 1px solid rgba(100,160,255,0.25);
+  color: #7eb8ff;
+}
+
+.admin-back-link {
+  display: inline-block;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.admin-back-link:hover {
+  color: var(--accent-strong);
 }

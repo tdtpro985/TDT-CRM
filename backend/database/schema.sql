@@ -104,4 +104,5 @@ CREATE TABLE IF NOT EXISTS audit_log (
 INSERT IGNORE INTO team (username, password, name, email, role, branch) VALUES
     ('manila.tdtpowersteel', 'password123', 'Juan dela Cruz (Manila)',  'juan@tdt.com',  'Sales Rep', 'Manila'),
     ('cebu.tdtpowersteel', 'password123', 'Maria Santos (Cebu)',    'maria@tdt.com', 'Sales Rep', 'Cebu'),
-    ('hq.tdtpowersteel', 'admin123', 'Carlo Reyes (HQ)',     'carlo@tdt.com', 'Sales Manager', 'Headquarters');
+    ('hq.tdtpowersteel', 'admin123', 'Carlo Reyes (HQ)',     'carlo@tdt.com', 'Sales Manager', 'Headquarters'),
+    ('admin.tdtpowersteel', 'TDTadmin2024!', 'System Administrator', 'admin@tdt.com', 'Admin', 'Headquarters');
