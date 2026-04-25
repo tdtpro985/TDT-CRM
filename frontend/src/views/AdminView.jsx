@@ -291,7 +291,7 @@ export default function AdminView({ currentUser, showToast }) {
         </Panel>
 
         {/* Branch breakdown sidebar */}
-        <Panel kicker="By branch" title="Account Distribution">
+        <Panel kicker="By branch" title="Account Distribution" detail="Click a branch to filter the table.">
           <div className="admin-branch-list">
             {BRANCHES.filter((b) => branchCounts[b]).map((b) => (
               <button
@@ -305,7 +305,7 @@ export default function AdminView({ currentUser, showToast }) {
               </button>
             ))}
             {Object.keys(branchCounts).length === 0 && (
-              <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)', padding: '8px 0' }}>No accounts yet.</p>
+              <p className="admin-empty-text">No accounts yet.</p>
             )}
           </div>
         </Panel>

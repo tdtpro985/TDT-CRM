@@ -23,7 +23,7 @@ export default function TasksView({
   setShowTaskForm,
 }) {
   const focusQueue = [...openTasks]
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
     .slice(0, 4)
 
   const completedCount = tasks.filter((t) => t.status === 'Completed').length

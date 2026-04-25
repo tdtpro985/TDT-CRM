@@ -251,7 +251,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 4px 2px 0;
+  padding: 8px 4px 4px;
+  flex-shrink: 0;
 }
 
 .top-bar > div:first-child {
@@ -278,10 +279,31 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: var(--pad-item);
+  padding: 8px var(--pad-panel);
   border-radius: var(--r-md);
-  background: rgba(255,255,255,0.02);
+  background: rgba(255,255,255,0.015);
   border: 1px solid var(--border);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notice-bar strong {
+  color: var(--accent-strong);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.notice-bar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ── Mobile Sidebar Overlay ──────────────────────────────────── */

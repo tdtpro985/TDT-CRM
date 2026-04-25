@@ -13,7 +13,7 @@ export default function DashboardView({
   linkHealth,
 }) {
   const focusTasks = [...openTasks]
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
     .slice(0, 4)
 
   return (

@@ -80,9 +80,7 @@ export default function AdminPortal() {
             <span className="sidebar-user__name">{adminUser.name}</span>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
-          <div style={{ marginTop: '12px' }}>
-            <a href="/" className="admin-back-link">← Go to Branch Portal</a>
-          </div>
+          <a href="/" className="admin-back-link sidebar-back-link">← Go to Branch Portal</a>
         </div>
       </aside>
 

@@ -10,6 +10,8 @@ const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
 export default function PipelineView({
   filteredDeals,
   deals,
+  leads,
+  contacts,
   teamMembers,
   activeDeals,
   pipelineValue,
@@ -24,6 +26,8 @@ export default function PipelineView({
   showDealForm,
   setShowDealForm
 }) {
+  const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
+  const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
   const [selectedDeal, setSelectedDeal] = useState(null)
   const [stagePages, setStagePages] = useState({})
 
@@ -192,67 +196,94 @@ export default function PipelineView({
       {selectedDeal && (
         <div className="deal-modal-overlay" onClick={() => setSelectedDeal(null)}>
           <div className="deal-modal" onClick={(e) => e.stopPropagation()}>
+
+            {/* ── Header ── */}
             <div className="deal-modal__header">
               <div>
-                <span className="deal-modal__kicker">Deal details</span>
+                <span className="deal-modal__kicker">Deal Details</span>
                 <h2>{selectedDeal.name}</h2>
               </div>
-              <button type="button" className="deal-modal__close" onClick={() => setSelectedDeal(null)}>✕</button>
+              <button type="button" className="deal-modal__close" aria-label="Close" onClick={() => setSelectedDeal(null)}>✕</button>
             </div>
 
-            <div className="deal-modal__grid">
-              <div className="deal-modal__field">
-                <span>Company</span>
-                <strong>{companyMap[selectedDeal.companyId]?.name ?? selectedDeal.companyId ?? '—'}</strong>
+            {/* ── Body ── */}
+            <div className="modal-body-scroll">
+
+              {/* Stage progress bar */}
+              <div className="deal-modal__stage-track">
+                {dealStages.map((s) => (
+                  <div
+                    key={s}
+                    className={`deal-modal__stage-pip ${s === selectedDeal.stage ? 'is-active' : dealStages.indexOf(s) < dealStages.indexOf(selectedDeal.stage) ? 'is-done' : ''}`}
+                  >
+                    <span>{s}</span>
+                  </div>
+                ))}
               </div>
-              <div className="deal-modal__field">
-                <span>Owner</span>
-                <strong>{selectedDeal.owner || '—'}</strong>
-              </div>
-              <div className="deal-modal__field">
-                <span>Stage</span>
-                <strong>{selectedDeal.stage}</strong>
-              </div>
-              <div className="deal-modal__field">
-                <span>Probability</span>
-                <strong>{selectedDeal.probability}%</strong>
-              </div>
-              <div className="deal-modal__field">
-                <span>Value</span>
-                <strong>{formatCurrencyCompact(selectedDeal.value)}</strong>
-              </div>
-              <div className="deal-modal__field">
-                <span>Expected close</span>
-                <strong>{formatDateLabel(selectedDeal.expectedClose)}</strong>
-              </div>
-              {selectedDeal.contactId && (
+
+              {/* Detail grid */}
+              <div className="deal-modal__grid">
                 <div className="deal-modal__field">
-                  <span>Contact</span>
-                  <strong>{selectedDeal.contactId}</strong>
+                  <span className="deal-modal__label">Company</span>
+                  <strong className="deal-modal__value">{companyMap[selectedDeal.companyId]?.name ?? '—'}</strong>
                 </div>
-              )}
-              {selectedDeal.leadId && (
                 <div className="deal-modal__field">
-                  <span>Linked lead</span>
-                  <strong>{selectedDeal.leadId}</strong>
+                  <span className="deal-modal__label">Owner</span>
+                  <strong className="deal-modal__value">{selectedDeal.owner || '—'}</strong>
                 </div>
-              )}
+                <div className="deal-modal__field">
+                  <span className="deal-modal__label">Deal Value</span>
+                  <strong className="deal-modal__value deal-modal__value--accent">{formatCurrencyCompact(selectedDeal.value)}</strong>
+                </div>
+                <div className="deal-modal__field">
+                  <span className="deal-modal__label">Probability</span>
+                  <strong className="deal-modal__value">
+                    <span className="tone-pill is-warning">{selectedDeal.probability}%</span>
+                  </strong>
+                </div>
+                <div className="deal-modal__field">
+                  <span className="deal-modal__label">Expected Close</span>
+                  <strong className="deal-modal__value">{formatDateLabel(selectedDeal.expectedClose) || '—'}</strong>
+                </div>
+                <div className="deal-modal__field">
+                  <span className="deal-modal__label">Stage</span>
+                  <strong className="deal-modal__value">{selectedDeal.stage}</strong>
+                </div>
+                {selectedDeal.contactId && (
+                  <div className="deal-modal__field">
+                    <span className="deal-modal__label">Contact</span>
+                    <strong className="deal-modal__value">{contactMap[selectedDeal.contactId]?.name ?? selectedDeal.contactId}</strong>
+                  </div>
+                )}
+                {selectedDeal.leadId && (
+                  <div className="deal-modal__field">
+                    <span className="deal-modal__label">Linked Lead</span>
+                    <strong className="deal-modal__value">{leadMap[selectedDeal.leadId]?.customerName ?? selectedDeal.leadId}</strong>
+                  </div>
+                )}
+              </div>
             </div>
 
+            {/* ── Footer: Stage Updater ── */}
             <div className="deal-modal__footer">
-              <label className="field">
-                <span>Update stage</span>
-                <select
-                  value={selectedDeal.stage}
-                  onChange={(e) => {
-                    handleDealStageChange(selectedDeal.id, e.target.value)
-                    setSelectedDeal((d) => ({ ...d, stage: e.target.value }))
-                  }}
-                >
-                  {dealStages.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </label>
+              <p className="deal-modal__footer-label">Move to stage</p>
+              <div className="deal-modal__stage-buttons">
+                {dealStages.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`deal-modal__stage-btn ${s === selectedDeal.stage ? 'is-active' : ''}`}
+                    onClick={() => {
+                      handleDealStageChange(selectedDeal.id, s)
+                      setSelectedDeal((d) => ({ ...d, stage: s }))
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
+
           </div>
         </div>
       )}

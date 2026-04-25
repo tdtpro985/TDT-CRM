@@ -1,9 +1,11 @@
 :root {
+  /* ── Border radii ───────────────── */
   --r-sm:   10px;
   --r-md:   14px;
   --r-lg:   20px;
   --r-full: 999px;
 
+  /* ── Font sizes ─────────────────── */
   --fs-xs:   0.72rem;
   --fs-sm:   0.8rem;
   --fs-base: 0.875rem;
@@ -11,14 +13,41 @@
   --fs-lg:   1.25rem;
   --fs-xl:   1.5rem;
 
-  /* Component-level aliases so changes are automatic */
-  --pad-control: 8px 14px;     /* buttons, fields, search */
-  --pad-item:    10px 14px;    /* nav items, list rows     */
-  --pad-card:    16px;         /* metric cards, small cards*/
-  --pad-panel:   20px;         /* panels, sidebar          */
-  --pad-pill:    3px 9px;      /* badges, tone pills       */
+  /* ── Spacing aliases ────────────── */
+  --pad-control: 8px 14px;
+  --pad-item:    10px 14px;
+  --pad-card:    16px;
+  --pad-panel:   20px;
+  --pad-pill:    3px 9px;
 
-  /* Fluid tokens for cleaner scaling */
-  --gap-fluid: clamp(10px, 1.5vw, 20px);
+  /* ── Fluid tokens ───────────────── */
+  --gap-fluid: clamp(10px, 1.5vw, 18px);
   --pad-fluid: clamp(16px, 2.5vw, 24px);
+
+  /* ── Colors: Brand ──────────────── */
+  --accent:        #ff9800;
+  --accent-strong: #ffb547;
+
+  /* ── Colors: Semantic ───────────── */
+  --positive: #34d399;
+  --warning:  #ffb547;
+  --alert:    #fb7185;
+
+  /* ── Colors: Backgrounds ────────── */
+  --bg-app:   #0a0e17;
+  --bg-card:  #141e2d;
+  --bg-input: rgba(10, 14, 23, 0.7);
+
+  /* ── Colors: Text ───────────────── */
+  --text:        #97a3b6;
+  --text-strong: #e8edf5;
+  --text-muted:  #5d6b82;
+  --text-secondary: #7a8a9e;
+
+  /* ── Colors: Border ─────────────── */
+  --border: rgba(255, 255, 255, 0.08);
+
+  /* ── Shadows ────────────────────── */
+  --shadow-soft:   0 4px 24px rgba(0, 0, 0, 0.25);
+  --shadow-strong: 0 8px 40px rgba(0, 0, 0, 0.45);
 }

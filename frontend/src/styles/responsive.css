@@ -18,6 +18,24 @@
   }
 }
 
+/* ── Mid-tablet: pipeline and sidebar adjustments ─────────── */
+@media (max-width: 900px) {
+  .pipeline-board,
+  .kanban-board {
+    grid-template-columns: repeat(3, minmax(180px, 1fr));
+  }
+
+  .metrics-grid,
+  .metrics-grid--compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sidebar {
+    width: 200px;
+    min-width: 180px;
+  }
+}
+
 /* ── Tablet: single-column content, sidebar stays ─────────── */
 @media (max-width: 1024px) {
   .metrics-grid,
@@ -187,6 +205,19 @@
     padding: 18px 20px;
   }
 
+  .deal-modal__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .deal-modal__stage-buttons {
+    flex-direction: column;
+  }
+
+  .deal-modal__stage-btn {
+    width: 100%;
+    text-align: center;
+  }
+
   .field--span-2 {
     grid-column: span 1;
   }
@@ -202,21 +233,25 @@
     width: 100%;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    border-radius: var(--r-md);
   }
 
   .admin-table {
-    min-width: 600px;
+    min-width: 580px;
   }
 
   /* Admin toolbar stacks vertically */
   .admin-toolbar {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
+    padding: 12px;
+    border-radius: var(--r-md);
   }
 
   .admin-toolbar__filters {
     flex-direction: column;
+    gap: 8px;
   }
 
   .admin-search,
