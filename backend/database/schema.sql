@@ -102,20 +102,20 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 -- ─── Seed: Branch accounts ────────────────────────────────────────────────────
 INSERT IGNORE INTO team (username, password, name, email, role, branch) VALUES
-    ('manila.tdtpowersteel',     'TDTbranch2024!', 'Manila Branch',     'manila@tdt.com',     'Sales Rep', 'Manila'),
-    ('batangas.tdtpowersteel',   'TDTbranch2024!', 'Batangas Branch',   'batangas@tdt.com',   'Sales Rep', 'Batangas'),
-    ('cavite.tdtpowersteel',     'TDTbranch2024!', 'Cavite Branch',     'cavite@tdt.com',     'Sales Rep', 'Cavite'),
-    ('cdo.tdtpowersteel',        'TDTbranch2024!', 'CDO Branch',        'cdo@tdt.com',        'Sales Rep', 'CDO'),
-    ('cebu.tdtpowersteel',       'TDTbranch2024!', 'Cebu Branch',       'cebu@tdt.com',       'Sales Rep', 'Cebu'),
-    ('davao.tdtpowersteel',      'TDTbranch2024!', 'Davao Branch',      'davao@tdt.com',      'Sales Rep', 'Davao'),
-    ('isabela.tdtpowersteel',    'TDTbranch2024!', 'Isabela Branch',    'isabela@tdt.com',    'Sales Rep', 'Isabela'),
-    ('iloilo.tdtpowersteel',     'TDTbranch2024!', 'Iloilo Branch',     'iloilo@tdt.com',     'Sales Rep', 'Iloilo'),
-    ('ilocos.tdtpowersteel',     'TDTbranch2024!', 'Ilocos Branch',     'ilocos@tdt.com',     'Sales Rep', 'Ilocos'),
-    ('gensan.tdtpowersteel',     'TDTbranch2024!', 'Gensan Branch',     'gensan@tdt.com',     'Sales Rep', 'Gensan'),
-    ('legazpi.tdtpowersteel',    'TDTbranch2024!', 'Legazpi Branch',    'legazpi@tdt.com',    'Sales Rep', 'Legazpi'),
-    ('palawan.tdtpowersteel',    'TDTbranch2024!', 'Palawan Branch',    'palawan@tdt.com',    'Sales Rep', 'Palawan'),
-    ('powerstore.tdtpowersteel', 'TDTbranch2024!', 'Powerstore Branch', 'powerstore@tdt.com', 'Sales Rep', 'Powerstore');
+    ('manila.tdtpowersteel',     '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Manila Branch',     'manila@tdt.com',     'Sales Rep', 'Manila'),
+    ('batangas.tdtpowersteel',   '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Batangas Branch',   'batangas@tdt.com',   'Sales Rep', 'Batangas'),
+    ('cavite.tdtpowersteel',     '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Cavite Branch',     'cavite@tdt.com',     'Sales Rep', 'Cavite'),
+    ('cdo.tdtpowersteel',        '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'CDO Branch',        'cdo@tdt.com',        'Sales Rep', 'CDO'),
+    ('cebu.tdtpowersteel',       '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Cebu Branch',       'cebu@tdt.com',       'Sales Rep', 'Cebu'),
+    ('davao.tdtpowersteel',      '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Davao Branch',      'davao@tdt.com',      'Sales Rep', 'Davao'),
+    ('isabela.tdtpowersteel',    '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Isabela Branch',    'isabela@tdt.com',    'Sales Rep', 'Isabela'),
+    ('iloilo.tdtpowersteel',     '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Iloilo Branch',     'iloilo@tdt.com',     'Sales Rep', 'Iloilo'),
+    ('ilocos.tdtpowersteel',     '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Ilocos Branch',     'ilocos@tdt.com',     'Sales Rep', 'Ilocos'),
+    ('gensan.tdtpowersteel',     '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Gensan Branch',     'gensan@tdt.com',     'Sales Rep', 'Gensan'),
+    ('legazpi.tdtpowersteel',    '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Legazpi Branch',    'legazpi@tdt.com',    'Sales Rep', 'Legazpi'),
+    ('palawan.tdtpowersteel',    '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Palawan Branch',    'palawan@tdt.com',    'Sales Rep', 'Palawan'),
+    ('powerstore.tdtpowersteel', '$2b$12$8XQMJFoCULAbv57tHIeUH.1LRlLz5j.2m2rxvQMOz2sF4dArT.kKG', 'Powerstore Branch', 'powerstore@tdt.com', 'Sales Rep', 'Powerstore');
 
 -- ─── Seed: Admin accounts ─────────────────────────────────────────────────────
 INSERT IGNORE INTO team (username, password, name, email, role, branch) VALUES
-    ('admin.tdtpowersteel', 'TDTadmin2024!', 'System Administrator', 'admin@tdt.com', 'Admin', 'Headquarters');
+    ('admin.tdtpowersteel', '$2b$12$NBI2qjuTk2bOnSOq/zCNw.oZrywMjRLv9L4.ywpVq1drNu/ydvk.y', 'System Administrator', 'admin@tdt.com', 'Admin', 'Headquarters');

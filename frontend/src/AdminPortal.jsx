@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import { clearToken, getUser, saveUser } from './api'
 import AdminLoginPage from './components/AdminLoginPage'
 import AdminView from './views/AdminView'
 import AdminAnalyticsView from './views/AdminAnalyticsView'
@@ -18,7 +19,7 @@ const VIEW_META = {
 }
 
 export default function AdminPortal() {
-  const [adminUser, setAdminUser]     = useState(null)
+  const [adminUser, setAdminUser]     = useState(getUser())
   const [activeView, setActiveView]   = useState('analytics')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [toast, setToast]             = useState(null)
@@ -34,11 +35,17 @@ export default function AdminPortal() {
   }
 
   function handleLogout() {
+    clearToken()
     setAdminUser(null)
   }
 
+  function handleAdminLogin(user) {
+    saveUser(user)
+    setAdminUser(user)
+  }
+
   if (!adminUser) {
-    return <AdminLoginPage onLogin={setAdminUser} />
+    return <AdminLoginPage onLogin={handleAdminLogin} />
   }
 
   const meta = VIEW_META[activeView]
@@ -110,7 +117,7 @@ export default function AdminPortal() {
         <div className="view-content">
           {activeView === 'analytics' && <AdminAnalyticsView />}
           {activeView === 'accounts'  && <AdminView currentUser={adminUser} showToast={showToast} />}
-          {activeView === 'profile'   && <AdminProfileView currentUser={adminUser} onUserUpdate={setAdminUser} showToast={showToast} />}
+          {activeView === 'profile'   && <AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />}
         </div>
       </main>
 

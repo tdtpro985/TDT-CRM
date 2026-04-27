@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import Panel from '../components/Panel'
-
-const API_BASE = 'http://localhost:5000'
+import { apiFetch } from '../api'
 
 export default function AdminProfileView({ currentUser, onUserUpdate, showToast }) {
   const [usernameForm, setUsernameForm] = useState({
@@ -40,9 +39,8 @@ export default function AdminProfileView({ currentUser, onUserUpdate, showToast 
     }
     setSavingUsername(true)
     try {
-      const res = await fetch(`${API_BASE}/api/admin/profile`, {
+      const res = await apiFetch(`/api/admin/profile`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: currentUser.id,
           currentPassword: usernameForm.currentPassword,
@@ -79,9 +77,8 @@ export default function AdminProfileView({ currentUser, onUserUpdate, showToast 
     }
     setSavingPassword(true)
     try {
-      const res = await fetch(`${API_BASE}/api/admin/profile`, {
+      const res = await apiFetch(`/api/admin/profile`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: currentUser.id,
           currentPassword: passwordForm.currentPassword,

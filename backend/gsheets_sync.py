@@ -1,5 +1,6 @@
 import os
 import json
+import html
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from database.database import get_db_connection, close_connection
@@ -7,16 +8,21 @@ from datetime import datetime
 import uuid
 
 # Configuration
-CREDENTIALS_FILE = 'credentials.json'
-SPREADSHEET_ID = '1Q0PXxC_jY13bEz-RXo8go-g7_9RRqb9Acy5hRXeawAQ'
+SPREADSHEET_ID = os.getenv('SPREADSHEET_ID', '1Q0PXxC_jY13bEz-RXo8go-g7_9RRqb9Acy5hRXeawAQ')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
 def get_sheets_service():
-    if not os.path.exists(CREDENTIALS_FILE):
-        raise FileNotFoundError(f"{CREDENTIALS_FILE} not found in backend directory.")
+    creds_path = os.getenv('GOOGLE_CREDENTIALS_JSON_PATH', 'credentials.json')
+    if not os.path.exists(creds_path):
+        raise FileNotFoundError(f"Google credentials not found at {creds_path}. Check your .env file.")
     
-    creds = service_account.Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
+    creds = service_account.Credentials.from_service_account_file(creds_path, scopes=SCOPES)
     return build('sheets', 'v4', credentials=creds)
+
+def sanitize_input(text):
+    if not isinstance(text, str):
+        return text
+    return html.escape(text.strip())
 
 def sync_from_sheets():
     """
@@ -51,12 +57,12 @@ def sync_from_sheets():
                 
                 # Mapping (based on the common structure observed)
                 # 0: Customer Name, 1: Contact Number, 2: Address, 3: Region, 4: SR, 5: Branch
-                customer_name = row[0] if len(row) > 0 else ''
-                contact_num = row[1] if len(row) > 1 else ''
-                address = row[2] if len(row) > 2 else ''
-                region = row[3] if len(row) > 3 else ''
-                sr = row[4] if len(row) > 4 else ''
-                branch = row[5] if len(row) > 5 else title.split('-')[-1].strip()  # Fallback to sheet name if branch col is empty
+                customer_name = sanitize_input(row[0]) if len(row) > 0 else ''
+                contact_num = sanitize_input(row[1]) if len(row) > 1 else ''
+                address = sanitize_input(row[2]) if len(row) > 2 else ''
+                region = sanitize_input(row[3]) if len(row) > 3 else ''
+                sr = sanitize_input(row[4]) if len(row) > 4 else ''
+                branch = sanitize_input(row[5]) if len(row) > 5 else sanitize_input(title.split('-')[-1].strip())  # Fallback to sheet name if branch col is empty
                 
                 if not customer_name: continue
                 

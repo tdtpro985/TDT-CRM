@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import './App.css'
 import { formatCurrencyCompact, matchesSearch } from './utils'
+import { clearToken, getUser, saveUser } from './api'
 import DashboardView from './views/DashboardView'
 import DatabaseView  from './views/DatabaseView'
 import PipelineView  from './views/PipelineView'
@@ -52,15 +53,17 @@ export default function App() {
   const [showDealForm, setShowDealForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [toast, setToast] = useState(null)
-  const [currentUser, setCurrentUser] = useState(null)
+  const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function handleLogin(user) {
+    saveUser(user)
     setCurrentUser(user)
     setNotice(`Welcome back, ${user.name}! You are logged in to the ${user.branch} branch.`)
   }
 
   function handleLogout() {
+    clearToken()
     setCurrentUser(null)
     setNotice('You have been logged out.')
   }

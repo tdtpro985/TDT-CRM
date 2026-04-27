@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createRecordId } from '../utils'
+import { apiFetch } from '../api'
 
-const API_BASE = 'http://localhost:5000'
 const CURRENT_DATE = new Date().toISOString().split('T')[0]
 
 const STAGE_PROBABILITY = {
@@ -31,12 +31,12 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       try {
         const branchParam = branch ? `?branch=${encodeURIComponent(branch)}` : ''
         const responses = await Promise.all([
-          fetch(`${API_BASE}/api/companies`),
-          fetch(`${API_BASE}/api/contacts`),
-          fetch(`${API_BASE}/api/leads${branchParam}`),
-          fetch(`${API_BASE}/api/deals`),
-          fetch(`${API_BASE}/api/activities`),
-          fetch(`${API_BASE}/api/team${branchParam}`),
+          apiFetch(`/api/companies`),
+          apiFetch(`/api/contacts`),
+          apiFetch(`/api/leads${branchParam}`),
+          apiFetch(`/api/deals`),
+          apiFetch(`/api/activities`),
+          apiFetch(`/api/team${branchParam}`),
         ])
 
         if (responses.some(r => !r.ok)) {
@@ -124,9 +124,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     setLeads((current) => [newLead, ...current])
 
     try {
-      const res = await fetch(`${API_BASE}/api/leads`, {
+      const res = await apiFetch(`/api/leads`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newLead),
       })
       if (!res.ok) throw new Error('Network error')
@@ -146,7 +145,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       companyIdToUse = createRecordId('company')
       const newCompany = { id: companyIdToUse, name: contactForm.companyName.trim(), status: 'Active' }
       setCompanies((c) => [newCompany, ...c])
-      await fetch(`${API_BASE}/api/companies`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newCompany) }).catch(() => {})
+      await apiFetch(`/api/companies`, { method: 'POST', body: JSON.stringify(newCompany) }).catch(() => {})
     }
 
     const newContact = {
@@ -160,9 +159,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     setContacts((current) => [newContact, ...current])
 
     try {
-      const res = await fetch(`${API_BASE}/api/contacts`, {
+      const res = await apiFetch(`/api/contacts`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newContact, lastTouch: newContact.lastActivity }),
       })
       if (!res.ok) throw new Error('Network error')
@@ -184,9 +182,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     setCompanies((current) => [newCompany, ...current])
 
     try {
-      const res = await fetch(`${API_BASE}/api/companies`, {
+      const res = await apiFetch(`/api/companies`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newCompany),
       })
       if (!res.ok) throw new Error('Network error')
@@ -207,14 +204,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       companyIdToUse = createRecordId('company')
       const newCompany = { id: companyIdToUse, name: dealForm.companyName.trim(), status: 'Active' }
       setCompanies((c) => [newCompany, ...c])
-      await fetch(`${API_BASE}/api/companies`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newCompany) }).catch(() => {})
+      await apiFetch(`/api/companies`, { method: 'POST', body: JSON.stringify(newCompany) }).catch(() => {})
     }
 
     if (!matchedContact && dealForm.contactName) {
       contactIdToUse = createRecordId('contact')
       const newContact = { id: contactIdToUse, name: dealForm.contactName.trim(), companyId: companyIdToUse, status: 'Active' }
       setContacts((c) => [newContact, ...c])
-      await fetch(`${API_BASE}/api/contacts`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newContact) }).catch(() => {})
+      await apiFetch(`/api/contacts`, { method: 'POST', body: JSON.stringify(newContact) }).catch(() => {})
     }
 
     const newDeal = {
@@ -231,9 +228,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     showToast(`Deal "${newDeal.name}" saved successfully!`)
 
     try {
-      const res = await fetch(`${API_BASE}/api/deals`, {
+      const res = await apiFetch(`/api/deals`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newDeal, closeDate: newDeal.expectedClose }),
       })
       if (!res.ok) throw new Error('Network error')
@@ -262,7 +258,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           value: 0,
         }
         setDeals((d) => [newDeal, ...d])
-        await fetch(`${API_BASE}/api/deals`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newDeal) }).catch(() => {})
+        await apiFetch(`/api/deals`, { method: 'POST', body: JSON.stringify(newDeal) }).catch(() => {})
       }
     } else if (!taskForm.dealId) {
       dealIdToUse = null
@@ -274,9 +270,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     showToast(`Task "${newTask.title}" saved successfully!`)
 
     try {
-      const res = await fetch(`${API_BASE}/api/activities`, {
+      const res = await apiFetch(`/api/activities`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newTask, subject: newTask.title }),
       })
       if (!res.ok) throw new Error('Network error')
@@ -290,9 +285,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   async function updateLeadStatus(leadId, nextStatus) {
     setLeads((current) => current.map((l) => (l.id === leadId ? { ...l, status: nextStatus } : l)))
     try {
-      const res = await fetch(`${API_BASE}/api/leads/${leadId}/status`, {
+      const res = await apiFetch(`/api/leads/${leadId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus })
       })
       if (!res.ok) throw new Error('Network error')
@@ -307,9 +301,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       current.map((d) => (d.id === dealId ? { ...d, stage: nextStage, probability: getProbabilityForStage(nextStage) } : d)),
     )
     try {
-      const res = await fetch(`${API_BASE}/api/deals/${dealId}/stage`, {
+      const res = await apiFetch(`/api/deals/${dealId}/stage`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: nextStage })
       })
       if (!res.ok) throw new Error('Network error')
@@ -323,9 +316,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     const nextStatus = currentStatus === 'Completed' ? 'Open' : 'Completed'
     setTasks((current) => current.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t)))
     try {
-      const res = await fetch(`${API_BASE}/api/activities/${taskId}/status`, {
+      const res = await apiFetch(`/api/activities/${taskId}/status`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus })
       })
       if (!res.ok) throw new Error('Network error')
@@ -338,13 +330,13 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   async function syncGSheets() {
     setNotice('Synchronizing with Google Sheets...')
     try {
-      const res = await fetch(`${API_BASE}/api/sync/gsheets`, { method: 'POST' })
+      const res = await apiFetch(`/api/sync/gsheets`, { method: 'POST' })
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Sync failed')
       
       // Refresh leads after sync
       const branchParam = branch ? `?branch=${encodeURIComponent(branch)}` : ''
-      const leadsRes = await fetch(`${API_BASE}/api/leads${branchParam}`)
+      const leadsRes = await apiFetch(`/api/leads${branchParam}`)
       if (leadsRes.ok) {
         setLeads(await leadsRes.json())
       }

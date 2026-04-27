@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import MetricCard from '../components/MetricCard'
 import Panel from '../components/Panel'
-
-const API_BASE = 'http://localhost:5000'
+import { apiFetch } from '../api'
 
 function fmt(n) {
   if (n >= 1_000_000) return `₱${(n / 1_000_000).toFixed(1)}M`
@@ -29,7 +28,7 @@ export default function AdminAnalyticsView() {
   const [page, setPage]       = useState(1)
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/admin/analytics`)
+    apiFetch(`/api/admin/analytics`)
       .then((r) => r.json())
       .then((d) => { setData(d); setLoading(false) })
       .catch(() => { setError('Failed to load analytics.'); setLoading(false) })

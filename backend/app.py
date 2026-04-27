@@ -1,10 +1,67 @@
+import os
+import traceback
+from functools import wraps
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 from database.database import get_db_connection, close_connection
 from gsheets_sync import sync_from_sheets, sync_to_sheets
+from datetime import timedelta
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {
+    "origins": os.getenv("FRONTEND_URL", "http://localhost:5173"),
+    "allow_headers": ["Content-Type", "Authorization"]
+}})
+
+app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-key')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=8)  # 8-hour sessions
+jwt = JWTManager(app)
+
+@jwt.unauthorized_loader
+def unauthorized_response(callback):
+    return jsonify({'error': 'Missing Authorization Header', 'details': callback}), 401
+
+@jwt.invalid_token_loader
+def invalid_token_response(callback):
+    return jsonify({'error': 'Invalid Token', 'details': callback}), 401
+
+@jwt.expired_token_loader
+def expired_token_response(jwt_header, jwt_payload):
+    return jsonify({'error': 'Token Expired'}), 401
+
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["1000 per day", "200 per hour"]
+)
+
+# Admin-only decorator: use on top of @jwt_required()
+# Usage: @jwt_required() THEN @admin_required on the route
+def admin_required(fn):
+    """Decorator that checks the JWT claims for Admin role.
+    Must be stacked BELOW @jwt_required() so the token is already validated.
+    """
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        claims = get_jwt()
+        if claims.get('role') != 'Admin':
+            return jsonify(error='Admins only!'), 403
+        return fn(*args, **kwargs)
+    return wrapper
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    # Log securely on backend
+    print(f"Backend Error: {traceback.format_exc()}")
+    return jsonify(error="An internal error occurred"), 500
 
 STAGE_PROBABILITY = {
     'New Opportunity': 20,
@@ -36,6 +93,7 @@ def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=No
 # ─── Auth / Login ─────────────────────────────────────────────────────────────
 
 @app.route('/api/admin/login', methods=['POST'])
+@limiter.limit("5 per minute")
 def admin_login():
     data     = request.get_json()
     username = data.get('username', '').strip()
@@ -50,12 +108,14 @@ def admin_login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, email, role, branch FROM team WHERE username = %s AND password = %s AND role = 'Admin'",
-            (username, password)
+            "SELECT id, name, email, role, branch, password FROM team WHERE username = %s AND role = 'Admin'",
+            (username,)
         )
         row = cursor.fetchone()
-        if not row:
+        
+        if not row or not check_password_hash(row[5], password):
             return jsonify({'error': 'Invalid credentials or account is not an Admin.'}), 401
+            
         user = {
             'id':       row[0],
             'name':     row[1],
@@ -64,12 +124,19 @@ def admin_login():
             'branch':   row[4],
             'username': username,
         }
-        return jsonify({'message': 'Login successful', 'user': user}), 200
+        
+        # Ensure identity is a string and include role/branch in claims
+        access_token = create_access_token(
+            identity=str(user['id']), 
+            additional_claims={"role": user['role'], "branch": user['branch']}
+        )
+        return jsonify({'message': 'Login successful', 'user': user, 'access_token': access_token}), 200
     finally:
         close_connection(conn)
 
 
 @app.route('/api/login', methods=['POST'])
+@limiter.limit("5 per minute")
 def login():
     data = request.get_json()
     username = data.get('username', '').strip()
@@ -85,12 +152,14 @@ def login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            'SELECT id, name, email, role, branch FROM team WHERE username = %s AND password = %s AND branch = %s',
-            (username, password, branch)
+            'SELECT id, name, email, role, branch, password FROM team WHERE username = %s AND branch = %s',
+            (username, branch)
         )
         row = cursor.fetchone()
-        if not row:
+        
+        if not row or not check_password_hash(row[5], password):
             return jsonify({'error': 'Invalid credentials or branch mismatch'}), 401
+            
         user = {
             'id':       row[0],
             'name':     row[1],
@@ -99,7 +168,13 @@ def login():
             'branch':   row[4],
             'username': username,
         }
-        return jsonify({'message': 'Login successful', 'user': user}), 200
+        
+        # Ensure identity is a string and include role/branch in claims
+        access_token = create_access_token(
+            identity=str(user['id']), 
+            additional_claims={"role": user['role'], "branch": user['branch']}
+        )
+        return jsonify({'message': 'Login successful', 'user': user, 'access_token': access_token}), 200
     finally:
         close_connection(conn)
 
@@ -107,6 +182,7 @@ def login():
 # ─── Team ─────────────────────────────────────────────────────────────────────
 
 @app.route('/api/team', methods=['GET'])
+@jwt_required()
 def get_team():
     conn = get_db_connection()
     if not conn:
@@ -126,6 +202,7 @@ def get_team():
 # ─── Companies ────────────────────────────────────────────────────────────────
 
 @app.route('/api/companies', methods=['GET'])
+@jwt_required()
 def get_companies():
     conn = get_db_connection()
     if not conn:
@@ -141,6 +218,7 @@ def get_companies():
 
 
 @app.route('/api/companies', methods=['POST'])
+@jwt_required()
 def create_company():
     data = request.get_json()
     required = ['id', 'name']
@@ -174,6 +252,7 @@ def create_company():
 # ─── Contacts ─────────────────────────────────────────────────────────────────
 
 @app.route('/api/contacts', methods=['GET'])
+@jwt_required()
 def get_contacts():
     conn = get_db_connection()
     if not conn:
@@ -191,6 +270,7 @@ def get_contacts():
 
 
 @app.route('/api/contacts', methods=['POST'])
+@jwt_required()
 def create_contact():
     data = request.get_json()
     if not all(k in data for k in ['id', 'name']):
@@ -225,6 +305,9 @@ def create_contact():
 # ─── Google Sheets Sync ───────────────────────────────────────────────────────
 
 @app.route('/api/sync/gsheets', methods=['POST'])
+@limiter.limit("2 per minute")
+@jwt_required()
+@admin_required
 def trigger_gsheets_sync():
     try:
         result = sync_from_sheets()
@@ -238,6 +321,7 @@ def trigger_gsheets_sync():
 # ─── Leads ────────────────────────────────────────────────────────────────────
 
 @app.route('/api/leads', methods=['GET'])
+@jwt_required()
 def get_leads():
     conn = get_db_connection()
     if not conn:
@@ -264,6 +348,7 @@ def get_leads():
 
 
 @app.route('/api/leads', methods=['POST'])
+@jwt_required()
 def create_lead():
     data = request.get_json()
     if not data.get('customerName'):
@@ -329,6 +414,7 @@ def create_lead():
 
 
 @app.route('/api/leads/<lead_id>/status', methods=['PATCH'])
+@jwt_required()
 def update_lead_status(lead_id):
     data = request.get_json()
     new_status = data.get('status')
@@ -357,24 +443,28 @@ def update_lead_status(lead_id):
 # ─── Deals ────────────────────────────────────────────────────────────────────
 
 @app.route('/api/deals', methods=['GET'])
+@jwt_required()
 def get_deals():
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """SELECT id, name, company_id AS companyId, contact_id AS contactId,
-                      lead_id AS leadId, stage, value, close_date AS closeDate,
-                      probability, owner, created_at
-               FROM deals ORDER BY created_at DESC"""
-        )
+        # Note: branch filtering is currently handled on the frontend for deals
+        # since the 'branch' column does not exist in the deals table yet.
+        query = """SELECT id, name, company_id AS companyId, contact_id AS contactId, 
+                          lead_id AS leadId, stage, value, close_date AS closeDate, 
+                          probability, owner, created_at 
+                   FROM deals ORDER BY created_at DESC"""
+        
+        cursor.execute(query)
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
 
 
 @app.route('/api/deals', methods=['POST'])
+@jwt_required()
 def create_deal():
     data = request.get_json()
     if not all(k in data for k in ['id', 'name']):
@@ -411,6 +501,7 @@ def create_deal():
 
 
 @app.route('/api/deals/<deal_id>/stage', methods=['PATCH'])
+@jwt_required()
 def update_deal_stage(deal_id):
     data = request.get_json()
     new_stage = data.get('stage')
@@ -443,23 +534,27 @@ def update_deal_stage(deal_id):
 # ─── Activities (Tasks) ───────────────────────────────────────────────────────
 
 @app.route('/api/activities', methods=['GET'])
+@jwt_required()
 def get_activities():
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """SELECT id, subject, type, owner, deal_id AS dealId,
-                      due_date AS dueDate, priority, status, notes, created_at
-               FROM activities ORDER BY due_date ASC"""
-        )
+        # Note: branch filtering is currently handled on the frontend for activities
+        # since the 'branch' column does not exist in the activities table yet.
+        query = """SELECT id, subject, type, owner, deal_id AS dealId, 
+                          due_date AS dueDate, priority, status, notes, created_at 
+                   FROM activities ORDER BY due_date ASC"""
+        
+        cursor.execute(query)
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
 
 
 @app.route('/api/activities', methods=['POST'])
+@jwt_required()
 def create_activity():
     data = request.get_json()
     if not all(k in data for k in ['id', 'subject']):
@@ -492,6 +587,7 @@ def create_activity():
 
 
 @app.route('/api/activities/<activity_id>/status', methods=['PATCH'])
+@jwt_required()
 def update_activity_status(activity_id):
     data = request.get_json()
     new_status = data.get('status')
@@ -520,6 +616,7 @@ def update_activity_status(activity_id):
 # ─── Dashboard KPIs ───────────────────────────────────────────────────────────
 
 @app.route('/api/dashboard', methods=['GET'])
+@jwt_required()
 def get_dashboard():
     conn = get_db_connection()
     if not conn:
@@ -527,30 +624,41 @@ def get_dashboard():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch')
-        branch_filter = '' if (not branch or branch == 'Headquarters') else f"WHERE branch = '{branch}'"
-        branch_filter_and = '' if (not branch or branch == 'Headquarters') else f"AND branch = '{branch}'"
+        
+        has_branch = bool(branch and branch != 'Headquarters')
+        branch_params = (branch,) if has_branch else ()
 
         # New leads this month
-        cursor.execute(
-            f"SELECT COUNT(*) FROM leads {branch_filter} {'AND' if branch_filter else 'WHERE'} DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')".replace(
-                'WHERE  AND', 'WHERE'
-            )
-        )
+        new_leads_query = "SELECT COUNT(*) FROM leads WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"
+        if has_branch:
+            new_leads_query += " AND branch = %s"
+        cursor.execute(new_leads_query, branch_params)
         new_leads = cursor.fetchone()[0]
 
         # Active deals (not Closed Won)
-        cursor.execute("SELECT COUNT(*) FROM deals WHERE stage != 'Closed Won'")
+        active_deals_query = "SELECT COUNT(*) FROM deals WHERE stage != 'Closed Won'"
+        # Note: branch filtering for deals is skipped for now as the column doesn't exist
+        cursor.execute(active_deals_query)
         active_deals = cursor.fetchone()[0]
 
         # Deals per stage
-        cursor.execute("SELECT stage, COUNT(*) AS count, SUM(value) AS value FROM deals GROUP BY stage")
+        deals_stage_query = "SELECT stage, COUNT(*) AS count, SUM(value) AS value FROM deals GROUP BY stage"
+        cursor.execute(deals_stage_query)
         deals_per_stage = rows_to_list(cursor)
 
         # Conversion rate
-        cursor.execute(f"SELECT COUNT(*) FROM leads {branch_filter}")
+        leads_query = "SELECT COUNT(*) FROM leads"
+        if has_branch:
+            leads_query += " WHERE branch = %s"
+        cursor.execute(leads_query, branch_params)
         total_leads = cursor.fetchone()[0]
-        cursor.execute(f"SELECT COUNT(*) FROM leads WHERE status = 'Converted' {branch_filter_and}")
+        
+        converted_query = "SELECT COUNT(*) FROM leads WHERE status = 'Converted'"
+        if has_branch:
+            converted_query += " AND branch = %s"
+        cursor.execute(converted_query, branch_params)
         converted = cursor.fetchone()[0]
+        
         conversion_rate = round((converted / total_leads * 100)) if total_leads else 0
 
         # Pipeline value
@@ -571,6 +679,8 @@ def get_dashboard():
 # ─── Admin: Profile ───────────────────────────────────────────────────────────
 
 @app.route('/api/admin/profile', methods=['PUT'])
+@jwt_required()
+@admin_required
 def update_admin_profile():
     data             = request.get_json()
     admin_id         = data.get('id')
@@ -588,11 +698,13 @@ def update_admin_profile():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+        # Fetch hashed password for verification — never compare plaintext
         cursor.execute(
-            "SELECT id FROM team WHERE id = %s AND password = %s AND role = 'Admin'",
-            (admin_id, current_password)
+            "SELECT id, password FROM team WHERE id = %s AND role = 'Admin'",
+            (admin_id,)
         )
-        if not cursor.fetchone():
+        row = cursor.fetchone()
+        if not row or not check_password_hash(row[1], current_password):
             return jsonify({'error': 'Current password is incorrect.'}), 401
 
         if new_username:
@@ -600,12 +712,15 @@ def update_admin_profile():
             if cursor.fetchone():
                 return jsonify({'error': 'Username is already taken.'}), 409
 
-        if new_username and new_password:
-            cursor.execute('UPDATE team SET username = %s, password = %s WHERE id = %s', (new_username, new_password, admin_id))
+        # Always hash the new password before storing
+        hashed_new = generate_password_hash(new_password) if new_password else None
+
+        if new_username and hashed_new:
+            cursor.execute('UPDATE team SET username = %s, password = %s WHERE id = %s', (new_username, hashed_new, admin_id))
         elif new_username:
             cursor.execute('UPDATE team SET username = %s WHERE id = %s', (new_username, admin_id))
         else:
-            cursor.execute('UPDATE team SET password = %s WHERE id = %s', (new_password, admin_id))
+            cursor.execute('UPDATE team SET password = %s WHERE id = %s', (hashed_new, admin_id))
 
         conn.commit()
 
@@ -620,6 +735,8 @@ def update_admin_profile():
 # ─── Admin: Analytics ─────────────────────────────────────────────────────────
 
 @app.route('/api/admin/analytics', methods=['GET'])
+@jwt_required()
+@admin_required
 def admin_analytics():
     conn = get_db_connection()
     if not conn:
@@ -688,6 +805,8 @@ def admin_analytics():
 # ─── Admin: User Management ───────────────────────────────────────────────────
 
 @app.route('/api/admin/users', methods=['GET'])
+@jwt_required()
+@admin_required
 def admin_get_users():
     conn = get_db_connection()
     if not conn:
@@ -710,6 +829,8 @@ def admin_get_users():
 
 
 @app.route('/api/admin/users', methods=['POST'])
+@jwt_required()
+@admin_required
 def admin_create_user():
     data = request.get_json()
     required = ['username', 'password', 'name', 'branch']
@@ -721,11 +842,13 @@ def admin_create_user():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+        # Hash the password before storing — never store plaintext
+        hashed_password = generate_password_hash(data['password'])
         cursor.execute(
             'INSERT INTO team (username, password, name, email, role, branch) VALUES (%s, %s, %s, %s, %s, %s)',
             (
                 data['username'].strip(),
-                data['password'],
+                hashed_password,
                 data['name'].strip(),
                 data.get('email', '').strip(),
                 data.get('role', 'Sales Rep'),
@@ -737,12 +860,16 @@ def admin_create_user():
     except Exception as e:
         if 'Duplicate entry' in str(e):
             return jsonify({'error': 'Username already exists'}), 409
-        return jsonify({'error': str(e)}), 500
+        # Log actual error securely, return generic message
+        print(f"admin_create_user error: {traceback.format_exc()}")
+        return jsonify({'error': 'Failed to create user'}), 500
     finally:
         close_connection(conn)
 
 
 @app.route('/api/admin/users/<int:user_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
 def admin_update_user(user_id):
     data = request.get_json()
     conn = get_db_connection()
@@ -755,13 +882,15 @@ def admin_update_user(user_id):
             return jsonify({'error': 'User not found'}), 404
 
         fields, values = [], []
+        # Only allow known safe columns — never pass col names from user input
         for col in ['name', 'email', 'role', 'branch', 'username']:
             if col in data:
                 fields.append(f'{col} = %s')
                 values.append(data[col])
         if data.get('password'):
+            # Hash updated password before storing
             fields.append('password = %s')
-            values.append(data['password'])
+            values.append(generate_password_hash(data['password']))
 
         if not fields:
             return jsonify({'error': 'No fields to update'}), 400
@@ -775,6 +904,8 @@ def admin_update_user(user_id):
 
 
 @app.route('/api/admin/users/<int:user_id>', methods=['DELETE'])
+@jwt_required()
+@admin_required
 def admin_delete_user(user_id):
     conn = get_db_connection()
     if not conn:
@@ -791,7 +922,15 @@ def admin_delete_user(user_id):
         close_connection(conn)
 
 
+@app.after_request
+def set_security_headers(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    return response
+
 # ─── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(debug=debug_mode, port=5000)

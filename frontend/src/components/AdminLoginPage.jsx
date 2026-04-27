@@ -1,6 +1,5 @@
 import { useState } from 'react'
-
-const API_BASE = 'http://localhost:5000'
+import { API_BASE, saveToken } from '../api'
 
 export default function AdminLoginPage({ onLogin }) {
   const [form, setForm]     = useState({ username: '', password: '' })
@@ -30,6 +29,8 @@ export default function AdminLoginPage({ onLogin }) {
         setError(data.error || 'Invalid credentials.')
         return
       }
+      // Save the JWT token so all admin API calls can attach it
+      saveToken(data.access_token)
       onLogin(data.user)
     } catch {
       setError('Cannot reach the server. Make sure the backend is running.')

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { API_BASE, saveToken } from '../api'
 
 const BRANCHES = [
   'Manila',
@@ -16,8 +17,6 @@ const BRANCHES = [
   'Powerstore',
   'Headquarters',
 ]
-
-const API_BASE = 'http://localhost:5000'
 
 export default function LoginPage({ onLogin }) {
   const [form, setForm] = useState({ username: '', password: '', branch: '' })
@@ -46,6 +45,8 @@ export default function LoginPage({ onLogin }) {
       if (!res.ok) {
         setError(data.error || 'Login failed. Check your credentials and branch.')
       } else {
+        // Save the JWT token so all future API calls can attach it
+        saveToken(data.access_token)
         onLogin(data.user)
       }
     } catch {

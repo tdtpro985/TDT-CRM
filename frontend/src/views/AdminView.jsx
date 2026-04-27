@@ -2,8 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
-
-const API_BASE = 'http://localhost:5000'
+import { apiFetch } from '../api'
 
 const BRANCHES = [
   'Manila', 'Batangas', 'Cavite', 'CDO', 'Cebu', 'Davao',
@@ -32,7 +31,7 @@ export default function AdminView({ currentUser, showToast }) {
   async function loadUsers() {
     setLoading(true)
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users`)
+      const res = await apiFetch(`/api/admin/users`)
       if (res.ok) setUsers(await res.json())
     } finally {
       setLoading(false)
@@ -98,11 +97,10 @@ export default function AdminView({ currentUser, showToast }) {
     setSaving(true)
     setFormError('')
     try {
-      const url    = editingId ? `${API_BASE}/api/admin/users/${editingId}` : `${API_BASE}/api/admin/users`
+      const url    = editingId ? `/api/admin/users/${editingId}` : `/api/admin/users`
       const method = editingId ? 'PUT' : 'POST'
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
       const data = await res.json()
@@ -116,7 +114,7 @@ export default function AdminView({ currentUser, showToast }) {
   }
 
   async function handleDelete(userId) {
-    const res = await fetch(`${API_BASE}/api/admin/users/${userId}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/admin/users/${userId}`, { method: 'DELETE' })
     if (res.ok) {
       showToast('Account deleted.')
       setDeleteConfirm(null)
