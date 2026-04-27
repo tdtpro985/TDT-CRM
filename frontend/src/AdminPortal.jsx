@@ -3,15 +3,18 @@ import './App.css'
 import AdminLoginPage from './components/AdminLoginPage'
 import AdminView from './views/AdminView'
 import AdminAnalyticsView from './views/AdminAnalyticsView'
+import AdminProfileView from './views/AdminProfileView'
 
 const NAV = [
   { id: 'analytics', label: 'Analytics',          description: 'Branch stats and system overview' },
   { id: 'accounts',  label: 'Account Management', description: 'Create and manage branch accounts' },
+  { id: 'profile',   label: 'Profile Settings',   description: 'Change your username and password' },
 ]
 
 const VIEW_META = {
   analytics: { eyebrow: 'System administration', title: 'Analytics' },
   accounts:  { eyebrow: 'System administration', title: 'Account Management' },
+  profile:   { eyebrow: 'System administration', title: 'Profile Settings' },
 }
 
 export default function AdminPortal() {
@@ -98,7 +101,7 @@ export default function AdminPortal() {
             <img src="/tdt-powersteel-logo.png" alt="TDT" />
             <span>Admin Portal</span>
           </div>
-          <div>
+          <div className="top-bar-title">
             <p className="eyebrow">{meta.eyebrow}</p>
             <h2 className="page-title">{meta.title}</h2>
           </div>
@@ -107,6 +110,7 @@ export default function AdminPortal() {
         <div className="view-content">
           {activeView === 'analytics' && <AdminAnalyticsView />}
           {activeView === 'accounts'  && <AdminView currentUser={adminUser} showToast={showToast} />}
+          {activeView === 'profile'   && <AdminProfileView currentUser={adminUser} onUserUpdate={setAdminUser} showToast={showToast} />}
         </div>
       </main>
 

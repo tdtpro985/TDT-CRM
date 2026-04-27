@@ -652,6 +652,40 @@ section.content-grid--primary {
   line-height: 1.25;
 }
 
+.deal-modal__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+  padding: 0 28px;
+}
+
+.deal-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.deal-modal__field span {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+
+.deal-modal__field strong {
+  font-size: var(--fs-sm);
+  color: var(--text-strong);
+}
+
+.deal-modal__footer {
+  padding: 20px 28px;
+  border-top: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  margin-top: 16px;
+}
+
+
 .deal-modal__close {
   flex-shrink: 0;
   width: 34px;

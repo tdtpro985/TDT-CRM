@@ -374,7 +374,7 @@ export default function App() {
             <img src="/tdt-powersteel-logo.png" alt="TDT" />
             <span>Sales CRM</span>
           </div>
-          <div>
+          <div className="top-bar-title">
             <p className="eyebrow">{currentMeta.eyebrow}</p>
             <h2 className="page-title">{currentMeta.title}</h2>
             <p className="page-description">{currentMeta.description}</p>

@@ -568,6 +568,55 @@ def get_dashboard():
         close_connection(conn)
 
 
+# ─── Admin: Profile ───────────────────────────────────────────────────────────
+
+@app.route('/api/admin/profile', methods=['PUT'])
+def update_admin_profile():
+    data             = request.get_json()
+    admin_id         = data.get('id')
+    current_password = data.get('currentPassword', '').strip()
+    new_username     = data.get('newUsername', '').strip()
+    new_password     = data.get('newPassword', '').strip()
+
+    if not admin_id or not current_password:
+        return jsonify({'error': 'Current password is required.'}), 400
+    if not new_username and not new_password:
+        return jsonify({'error': 'Provide a new username or new password.'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id FROM team WHERE id = %s AND password = %s AND role = 'Admin'",
+            (admin_id, current_password)
+        )
+        if not cursor.fetchone():
+            return jsonify({'error': 'Current password is incorrect.'}), 401
+
+        if new_username:
+            cursor.execute('SELECT id FROM team WHERE username = %s AND id != %s', (new_username, admin_id))
+            if cursor.fetchone():
+                return jsonify({'error': 'Username is already taken.'}), 409
+
+        if new_username and new_password:
+            cursor.execute('UPDATE team SET username = %s, password = %s WHERE id = %s', (new_username, new_password, admin_id))
+        elif new_username:
+            cursor.execute('UPDATE team SET username = %s WHERE id = %s', (new_username, admin_id))
+        else:
+            cursor.execute('UPDATE team SET password = %s WHERE id = %s', (new_password, admin_id))
+
+        conn.commit()
+
+        cursor.execute('SELECT id, username, name, email, role, branch FROM team WHERE id = %s', (admin_id,))
+        row = cursor.fetchone()
+        user = {'id': row[0], 'username': row[1], 'name': row[2], 'email': row[3], 'role': row[4], 'branch': row[5]}
+        return jsonify({'message': 'Profile updated successfully.', 'user': user}), 200
+    finally:
+        close_connection(conn)
+
+
 # ─── Admin: Analytics ─────────────────────────────────────────────────────────
 
 @app.route('/api/admin/analytics', methods=['GET'])

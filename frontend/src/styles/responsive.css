@@ -148,7 +148,7 @@
     gap: 10px;
   }
 
-  .top-bar > div:first-child {
+  .top-bar-title {
     display: none;
   }
 
@@ -193,7 +193,8 @@
   }
 
   .form-grid,
-  .admin-form-grid {
+  .admin-form-grid,
+  .deal-modal__grid {
     grid-template-columns: 1fr;
   }
 
@@ -274,11 +275,6 @@
     text-align: center;
   }
 
-  /* Pipeline / Kanban */
-  .pipeline-board,
-  .kanban-board {
-    grid-template-columns: 1fr;
-  }
 
   /* Chart */
   .chart-frame {
