@@ -24,14 +24,19 @@ export default function AdminLoginPage({ onLogin }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       })
-      const data = await res.json()
+      let data = null
+      try {
+        data = await res.json()
+      } catch (err) {
+        // response not JSON
+      }
       if (!res.ok) {
-        setError(data.error || 'Invalid credentials.')
+        setError((data && data.error) || `Invalid credentials (status ${res.status}).`)
         return
       }
       // Save the JWT token so all admin API calls can attach it
-      saveToken(data.access_token)
-      onLogin(data.user)
+      saveToken(data?.access_token)
+      onLogin(data?.user)
     } catch {
       setError('Cannot reach the server. Make sure the backend is running.')
     } finally {
