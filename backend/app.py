@@ -1,6 +1,7 @@
 import os
 import traceback
 from functools import wraps
+from importlib import import_module
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
@@ -80,6 +81,47 @@ def rows_to_list(cursor):
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
+def verify_password(stored_hash, provided_password):
+    """Verify passwords across both Werkzeug and bcrypt hash formats.
+
+    Returns:
+        tuple[bool, bool]: (is_valid, should_rehash)
+    """
+    if not stored_hash or not provided_password:
+        return False, False
+
+    hash_value = stored_hash.decode('utf-8', errors='ignore') if isinstance(stored_hash, bytes) else str(stored_hash)
+    password_value = str(provided_password)
+
+    try:
+        return check_password_hash(hash_value, password_value), False
+    except (ValueError, TypeError):
+        pass
+
+    if hash_value.startswith(('$2a$', '$2b$', '$2y$')):
+        try:
+            bcrypt_module = import_module('bcrypt')
+            is_valid = bcrypt_module.checkpw(password_value.encode('utf-8'), hash_value.encode('utf-8'))
+            return is_valid, is_valid
+        except (ImportError, ValueError, TypeError):
+            return False, False
+
+    return False, False
+
+
+def normalize_username(username):
+    return str(username or '').strip().lower()
+
+
+def normalize_branch(branch):
+    return str(branch or '').strip().lower()
+
+
+def has_branch_filter(branch):
+    normalized = normalize_branch(branch)
+    return bool(normalized and normalized != 'headquarters')
+
+
 def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=None):
     cursor = conn.cursor()
     cursor.execute(
@@ -108,21 +150,31 @@ def admin_login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, email, role, branch, password FROM team WHERE username = %s AND role = 'Admin'",
-            (username,)
+            """SELECT id, name, email, role, branch, password, username
+               FROM team
+               WHERE LOWER(TRIM(username)) = %s AND role = 'Admin'""",
+            (normalize_username(username),)
         )
         row = cursor.fetchone()
-        
-        if not row or not check_password_hash(row[5], password):
+
+        if not row:
             return jsonify({'error': 'Invalid credentials or account is not an Admin.'}), 401
-            
+
+        valid_password, should_rehash = verify_password(row[5], password)
+        if not valid_password:
+            return jsonify({'error': 'Invalid credentials or account is not an Admin.'}), 401
+
+        if should_rehash:
+            cursor.execute('UPDATE team SET password = %s WHERE id = %s', (generate_password_hash(password), row[0]))
+            conn.commit()
+
         user = {
             'id':       row[0],
             'name':     row[1],
             'email':    row[2],
             'role':     row[3],
             'branch':   row[4],
-            'username': username,
+            'username': row[6],
         }
         
         # Ensure identity is a string and include role/branch in claims
@@ -152,21 +204,32 @@ def login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            'SELECT id, name, email, role, branch, password FROM team WHERE username = %s AND branch = %s',
-            (username, branch)
+            """SELECT id, name, email, role, branch, password, username
+               FROM team
+               WHERE LOWER(TRIM(username)) = %s
+                 AND LOWER(TRIM(branch)) = %s""",
+            (normalize_username(username), normalize_branch(branch))
         )
         row = cursor.fetchone()
-        
-        if not row or not check_password_hash(row[5], password):
+
+        if not row:
             return jsonify({'error': 'Invalid credentials or branch mismatch'}), 401
-            
+
+        valid_password, should_rehash = verify_password(row[5], password)
+        if not valid_password:
+            return jsonify({'error': 'Invalid credentials or branch mismatch'}), 401
+
+        if should_rehash:
+            cursor.execute('UPDATE team SET password = %s WHERE id = %s', (generate_password_hash(password), row[0]))
+            conn.commit()
+
         user = {
             'id':       row[0],
             'name':     row[1],
             'email':    row[2],
             'role':     row[3],
             'branch':   row[4],
-            'username': username,
+            'username': row[6],
         }
         
         # Ensure identity is a string and include role/branch in claims
@@ -209,9 +272,22 @@ def get_companies():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            'SELECT id, name, industry, website, city, owner, status, created_at FROM companies ORDER BY name'
-        )
+        branch = request.args.get('branch', '')
+        if has_branch_filter(branch):
+            cursor.execute(
+                '''
+                SELECT c.id, c.name, c.industry, c.website, c.city, c.owner, c.status, c.created_at
+                FROM companies c
+                INNER JOIN leads l ON l.id = c.id
+                WHERE LOWER(TRIM(l.branch)) = %s
+                ORDER BY c.name
+                ''',
+                (normalize_branch(branch),),
+            )
+        else:
+            cursor.execute(
+                'SELECT id, name, industry, website, city, owner, status, created_at FROM companies ORDER BY name'
+            )
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -259,11 +335,25 @@ def get_contacts():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute(
-            """SELECT id, name, company_id AS companyId, role, owner,
-                      email, phone, last_touch AS lastTouch, status, created_at
-               FROM contacts ORDER BY name"""
-        )
+        branch = request.args.get('branch', '')
+        if has_branch_filter(branch):
+            cursor.execute(
+                '''
+                SELECT c.id, c.name, c.company_id AS companyId, c.role, c.owner,
+                       c.email, c.phone, c.last_touch AS lastTouch, c.status, c.created_at
+                FROM contacts c
+                INNER JOIN leads l ON l.id = c.company_id
+                WHERE LOWER(TRIM(l.branch)) = %s
+                ORDER BY c.name
+                ''',
+                (normalize_branch(branch),),
+            )
+        else:
+            cursor.execute(
+                """SELECT id, name, company_id AS companyId, role, owner,
+                          email, phone, last_touch AS lastTouch, status, created_at
+                   FROM contacts ORDER BY name"""
+            )
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -328,13 +418,13 @@ def get_leads():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        branch = request.args.get('branch')
-        if branch and branch != 'Headquarters':
+        branch = request.args.get('branch', '')
+        if has_branch_filter(branch):
             cursor.execute(
                 """SELECT id, customer_name AS customerName, contact_num AS contactNum,
                           address, region, sr, branch, status, created_at AS createdAt
-                   FROM leads WHERE branch = %s ORDER BY created_at DESC""",
-                (branch,)
+                   FROM leads WHERE LOWER(TRIM(branch)) = %s ORDER BY created_at DESC""",
+                (normalize_branch(branch),)
             )
         else:
             cursor.execute(
@@ -450,14 +540,27 @@ def get_deals():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        # Note: branch filtering is currently handled on the frontend for deals
-        # since the 'branch' column does not exist in the deals table yet.
-        query = """SELECT id, name, company_id AS companyId, contact_id AS contactId, 
-                          lead_id AS leadId, stage, value, close_date AS closeDate, 
-                          probability, owner, created_at 
+        branch = request.args.get('branch', '')
+        if has_branch_filter(branch):
+            cursor.execute(
+                '''
+                SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
+                       d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
+                       d.probability, d.owner, d.created_at
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE LOWER(TRIM(l.branch)) = %s
+                ORDER BY d.created_at DESC
+                ''',
+                (normalize_branch(branch),),
+            )
+        else:
+            cursor.execute(
+                """SELECT id, name, company_id AS companyId, contact_id AS contactId,
+                          lead_id AS leadId, stage, value, close_date AS closeDate,
+                          probability, owner, created_at
                    FROM deals ORDER BY created_at DESC"""
-        
-        cursor.execute(query)
+            )
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -541,13 +644,26 @@ def get_activities():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        # Note: branch filtering is currently handled on the frontend for activities
-        # since the 'branch' column does not exist in the activities table yet.
-        query = """SELECT id, subject, type, owner, deal_id AS dealId, 
-                          due_date AS dueDate, priority, status, notes, created_at 
+        branch = request.args.get('branch', '')
+        if has_branch_filter(branch):
+            cursor.execute(
+                '''
+                SELECT a.id, a.subject, a.type, a.owner, a.deal_id AS dealId,
+                       a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at
+                FROM activities a
+                LEFT JOIN deals d ON d.id = a.deal_id
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE LOWER(TRIM(l.branch)) = %s
+                ORDER BY a.due_date ASC
+                ''',
+                (normalize_branch(branch),),
+            )
+        else:
+            cursor.execute(
+                """SELECT id, subject, type, owner, deal_id AS dealId,
+                          due_date AS dueDate, priority, status, notes, created_at
                    FROM activities ORDER BY due_date ASC"""
-        
-        cursor.execute(query)
+            )
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -623,46 +739,76 @@ def get_dashboard():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        branch = request.args.get('branch')
-        
-        has_branch = bool(branch and branch != 'Headquarters')
-        branch_params = (branch,) if has_branch else ()
+        branch = request.args.get('branch', '')
+        has_branch = has_branch_filter(branch)
+        branch_params = (normalize_branch(branch),) if has_branch else ()
 
         # New leads this month
         new_leads_query = "SELECT COUNT(*) FROM leads WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"
         if has_branch:
-            new_leads_query += " AND branch = %s"
+            new_leads_query += " AND LOWER(TRIM(branch)) = %s"
         cursor.execute(new_leads_query, branch_params)
         new_leads = cursor.fetchone()[0]
 
         # Active deals (not Closed Won)
-        active_deals_query = "SELECT COUNT(*) FROM deals WHERE stage != 'Closed Won'"
-        # Note: branch filtering for deals is skipped for now as the column doesn't exist
-        cursor.execute(active_deals_query)
+        if has_branch:
+            cursor.execute(
+                '''
+                SELECT COUNT(*)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage != 'Closed Won' AND LOWER(TRIM(l.branch)) = %s
+                ''',
+                branch_params,
+            )
+        else:
+            cursor.execute("SELECT COUNT(*) FROM deals WHERE stage != 'Closed Won'")
         active_deals = cursor.fetchone()[0]
 
         # Deals per stage
-        deals_stage_query = "SELECT stage, COUNT(*) AS count, SUM(value) AS value FROM deals GROUP BY stage"
-        cursor.execute(deals_stage_query)
+        if has_branch:
+            cursor.execute(
+                '''
+                SELECT d.stage, COUNT(*) AS count, SUM(d.value) AS value
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE LOWER(TRIM(l.branch)) = %s
+                GROUP BY d.stage
+                ''',
+                branch_params,
+            )
+        else:
+            cursor.execute("SELECT stage, COUNT(*) AS count, SUM(value) AS value FROM deals GROUP BY stage")
         deals_per_stage = rows_to_list(cursor)
 
         # Conversion rate
         leads_query = "SELECT COUNT(*) FROM leads"
         if has_branch:
-            leads_query += " WHERE branch = %s"
+            leads_query += " WHERE LOWER(TRIM(branch)) = %s"
         cursor.execute(leads_query, branch_params)
         total_leads = cursor.fetchone()[0]
         
         converted_query = "SELECT COUNT(*) FROM leads WHERE status = 'Converted'"
         if has_branch:
-            converted_query += " AND branch = %s"
+            converted_query += " AND LOWER(TRIM(branch)) = %s"
         cursor.execute(converted_query, branch_params)
         converted = cursor.fetchone()[0]
         
         conversion_rate = round((converted / total_leads * 100)) if total_leads else 0
 
         # Pipeline value
-        cursor.execute("SELECT COALESCE(SUM(value), 0) FROM deals WHERE stage != 'Closed Won'")
+        if has_branch:
+            cursor.execute(
+                '''
+                SELECT COALESCE(SUM(d.value), 0)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage != 'Closed Won' AND LOWER(TRIM(l.branch)) = %s
+                ''',
+                branch_params,
+            )
+        else:
+            cursor.execute("SELECT COALESCE(SUM(value), 0) FROM deals WHERE stage != 'Closed Won'")
         pipeline_value = float(cursor.fetchone()[0])
 
         return jsonify({
@@ -704,8 +850,16 @@ def update_admin_profile():
             (admin_id,)
         )
         row = cursor.fetchone()
-        if not row or not check_password_hash(row[1], current_password):
+        if not row:
             return jsonify({'error': 'Current password is incorrect.'}), 401
+
+        valid_password, should_rehash = verify_password(row[1], current_password)
+        if not valid_password:
+            return jsonify({'error': 'Current password is incorrect.'}), 401
+
+        if should_rehash:
+            cursor.execute('UPDATE team SET password = %s WHERE id = %s', (generate_password_hash(current_password), admin_id))
+            conn.commit()
 
         if new_username:
             cursor.execute('SELECT id FROM team WHERE username = %s AND id != %s', (new_username, admin_id))

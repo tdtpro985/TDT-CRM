@@ -8,3 +8,4 @@ google-auth-oauthlib
 flask-jwt-extended
 bcrypt
 flask-limiter
+werkzeug

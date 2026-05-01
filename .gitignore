@@ -37,3 +37,16 @@ backend/credentials.json
 __pycache__/
 backend/__pycache__/
 backend/database/__pycache__/
+
+# Database and backup dumps
+*.sqlite
+*.sqlite3
+*.db
+*.bak
+backups/
+backend/backups/
+# General JSON data exports (if your backups/exports are JSON)
+backups/*.json
+backend/backups/*.json
+# Test and snapshot output
+tests/__snapshots__/
