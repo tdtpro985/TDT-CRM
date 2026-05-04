@@ -10,14 +10,17 @@ import uuid
 # Configuration
 SPREADSHEET_ID = os.getenv('SPREADSHEET_ID', '1Q0PXxC_jY13bEz-RXo8go-g7_9RRqb9Acy5hRXeawAQ')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+CREDENTIALS_FILE = os.getenv('GOOGLE_CREDENTIALS_JSON_PATH', 'credentials.json')
 
 def get_sheets_service():
-    creds_path = os.getenv('GOOGLE_CREDENTIALS_JSON_PATH', 'credentials.json')
-    if not os.path.exists(creds_path):
-        raise FileNotFoundError(f"Google credentials not found at {creds_path}. Check your .env file.")
+    if not os.path.exists(CREDENTIALS_FILE):
+        return None, f"Google credentials not found at {CREDENTIALS_FILE}. Check your .env file."
     
-    creds = service_account.Credentials.from_service_account_file(creds_path, scopes=SCOPES)
-    return build('sheets', 'v4', credentials=creds)
+    try:
+        creds = service_account.Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
+        return build('sheets', 'v4', credentials=creds), None
+    except Exception as e:
+        return None, str(e)
 
 def sanitize_input(text):
     if not isinstance(text, str):
@@ -28,7 +31,10 @@ def sync_from_sheets():
     """
     Pulls data from all tabs in the Google Sheet and updates the local MySQL database.
     """
-    service = get_sheets_service()
+    service, err = get_sheets_service()
+    if err:
+        return {"error": err}
+    
     sheet_metadata = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
     sheets = sheet_metadata.get('sheets', [])
     
@@ -112,7 +118,9 @@ def sync_to_sheets(lead_data):
     """
     Appends a new lead to the appropriate branch tab in Google Sheets.
     """
-    service = get_sheets_service()
+    service, err = get_sheets_service()
+    if err:
+        raise Exception(err)
     
     # Identify which tab to use based on branch
     target_branch = lead_data.get('branch', 'General')

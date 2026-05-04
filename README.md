@@ -52,13 +52,29 @@ Prepare the backend:
 ```bash
 cd backend
 python main.py
+```
 The server will typically run on http://127.0.0.1:5000.
-3. Start the Frontend Server (Vite)
+### 3. Start the Frontend Server (Vite)
 Open a new terminal window in the project root and execute the following:
+```bash
 npm install
 npm run dev
 ```
-Vite will start a local development server and proxy /api requests to your Flask backend.
+*Vite will start a local development server (usually on `http://localhost:5173`) and automatically proxy `/api` requests to your Flask backend.*
+
+---
+
+## Google Sheets Synchronization
+
+The CRM can automatically sync data with a centralized Google Sheet. For this to work on your local machine:
+
+1. **Obtain Credentials**: Ask your administrator for the `credentials.json` file.
+2. **Place the File**: Save `credentials.json` in the `backend/` directory.
+3. **Configure .env**: Ensure your `backend/.env` file contains the path to the credentials:
+   ```ini
+   GOOGLE_CREDENTIALS_JSON_PATH=credentials.json
+   ```
+4. **Auto-Sync**: The system will now automatically sync new leads to Google Sheets in the background.
 
 Core Features
 - Dashboard: Live aggregate views on Weighted Forecast, Revenue Readiness, and Team Activity.
