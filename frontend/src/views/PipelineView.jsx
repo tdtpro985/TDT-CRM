@@ -29,11 +29,13 @@ export default function PipelineView({
   const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
   const [selectedDeal, setSelectedDeal] = useState(null)
-  const [stagePages, setStagePages] = useState({})
+  const [currentPage, setCurrentPage] = useState(1)
 
-  const handlePageChange = (stage, newPage) => {
-    setStagePages(prev => ({ ...prev, [stage]: newPage }))
-  }
+  const ITEMS_PER_PAGE = 10
+  const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
+  const paginatedDeals = filteredDeals.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
   const closingThisMonth = activeDeals.filter((d) => d.expectedClose?.startsWith(CURRENT_MONTH)).length
 
   const pipelineStageSummary = dealStages.map((stage) => {
@@ -50,7 +52,8 @@ export default function PipelineView({
         <MetricCard label="Closing this month"   value={closingThisMonth.toLocaleString()}         meta={`Open deals closing in ${CURRENT_MONTH}`}                   accent="surface" />
       </section>
 
-      <section className="content-grid content-grid--primary">
+      <section className="pipeline-layout">
+        {/* Pipeline Kanban Board */}
         <Panel
           kicker="Deal pipeline visualization"
           title="Track every opportunity by stage"
@@ -73,105 +76,99 @@ export default function PipelineView({
             </div>
           }
         >
-          <div className="pipeline-board">
-            {dealStages.map((stage) => {
-              const stageDeals = filteredDeals.filter((d) => d.stage === stage)
-              const stageValue = stageDeals.reduce((sum, d) => sum + d.value, 0)
+          <div className="pipeline-board-wrapper">
+            <div className="pipeline-board">
+              {dealStages.map((stage) => {
+                const stageDeals = paginatedDeals.filter((d) => d.stage === stage)
+                const stageValue = stageDeals.reduce((sum, d) => sum + d.value, 0)
 
-              const ITEMS_PER_PAGE = 2
-              let totalPages = Math.ceil(stageDeals.length / ITEMS_PER_PAGE) || 1
-              let currentPage = stagePages[stage] || 1
-              if (currentPage > totalPages) currentPage = totalPages
-              
-              const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-              const paginatedDeals = stageDeals.slice(startIndex, startIndex + ITEMS_PER_PAGE)
-
-              return (
-                <article key={stage} className="pipeline-lane">
-                  <div className="pipeline-lane__header">
-                    <div>
-                      <strong>{stage}</strong>
-                      <span>{stageDeals.length} deals</span>
-                    </div>
-                    <span className="tone-pill is-neutral">{formatCurrencyCompact(stageValue)}</span>
-                  </div>
-
-                  <div className="pipeline-lane__cards">
-                    {stageDeals.length === 0 ? (
-                      <div className="pipeline-card pipeline-card--empty">
-                        No deals in this stage for the current filter.
+                return (
+                  <article key={stage} className="pipeline-lane">
+                    <div className="pipeline-lane__header">
+                      <div>
+                        <strong>{stage}</strong>
+                        <span>{stageDeals.length} deals</span>
                       </div>
-                    ) : (
-                      <>
-                        {paginatedDeals.map((deal) => (
+                      <span className="tone-pill is-neutral">{formatCurrencyCompact(stageValue)}</span>
+                    </div>
+
+                    <div className="pipeline-lane__cards">
+                      {stageDeals.length === 0 ? (
+                        <div className="pipeline-card pipeline-card--empty">
+                          No deals in this stage for the current filter.
+                        </div>
+                      ) : (
+                        stageDeals.map((deal) => (
                           <article key={deal.id} className="pipeline-card">
                             <div className="pipeline-card__top">
                               <strong>{deal.name}</strong>
                               <span className="tone-pill is-warning">{deal.probability}%</span>
                             </div>
-                            <p>{companyMap[deal.companyId]?.name ?? deal.companyId} | {deal.owner}</p>
+                            <p>{companyMap[deal.companyId]?.name ?? deal.companyId}</p>
+                            <p className="pipeline-card__owner">{deal.owner}</p>
                             <div className="pipeline-card__meta">
                               <span>{formatCurrencyCompact(deal.value)}</span>
-                              <span>Close {formatDateLabel(deal.expectedClose)}</span>
+                              <span>{formatDateLabel(deal.expectedClose)}</span>
                             </div>
-                            <div className="field--compact" style={{ textAlign: 'center' }}>
+                            <div className="field--compact" style={{ textAlign: 'center', marginTop: '8px' }}>
                               <button type="button" className="ghost-button" onClick={() => setSelectedDeal(deal)}>View details</button>
                             </div>
                           </article>
-                        ))}
-                        {totalPages > 1 && (
-                          <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                              disabled={currentPage === 1}
-                              onClick={() => handlePageChange(stage, Math.max(1, currentPage - 1))}
-                            >
-                              Prev
-                            </button>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                              {currentPage} / {totalPages}
-                            </span>
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              style={{ padding: '4px 8px', fontSize: '0.75rem' }}
-                              disabled={currentPage === totalPages}
-                              onClick={() => handlePageChange(stage, Math.min(totalPages, currentPage + 1))}
-                            >
-                              Next
-                            </button>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </article>
-              )
-            })}
+                        ))
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
           </div>
+          
+          {/* Global Pagination */}
+          {totalPages > 1 && (
+            <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid var(--border)', marginTop: '16px' }}>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              >
+                Previous
+              </button>
+              <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </Panel>
 
-        <div className="panel-stack">
-          <Panel
-            kicker="Stage totals"
-            title="Expected revenue by stage"
-            detail="Stage totals make it easier to see where the pipeline is healthy and where follow-through is needed."
-          >
-            <div className="simple-list">
-              {pipelineStageSummary.map((stage) => (
-                <article key={stage.stage} className="simple-list__item">
-                  <div>
-                    <strong>{stage.stage}</strong>
-                    <p>{stage.count} deals in this stage</p>
-                  </div>
+        {/* Stage Totals Summary - Now Below Pipeline */}
+        <Panel
+          kicker="Stage totals"
+          title="Expected revenue by stage"
+          detail="Stage totals make it easier to see where the pipeline is healthy and where follow-through is needed."
+        >
+          <div className="stage-totals-grid">
+            {pipelineStageSummary.map((stage) => (
+              <article key={stage.stage} className="stage-total-card">
+                <div className="stage-total-card__content">
+                  <strong>{stage.stage}</strong>
+                  <p>{stage.count} {stage.count === 1 ? 'deal' : 'deals'}</p>
+                </div>
+                <div className="stage-total-card__value">
                   <span className="tone-pill is-neutral">{formatCurrencyCompact(stage.value)}</span>
-                </article>
-              ))}
-            </div>
-          </Panel>
-        </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </Panel>
       </section>
 
       <Modal

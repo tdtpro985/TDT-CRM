@@ -1,0 +1,116 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║         PAANO PAGANAHIN ANG PIPELINE (3 STEPS LANG!)        ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+Ang pipeline ay empty kasi walang deals sa database.
+Kailangan natin ng sample data para makita kung paano gumagana.
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  STEP 1: I-ADD ANG SAMPLE DATA                              │
+└──────────────────────────────────────────────────────────────┘
+
+   Double-click lang ito:
+   
+   ► ADD-SAMPLE-DATA.bat
+   
+   Makikita mo:
+   ✓ 5 companies (ABC Construction, XYZ Manufacturing, etc.)
+   ✓ 5 contacts (Juan, Maria, Pedro, Ana, Carlos)
+   ✓ 10 deals (lahat ng stages may laman)
+   ✓ Total value: PHP 28.7 Million
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  STEP 2: I-START ANG APP                                    │
+└──────────────────────────────────────────────────────────────┘
+
+   Double-click lang ito:
+   
+   ► START-HERE.bat
+   
+   Maghihintay ng konti habang nag-start ang:
+   ✓ Backend (Flask API) - port 5001
+   ✓ Frontend (Vite) - port 5173
+
+
+┌──────────────────────────────────────────────────────────────┐
+│  STEP 3: BUKSAN ANG PIPELINE                                │
+└──────────────────────────────────────────────────────────────┘
+
+   1. Buksan ang browser: http://localhost:5173
+   
+   2. Login:
+      Username: manila.tdtpowersteel
+      Password: TDTpowersteel2024
+      Branch:   Manila
+   
+   3. Click "Pipeline" sa sidebar
+   
+   4. TAPOS NA! Makikita mo na ang deals! 🎉
+
+
+╔══════════════════════════════════════════════════════════════╗
+║  ANO ANG MAKIKITA MO SA PIPELINE?                           ║
+╚══════════════════════════════════════════════════════════════╝
+
+┌─────────────────────┬──────────┬─────────────────┐
+│ Stage               │ Deals    │ Total Value     │
+├─────────────────────┼──────────┼─────────────────┤
+│ New Opportunity     │ 2 deals  │ PHP 3.7M        │
+│ Qualified           │ 2 deals  │ PHP 5.3M        │
+│ Proposal            │ 2 deals  │ PHP 7.0M        │
+│ Negotiation         │ 2 deals  │ PHP 9.0M        │
+│ Closed Won          │ 2 deals  │ PHP 3.7M        │
+├─────────────────────┼──────────┼─────────────────┤
+│ TOTAL               │ 10 deals │ PHP 28.7M       │
+└─────────────────────┴──────────┴─────────────────┘
+
+
+╔══════════════════════════════════════════════════════════════╗
+║  ANO ANG PWEDE MONG GAWIN?                                  ║
+╚══════════════════════════════════════════════════════════════╝
+
+✓ Tingnan ang deals per stage (Kanban board)
+✓ Click "View details" para makita ang full info
+✓ Move deals between stages (sa modal footer)
+✓ Filter by stage (dropdown sa taas)
+✓ Tingnan ang stage totals (sa baba ng pipeline)
+✓ Tingnan ang metrics (Active deals, Pipeline value, etc.)
+
+
+╔══════════════════════════════════════════════════════════════╗
+║  TROUBLESHOOTING                                            ║
+╚══════════════════════════════════════════════════════════════╝
+
+Problem: "Python was not found"
+Solution: I-install ang Python muna
+          https://www.python.org/downloads/
+
+Problem: "Database connection failed"
+Solution: Check kung running ang MySQL
+          Services → MySQL → Start
+
+Problem: Walang deals sa pipeline
+Solution: Ulitin ang Step 1 (ADD-SAMPLE-DATA.bat)
+
+Problem: Backend error
+Solution: Check backend/.env kung tama ang DB password
+
+
+╔══════════════════════════════════════════════════════════════╗
+║  MAS MARAMING INFO                                          ║
+╚══════════════════════════════════════════════════════════════╝
+
+Basahin ang:
+  ► PIPELINE-SETUP.md     - Detailed guide
+  ► STATUS.md             - Current status
+  ► QUICK-START.txt       - Quick reference
+
+
+═══════════════════════════════════════════════════════════════
+  READY NA! Enjoy using TDT-CRM! 🚀
+═══════════════════════════════════════════════════════════════
+

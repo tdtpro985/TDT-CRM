@@ -110,30 +110,84 @@
 
 /* ── Pipeline & Kanban Specifics ─────────────────────────────── */
 
+.pipeline-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.pipeline-board-wrapper {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  margin: 0 -16px;
+  padding: 0 16px;
+}
+
 .pipeline-board,
 .kanban-board {
   margin-top: 16px;
   display: grid;
-  grid-template-columns: repeat(5, minmax(200px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
   align-items: start;
-  overflow-x: auto;
+  width: 100%;
+  min-width: min-content;
+}
+
+@media (max-width: 1400px) {
+  .pipeline-board,
+  .kanban-board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .pipeline-board,
+  .kanban-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .pipeline-board,
+  .kanban-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  
+  .pipeline-board-wrapper {
+    margin: 0;
+    padding: 0;
+  }
 }
 
 .kanban-column,
 .pipeline-lane {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-radius: var(--r-lg);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: var(--pad-card);
+  padding: 14px;
   position: relative;
   overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  min-width: 0;
+  width: 100%;
+}
+
+.pipeline-lane:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25), 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Distinct top accent borders for each pipeline stage */
@@ -164,29 +218,154 @@
   background: linear-gradient(90deg, #f83600, #f9d423);
 }
 
+.pipeline-lane__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+  padding-bottom: 10px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.pipeline-lane__header div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.pipeline-lane__header strong {
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+
+.pipeline-lane__header span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-lane__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: auto;
+  overflow: visible;
+  width: 100%;
+  min-width: 0;
+}
+
 .kanban-card,
 .pipeline-card {
-  padding: var(--pad-card);
+  padding: 12px;
   border-radius: var(--r-md);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, border-color 0.25s ease, background 0.25s ease;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .kanban-card:hover,
 .pipeline-card:hover {
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.07);
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.12);
+  border-color: rgba(255, 152, 0, 0.3);
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.08), rgba(255, 255, 255, 0.05));
+}
+
+.pipeline-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+  min-width: 0;
+  width: 100%;
+}
+
+.pipeline-card__top strong {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-card__top .tone-pill {
+  flex-shrink: 0;
+}
+
+.pipeline-card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.pipeline-card__owner {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.pipeline-card__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  gap: 8px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  min-width: 0;
+  width: 100%;
+}
+
+.pipeline-card__meta span {
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .pipeline-card--empty {
-  background: transparent;
-  border: 1px dashed rgba(255, 255, 255, 0.15);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
+  border: 2px dashed rgba(255, 255, 255, 0.12);
   box-shadow: none;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.5);
   text-align: center;
   display: flex;
   align-items: center;
@@ -195,90 +374,63 @@
   font-style: italic;
   font-size: var(--fs-sm);
   cursor: default;
+  padding: 20px 14px;
+  line-height: 1.6;
 }
 
 .pipeline-card--empty:hover {
   transform: none;
   box-shadow: none;
-  border-color: rgba(255, 255, 255, 0.15);
-  background: transparent;
+  border-color: rgba(255, 255, 255, 0.18);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.02));
 }
 
-.pipeline-lane__header {
+/* ── Pipeline Pagination ──────────────────────────────────────── */
+
+.pipeline-pagination {
   display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: flex-start;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  margin-bottom: 4px;
-}
-
-.pipeline-lane__header div {
-  display: grid;
-  gap: 2px;
-}
-
-.pipeline-lane__header strong,
-.pipeline-card strong {
-  color: var(--text-strong);
-  font-size: var(--fs-sm);
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.pipeline-lane__header span,
-.pipeline-card p,
-.pipeline-card__meta span {
-  color: var(--text-muted);
-  font-size: var(--fs-xs);
-}
-
-.pipeline-lane__cards {
-  margin-top: 4px;
-  display: grid;
-  gap: 12px;
-  flex: 1;
-  min-height: 200px;
-  max-height: 60vh;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
-  padding-right: 4px;
-  padding-bottom: 8px;
-}
-
-.pipeline-card__top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-
-.pipeline-card__top strong {
-  flex: 1;
-  min-width: 0;
-}
-
-.pipeline-card__meta {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-top: 8px;
+  justify-content: space-between;
   gap: 8px;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.pipeline-card--empty {
-  padding: 20px 14px;
-  text-align: center;
-  color: var(--text-muted);
+.pipeline-pagination__btn {
+  padding: 6px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-strong);
   font-size: var(--fs-xs);
-  border-style: dashed;
-  background: transparent;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.pipeline-pagination__btn:hover:not(:disabled) {
+  background: rgba(255, 152, 0, 0.15);
+  border-color: rgba(255, 152, 0, 0.3);
+  color: var(--accent-strong);
+  transform: translateY(-1px);
+}
+
+.pipeline-pagination__btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.pipeline-pagination__info {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+  flex: 1;
+  text-align: center;
 }
 
 /* ── Simple & Stage Lists ────────────────────────────────────── */
@@ -287,6 +439,70 @@
 .stage-list {
   display: grid;
   gap: 8px;
+}
+
+/* ── Stage Totals Grid (Horizontal Layout) ──────────────────── */
+
+.stage-totals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.stage-total-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  border-radius: var(--r-md);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  min-height: 80px;
+}
+
+.stage-total-card:hover {
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 152, 0, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.stage-total-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.stage-total-card__content strong {
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stage-total-card__content p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+}
+
+.stage-total-card__value {
+  flex-shrink: 0;
+}
+
+.stage-total-card__value .tone-pill {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  padding: 6px 12px;
 }
 
 /* ── Activity Card ───────────────────────────────────────────── */

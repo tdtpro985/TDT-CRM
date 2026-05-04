@@ -174,13 +174,15 @@
 .panel {
   padding: var(--pad-panel);
   border-radius: var(--r-lg);
-  border: 1px solid var(--border);
-  background: rgba(22,33,62,0.7);
-  box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(135deg, rgba(22,33,62,0.8), rgba(22,33,62,0.6));
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), 0 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   min-height: 240px;
   height: 100%;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .panel-copy {
@@ -252,10 +254,17 @@
 }
 
 .metric-card {
-  padding: var(--pad-card);
+  padding: 18px;
   border-radius: var(--r-lg);
-  border: 1px solid var(--border);
-  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
 }
 
 .metric-card p {
@@ -263,41 +272,49 @@
   color: var(--text-muted);
   font-size: var(--fs-xs);
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .metric-card strong {
   display: block;
-  margin-top: 8px;
+  margin-top: 10px;
   color: var(--text-strong);
-  font-size: var(--fs-xl);
-  font-weight: 800;
+  font-size: 2rem;
+  font-weight: 900;
   line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .metric-card span {
   display: block;
-  margin-top: 6px;
-  color: var(--text-muted);
+  margin-top: 8px;
+  color: var(--text-secondary);
   font-size: var(--fs-xs);
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .metric-card--accent {
   background:
-    radial-gradient(circle at top right, rgba(255,152,0,0.16), transparent 50%),
-    rgba(255,255,255,0.03);
-  border-color: rgba(255,152,0,0.18);
+    radial-gradient(circle at top right, rgba(255,152,0,0.2), transparent 60%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  border-color: rgba(255,152,0,0.25);
+}
+
+.metric-card--accent strong {
+  color: var(--accent-strong);
 }
 
 .metric-card--alt {
   background:
-    radial-gradient(circle at bottom left, rgba(15,52,96,0.36), transparent 50%),
-    rgba(255,255,255,0.03);
+    radial-gradient(circle at bottom left, rgba(15,52,96,0.4), transparent 60%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  border-color: rgba(100, 160, 255, 0.2);
 }
 
 .metric-card--surface {
-  background: rgba(255,255,255,0.02);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* ── 5. Layout Helpers & Grids ──────────────────────────────── */
@@ -474,15 +491,18 @@ section.content-grid--primary {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-radius: var(--r-md);
-  background: rgba(255,255,255,0.02);
-  border: 1px solid var(--border);
-  transition: background 0.15s ease;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  cursor: pointer;
 }
 
 .simple-list__item:hover {
-  background: rgba(255,255,255,0.035);
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.08), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 152, 0, 0.2);
+  transform: translateX(4px);
 }
 
 .simple-list__item > div {
