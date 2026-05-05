@@ -151,6 +151,7 @@ export default function PipelineView({
 
         {/* Stage Totals Summary - Now Below Pipeline */}
         <Panel
+          className="panel-compact"
           kicker="Stage totals"
           title="Expected revenue by stage"
           detail="Stage totals make it easier to see where the pipeline is healthy and where follow-through is needed."
@@ -163,7 +164,7 @@ export default function PipelineView({
                   <p>{stage.count} {stage.count === 1 ? 'deal' : 'deals'}</p>
                 </div>
                 <div className="stage-total-card__value">
-                  <span className="tone-pill is-neutral">{formatCurrencyCompact(stage.value)}</span>
+                  <span className="tone-pill is-warning">{formatCurrencyCompact(stage.value)}</span>
                 </div>
               </article>
             ))}

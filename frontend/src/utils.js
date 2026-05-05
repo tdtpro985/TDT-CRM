@@ -53,7 +53,8 @@ export function getToneClass(value) {
   if (
     normalizedValue.includes('won') ||
     normalizedValue.includes('customer') ||
-    normalizedValue.includes('completed')
+    normalizedValue.includes('completed') ||
+    normalizedValue.includes('qualified') 
   ) {
     return 'is-positive'
   }
@@ -61,14 +62,21 @@ export function getToneClass(value) {
   if (
     normalizedValue.includes('proposal') ||
     normalizedValue.includes('negotiation') ||
-    normalizedValue.includes('qualified') ||
-    normalizedValue.includes('in progress')
+    normalizedValue.includes('in progress') ||
+    normalizedValue.includes('new') 
   ) {
     return 'is-warning'
   }
 
-  if (normalizedValue.includes('high')) {
+  if (
+    normalizedValue.includes('high')|| 
+    normalizedValue.includes('working') 
+  ) {
     return 'is-alert'
+  }
+
+  if (normalizedValue.includes('converted')) {
+    return 'is-converted'
   }
 
   return 'is-neutral'

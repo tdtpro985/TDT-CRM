@@ -505,6 +505,15 @@
   padding: 6px 12px;
 }
 
+/* Compact modifier for panels that should size to their content
+   Applied only to specific Panels (e.g. Stage totals) so global
+   panel sizing stays unchanged. */
+.panel.panel-compact {
+  min-height: 0;
+  height: auto;
+  flex: none;
+}
+
 /* ── Activity Card ───────────────────────────────────────────── */
 
 .activity-card__header {
