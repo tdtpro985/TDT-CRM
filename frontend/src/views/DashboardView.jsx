@@ -112,7 +112,7 @@ export default function DashboardView({
                 <div className="stage-meta">
                   <div>
                     <strong>{stage.stage}</strong>
-                    <span>{stage.count} deals tracked</span>
+                    <span> - {stage.count} deals tracked</span>
                   </div>
                   <span>{formatCurrencyCompact(stage.value)}</span>
                 </div>

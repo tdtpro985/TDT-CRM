@@ -211,7 +211,7 @@ export default function App() {
 
   const navItems = NAV_CONFIG.map((item) => ({
     ...item,
-    badge: item.id === 'dashboard' ? '05'
+    badge: item.id === 'dashboard' ? '5'
       : item.id === 'database'  ? `${leads.length}`
       : item.id === 'pipeline'  ? `${activeDeals.length}`
       : `${openTasks.length}`,
