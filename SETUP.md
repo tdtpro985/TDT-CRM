@@ -252,7 +252,7 @@ DEFAULT_ADMIN_PASSWORD=TDTpowersteel2024
 
 1. ✅ App is running
 2. Login using credentials above
-3. Add sample data through the UI
+3. Add data through the UI
 4. Explore features:
    - Dashboard (5 KPIs)
    - Customer Database (Leads)

@@ -5,27 +5,13 @@
 ╚══════════════════════════════════════════════════════════════╝
 
 Ang pipeline ay empty kasi walang deals sa database.
-Kailangan natin ng sample data para makita kung paano gumagana.
+Kailangan mong magdagdag ng data para makita kung paano gumagana.
 
 
 ┌──────────────────────────────────────────────────────────────┐
-│  STEP 1: I-ADD ANG SAMPLE DATA                              │
+│  STEP 1: I-START ANG APP                                    │
 └──────────────────────────────────────────────────────────────┘
 
-   Double-click lang ito:
-   
-   ► ADD-SAMPLE-DATA.bat
-   
-   Makikita mo:
-   ✓ 5 companies (ABC Construction, XYZ Manufacturing, etc.)
-   ✓ 5 contacts (Juan, Maria, Pedro, Ana, Carlos)
-   ✓ 10 deals (lahat ng stages may laman)
-   ✓ Total value: PHP 28.7 Million
-
-
-┌──────────────────────────────────────────────────────────────┐
-│  STEP 2: I-START ANG APP                                    │
-└──────────────────────────────────────────────────────────────┘
 
    Double-click lang ito:
    
@@ -37,7 +23,7 @@ Kailangan natin ng sample data para makita kung paano gumagana.
 
 
 ┌──────────────────────────────────────────────────────────────┐
-│  STEP 3: BUKSAN ANG PIPELINE                                │
+│  STEP 2: BUKSAN ANG PIPELINE                                │
 └──────────────────────────────────────────────────────────────┘
 
    1. Buksan ang browser: http://localhost:5173
@@ -49,24 +35,7 @@ Kailangan natin ng sample data para makita kung paano gumagana.
    
    3. Click "Pipeline" sa sidebar
    
-   4. TAPOS NA! Makikita mo na ang deals! 🎉
-
-
-╔══════════════════════════════════════════════════════════════╗
-║  ANO ANG MAKIKITA MO SA PIPELINE?                           ║
-╚══════════════════════════════════════════════════════════════╝
-
-┌─────────────────────┬──────────┬─────────────────┐
-│ Stage               │ Deals    │ Total Value     │
-├─────────────────────┼──────────┼─────────────────┤
-│ New Opportunity     │ 2 deals  │ PHP 3.7M        │
-│ Qualified           │ 2 deals  │ PHP 5.3M        │
-│ Proposal            │ 2 deals  │ PHP 7.0M        │
-│ Negotiation         │ 2 deals  │ PHP 9.0M        │
-│ Closed Won          │ 2 deals  │ PHP 3.7M        │
-├─────────────────────┼──────────┼─────────────────┤
-│ TOTAL               │ 10 deals │ PHP 28.7M       │
-└─────────────────────┴──────────┴─────────────────┘
+   4. Mag-add ng deals para makita sa pipeline
 
 
 ╔══════════════════════════════════════════════════════════════╗
@@ -94,7 +63,7 @@ Solution: Check kung running ang MySQL
           Services → MySQL → Start
 
 Problem: Walang deals sa pipeline
-Solution: Ulitin ang Step 1 (ADD-SAMPLE-DATA.bat)
+Solution: Mag-add ng deals gamit ang UI
 
 Problem: Backend error
 Solution: Check backend/.env kung tama ang DB password

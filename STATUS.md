@@ -191,18 +191,7 @@ audit_log (0 rows)
 
 ## 🎯 Next Steps
 
-### Option 1: Add Sample Data (Recommended for Testing)
-```bash
-# Double-click this file to add 10 sample deals:
-ADD-SAMPLE-DATA.bat
-```
-
-This will add:
-- 5 companies (ABC Construction, XYZ Manufacturing, etc.)
-- 5 contacts (Juan, Maria, Pedro, Ana, Carlos)
-- 10 deals across all pipeline stages (PHP 28.7M total value)
-
-### Option 2: Add Data Manually
+### Add Data Manually
 1. Login and explore the UI
 2. Add your own data:
    - Create leads in Customer Database
