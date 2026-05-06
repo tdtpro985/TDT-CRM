@@ -35,21 +35,20 @@ def sync_pipeline():
         cursor.execute("UPDATE deals SET stage = 'New Opportunity' WHERE stage NOT IN ('New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost')")
         
         # 2. Get leads that don't have a deal yet
-        # We want to convert some leads to deals so the pipeline isn't empty
+        # We want to convert ALL valid leads to deals to populate the pipeline
         cursor.execute("""
             SELECT l.id, l.customer_name, l.sr, l.branch 
             FROM leads l
             LEFT JOIN deals d ON l.id = d.lead_id
             WHERE d.id IS NULL 
               AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
-            LIMIT 15
         """)
         leads_to_convert = cursor.fetchall()
 
         if not leads_to_convert:
-            print("No new leads found for conversion (or all leads already have deals).")
+            print("No new leads found for conversion.")
         else:
-            print(f"Converting {len(leads_to_convert)} leads into active deals...")
+            print(f"Converting ALL {len(leads_to_convert)} available leads into active deals...")
             for lead in leads_to_convert:
                 lead_id, customer_name, sr, branch = lead
                 deal_id = str(uuid.uuid4())
