@@ -12,12 +12,12 @@ import LoginPage     from './components/LoginPage'
 const CURRENT_DATE = new Date().toISOString().split('T')[0]
 
 const LEAD_STATUSES  = ['New', 'Working', 'Qualified', 'Converted']
-const DEAL_STAGES    = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won']
+const DEAL_STAGES    = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
 const TASK_TYPES     = ['Call', 'Follow-up', 'Meeting', 'Email']
 const TASK_PRIORITIES = ['Low', 'Medium', 'High']
 const LEAD_SOURCES   = ['Website', 'Referral', 'Outbound', 'Event', 'Email']
 
-const SHORT_STAGE_LABEL = { 'New Opportunity': 'New', 'Closed Won': 'Won' }
+const SHORT_STAGE_LABEL = { 'New Opportunity': 'New', 'Closed Won': 'Won', 'Closed Lost': 'Lost' }
 
 const NAV_CONFIG = [
   { id: 'dashboard', label: 'Dashboard',         description: '5 KPI overview' },
@@ -80,7 +80,7 @@ export default function App() {
 
   const companyMap   = useMemo(() => Object.fromEntries(companies.map((c) => [c.id, c])), [companies])
   const contactMap   = useMemo(() => Object.fromEntries(contacts.map((c) => [c.id, c])), [contacts])
-  const activeDeals  = deals.filter((d) => d.stage !== 'Closed Won')
+  const activeDeals  = deals.filter((d) => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost')
   const pipelineValue = activeDeals.reduce((sum, d) => sum + d.value, 0)
   const openTasks    = tasks.filter((t) => t.status !== 'Completed')
   const dueToday     = openTasks.filter((t) => t.dueDate === CURRENT_DATE)

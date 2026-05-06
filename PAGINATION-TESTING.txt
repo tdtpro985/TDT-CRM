@@ -12,10 +12,10 @@
    Ang pagination ay lumalabas lang kung may MORE THAN 10 deals
    sa isang stage.
    
-   Current sample data:
+   Current data:
    ✓ 2 deals per stage lang
    ✗ Hindi pa lumalabas ang pagination
-   
+
    Kailangan:
    ✓ 10+ deals per stage
    ✓ Pagination will show automatically!
@@ -25,13 +25,9 @@
 │  SOLUTION: ADD MORE DEALS                                    │
 └──────────────────────────────────────────────────────────────┘
 
-   Double-click lang ito:
+   Mag-add ka ng more deals:
    
-   ► ADD-MORE-DEALS.bat
-   
-   Ito ay mag-add ng:
-   ✓ 50 more deals (10 per stage)
-   ✓ Total: 12 deals per stage
+   ✓ 10+ deals per stage
    ✓ Pagination will show!
 
 
@@ -77,29 +73,17 @@
 │  KUNG AYAW PA RIN LUMABAS                                    │
 └──────────────────────────────────────────────────────────────┘
 
-   1. Check kung nag-run ba ang ADD-MORE-DEALS.bat
-   2. Check sa MySQL kung may 60 deals na:
+   1. Check kung may enough deals na
+   2. Check sa MySQL kung may 10+ deals per stage:
       
       SELECT COUNT(*) FROM deals;
-      -- Should return 60
+      -- Should return 10+ per stage
    
    3. Hard refresh ang browser:
       Ctrl+Shift+R (Windows)
       Cmd+Shift+R (Mac)
    
    4. Check browser console (F12) for errors
-
-
-┌──────────────────────────────────────────────────────────────┐
-│  ALTERNATIVE: MANUAL SQL                                     │
-└──────────────────────────────────────────────────────────────┘
-
-   Kung ayaw gumana ang Python script:
-   
-   1. Open MySQL Workbench
-   2. Open file: backend/database/add_more_deals.sql
-   3. Click Execute (⚡)
-   4. Refresh browser
 
 
 ╔══════════════════════════════════════════════════════════════╗
@@ -115,6 +99,6 @@
 
 
 ═══════════════════════════════════════════════════════════════
-  Run ADD-MORE-DEALS.bat to see pagination! 🚀
+  Add more deals to see pagination! 🚀
 ═══════════════════════════════════════════════════════════════
 

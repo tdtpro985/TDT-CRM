@@ -39,7 +39,7 @@ export default function PipelineView({
   const closingThisMonth = activeDeals.filter((d) => d.expectedClose?.startsWith(CURRENT_MONTH)).length
 
   const pipelineStageSummary = dealStages.map((stage) => {
-    const stageDeals = filteredDeals.filter((d) => d.stage === stage)
+    const stageDeals = deals.filter((d) => d.stage === stage)
     return { stage, count: stageDeals.length, value: stageDeals.reduce((sum, d) => sum + d.value, 0) }
   })
 

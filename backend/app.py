@@ -70,6 +70,7 @@ STAGE_PROBABILITY = {
     'Proposal':        60,
     'Negotiation':     80,
     'Closed Won':      100,
+    'Closed Lost':     0,
 }
 
 
@@ -423,14 +424,19 @@ def get_leads():
             cursor.execute(
                 """SELECT id, customer_name AS customerName, contact_num AS contactNum,
                           address, region, sr, branch, status, created_at AS createdAt
-                   FROM leads WHERE LOWER(TRIM(branch)) = %s ORDER BY created_at DESC""",
+                   FROM leads 
+                   WHERE LOWER(TRIM(branch)) = %s 
+                     AND (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')
+                   ORDER BY created_at DESC""",
                 (normalize_branch(branch),)
             )
         else:
             cursor.execute(
                 """SELECT id, customer_name AS customerName, contact_num AS contactNum,
                           address, region, sr, branch, status, created_at AS createdAt
-                   FROM leads ORDER BY created_at DESC"""
+                   FROM leads 
+                   WHERE (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')
+                   ORDER BY created_at DESC"""
             )
         return jsonify(rows_to_list(cursor))
     finally:
@@ -545,21 +551,26 @@ def get_deals():
             cursor.execute(
                 '''
                 SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
-                       d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
+                       d.lead_id AS leadId, d.stage, d.value, d.close_date AS expectedClose,
                        d.probability, d.owner, d.created_at
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE LOWER(TRIM(l.branch)) = %s
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ORDER BY d.created_at DESC
                 ''',
                 (normalize_branch(branch),),
             )
         else:
             cursor.execute(
-                """SELECT id, name, company_id AS companyId, contact_id AS contactId,
-                          lead_id AS leadId, stage, value, close_date AS closeDate,
-                          probability, owner, created_at
-                   FROM deals ORDER BY created_at DESC"""
+                """SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
+                          d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
+                          d.probability, d.owner, d.created_at
+                   FROM deals d
+                   LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                   WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+                     AND l.branch IS NOT NULL
+                   ORDER BY d.created_at DESC"""
             )
         return jsonify(rows_to_list(cursor))
     finally:
@@ -744,25 +755,33 @@ def get_dashboard():
         branch_params = (normalize_branch(branch),) if has_branch else ()
 
         # New leads this month
-        new_leads_query = "SELECT COUNT(*) FROM leads WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"
+        new_leads_query = "SELECT COUNT(*) FROM leads WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') AND (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')"
         if has_branch:
             new_leads_query += " AND LOWER(TRIM(branch)) = %s"
         cursor.execute(new_leads_query, branch_params)
         new_leads = cursor.fetchone()[0]
 
-        # Active deals (not Closed Won)
+        # Active deals (not Closed Won or Closed Lost)
         if has_branch:
             cursor.execute(
                 '''
                 SELECT COUNT(*)
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE d.stage != 'Closed Won' AND LOWER(TRIM(l.branch)) = %s
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND LOWER(TRIM(l.branch)) = %s
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ''',
                 branch_params,
             )
         else:
-            cursor.execute("SELECT COUNT(*) FROM deals WHERE stage != 'Closed Won'")
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+                  AND l.branch IS NOT NULL
+            """)
         active_deals = cursor.fetchone()[0]
 
         # Deals per stage
@@ -773,22 +792,30 @@ def get_dashboard():
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE LOWER(TRIM(l.branch)) = %s
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 GROUP BY d.stage
                 ''',
                 branch_params,
             )
         else:
-            cursor.execute("SELECT stage, COUNT(*) AS count, SUM(value) AS value FROM deals GROUP BY stage")
+            cursor.execute("""
+                SELECT d.stage, COUNT(*) AS count, SUM(d.value) AS value 
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+                  AND l.branch IS NOT NULL
+                GROUP BY d.stage
+            """)
         deals_per_stage = rows_to_list(cursor)
 
         # Conversion rate
-        leads_query = "SELECT COUNT(*) FROM leads"
+        leads_query = "SELECT COUNT(*) FROM leads WHERE (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')"
         if has_branch:
-            leads_query += " WHERE LOWER(TRIM(branch)) = %s"
+            leads_query += " AND LOWER(TRIM(branch)) = %s"
         cursor.execute(leads_query, branch_params)
         total_leads = cursor.fetchone()[0]
         
-        converted_query = "SELECT COUNT(*) FROM leads WHERE status = 'Converted'"
+        converted_query = "SELECT COUNT(*) FROM leads WHERE status = 'Converted' AND (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')"
         if has_branch:
             converted_query += " AND LOWER(TRIM(branch)) = %s"
         cursor.execute(converted_query, branch_params)
@@ -803,12 +830,20 @@ def get_dashboard():
                 SELECT COALESCE(SUM(d.value), 0)
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE d.stage != 'Closed Won' AND LOWER(TRIM(l.branch)) = %s
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND LOWER(TRIM(l.branch)) = %s
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ''',
                 branch_params,
             )
         else:
-            cursor.execute("SELECT COALESCE(SUM(value), 0) FROM deals WHERE stage != 'Closed Won'")
+            cursor.execute("""
+                SELECT COALESCE(SUM(d.value), 0) 
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+                  AND l.branch IS NOT NULL
+            """)
         pipeline_value = float(cursor.fetchone()[0])
 
         return jsonify({

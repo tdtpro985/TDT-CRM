@@ -18,32 +18,30 @@ Prioritize small, safe edits and preserve current behavior unless task asks othe
 - No `.github/copilot-instructions.md` found.
 - If these files appear later, treat them as authoritative local policy.
 
-## Setup Expectations
-- Node + npm installed.
-- Python 3 + pip installed.
-- MySQL running and accessible.
-- Backend reads env vars via `python-dotenv`.
-- Frontend defaults API base to `http://localhost:5000`.
+## Setup & Operations
+- Frontend: `npm install`, `npm run dev`.
+- Backend: `pip install -r requirements.txt`, `python app.py`.
+- **Port Conflict**: Backend defaults to `5000` but often conflicts with zombie processes on Windows. Use `FLASK_PORT=5001` in `backend/.env` if `5000` is stuck.
+- **Database**: `backend/database/schema.sql` is the source of truth. Use `python -m database.rebuild_db` to reset.
+- **Environment**: Backend requires `.env` with `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `JWT_SECRET_KEY`.
 
-## Build/Lint/Run Commands
-Run from repository root unless noted.
+## Architecture & Data
+- **Stack**: React (Vite) + Flask + MySQL. No TypeScript.
+- **Data Filtering**: The system filters by `branch` and `sr` (Sales Rep).
+- **Sample Data**: Exclude `sr = 'manila.tdtpowersteel'` from queries to hide test/sample records.
+- **Naming**: Database uses `snake_case`; Frontend/API JSON uses `camelCase`. Map them in SQL (`SELECT branch_name AS branchName`) or in Python handlers.
 
-### Frontend
-- Install deps: `npm install`
-- Start dev server: `npm run dev`
-- Build production bundle: `npm run build`
-- Preview production build: `npm run preview`
-- Lint frontend: `npm run lint`
+## Critical Constraints
+- **SQL Safety**: Always use `%s` placeholders. Never use f-strings in SQL queries.
+- **DB Connections**: Always close connections in a `finally` block using `close_connection(conn)`.
+- **Auth**: Routes typically use `@jwt_required`. Check `get_jwt_identity()` for the current user's branch/role.
+- **Frontend API**: Use `apiFetch` (from `src/utils/api.js`) for authenticated calls. Check `res.ok`.
 
-### Backend (run in `backend/`)
-- Install deps: `pip install -r requirements.txt`
-- Start API (preferred): `python app.py`
-- Start API (legacy): `python main.py`
-- Rebuild DB from schema: `python -m database.rebuild_db`
-- Clear CRM data tables: `python -m database.clear_db`
-- Initialize legacy mock data: `python -m database.init_db`
-- Ensure default users exist: `python -m database.bootstrap_users`
-- Reset default user passwords: `python -m database.bootstrap_users --reset-passwords`
+## Commands Reference
+- **Verify Backend**: `py -3.11 -c "import requests; print(requests.get('http://127.0.0.1:5001/api/health').status_code)"`
+- **Lint**: `npm run lint` (frontend only).
+- **Reset DB**: `python -m database.rebuild_db` (destructive).
+- **Admin Setup**: `python -m database.bootstrap_users` ensures default logins exist.
 
 ## Test Commands (Current Reality)
 No automated test runner is configured today.
