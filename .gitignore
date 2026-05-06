@@ -50,3 +50,5 @@ backups/*.json
 backend/backups/*.json
 # Test and snapshot output
 tests/__snapshots__/
+
+ucc-progress/   
