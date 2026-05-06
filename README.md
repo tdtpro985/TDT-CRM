@@ -12,7 +12,7 @@ The application is built with a modern, decoupled architecture:
   - `pages/`: Dedicated views for Dashboard, Deals, Contacts, Activities, and Reports.
   - `utils.js` / `constants.js`: Helper functions and standardized dictionaries.
 ### Backend
-- **Framework**: Python / Flask (`backend/main.py`)
+- **Framework**: Python / Flask (`backend/app.py`)
 - **Database**: MySQL
 - **API**: RESTful JSON endpoints (GET, POST, PUT) handling all database CRUD operations.
 - **Environment Management**: `python-dotenv` for managing database credentials securely.
@@ -20,47 +20,53 @@ The application is built with a modern, decoupled architecture:
 ## Getting Started
 Follow these steps to run the CRM locally on your machine.
 ### 1. Database & Secret Environment Setup
-- Ensure you have a MySQL server running (locally or remotely).
+- Ensure you have a MySQL server running.
 - Copy `.env.example` to `.env` and set all required variables:
-.env.example (do NOT commit .env)
-  DB_USER=
-  DB_PASSWORD=
-  DB_HOST=
-  DB_NAME=
-  DEFAULT_BRANCH_PASSWORD=
-  DEFAULT_ADMIN_PASSWORD=
-**Never commit your `.env` or any real secret credentials to version control.**
-- Add `.env` to your `.gitignore`.
+  ```ini
+  DB_HOST=localhost
+  DB_USER=your_username
+  DB_PASSWORD=your_password
+  DB_NAME=tdt_crm
+  JWT_SECRET_KEY=generate_a_random_string
+  FLASK_PORT=5001
+  FLASK_DEBUG=True
+  ```
+- **Port Convention**: We use `FLASK_PORT=5001` to avoid common Windows/macOS conflicts on port 5000.
+- **Security**: Never commit your `.env` or any real secret credentials to version control.
+
+#### Database Initialization
 1. Navigate to the `backend/` directory.
-2. Run the database initialization script to create tables and seed initial platform data:
-  ```bash
-  cd backend
-  python init_db.py
-  ```
-3. Ensure login users are created consistently on any machine:
-  ```bash
-  cd backend
-  python -m database.bootstrap_users
-  ```
-  - To reset all default account passwords across devices:
-  ```bash
-  python -m database.bootstrap_users --reset-passwords
-  ```
-  - All passwords and usernames are controlled by environment variables set in your `.env` file.
+2. Run the schema rebuild script to create the authoritative tables:
+   ```bash
+   python -m database.rebuild_db
+   ```
+   *Note: This creates the tables based on `backend/database/schema.sql`.*
+3. Ensure login users are created consistently:
+   ```bash
+   python -m database.bootstrap_users
+   ```
+   - To reset default passwords: `python -m database.bootstrap_users --reset-passwords`
+
+4. Sync Pipeline Data (The "Agos" Flow):
+   ```bash
+   python -m database.sync_pipeline
+   ```
+   *Note: This script tops up your Kanban board to 20 active deals by pulling from your latest leads. Run this whenever you close deals and want the next batch to flow in.*
+
 ### 2. Start the Backend Server (Flask)
-Prepare the backend:
 ```bash
 cd backend
-python main.py
+python app.py
 ```
-The server will typically run on http://127.0.0.1:5000.
+The server will run on http://127.0.0.1:5001.
+
 ### 3. Start the Frontend Server (Vite)
-Open a new terminal window in the project root and execute the following:
 ```bash
+cd frontend
 npm install
 npm run dev
 ```
-*Vite will start a local development server (usually on `http://localhost:5173`) and automatically proxy `/api` requests to your Flask backend.*
+*Vite will start the local server on http://localhost:5173 and proxy `/api` requests to port 5001.*
 
 ---
 
