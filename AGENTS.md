@@ -24,11 +24,13 @@ Prioritize small, safe edits and preserve current behavior unless task asks othe
 - **Port Conflict**: Backend defaults to `5000` but often conflicts with zombie processes on Windows. Use `FLASK_PORT=5001` in `backend/.env` if `5000` is stuck.
 - **Database**: `backend/database/schema.sql` is the source of truth. Use `python -m database.rebuild_db` to reset.
 - **Environment**: Backend requires `.env` with `DB_USER`, `DB_PASSWORD`, `DB_NAME`, and `JWT_SECRET_KEY`.
+- **Pipeline Flow**: Use `python -m database.sync_pipeline` to top up the Kanban board to 20 active deals. This script also generates automatic tasks for the Focus Queue.
 
 ## Architecture & Data
 - **Stack**: React (Vite) + Flask + MySQL. No TypeScript.
 - **Data Filtering**: The system filters by `branch` and `sr` (Sales Rep).
-- **Sample Data**: Exclude `sr = 'manila.tdtpowersteel'` from queries to hide test/sample records.
+- **Sample Data**: Use `sr = 'branch.sales.rep'` for seed data. REAL leads often use `sr = 'manila.tdtpowersteel'`.
+- **Agos Logic**: The system uses a "Flow" (Agos) strategy where only a subset of leads (default 20) are active in the Pipeline at once.
 - **Naming**: Database uses `snake_case`; Frontend/API JSON uses `camelCase`. Map them in SQL (`SELECT branch_name AS branchName`) or in Python handlers.
 
 ## Critical Constraints

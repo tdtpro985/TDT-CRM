@@ -47,11 +47,11 @@ Follow these steps to run the CRM locally on your machine.
    ```
    - To reset default passwords: `python -m database.bootstrap_users --reset-passwords`
 
-4. Sync Pipeline Data (Fix for empty boards):
+4. Sync Pipeline Data (The "Agos" Flow):
    ```bash
    python -m database.sync_pipeline
    ```
-   *Note: This script normalizes stages and converts sample leads into deals so the pipeline isn't empty on first run.*
+   *Note: This script tops up your Kanban board to 20 active deals by pulling from your latest leads. Run this whenever you close deals and want the next batch to flow in.*
 
 ### 2. Start the Backend Server (Flask)
 ```bash
