@@ -42,7 +42,7 @@ def sync_pipeline():
         print(f"Current active deals on this device: {current_active_count}")
 
         if current_active_count >= 20:
-            print("Kanban board already has 20 or more active deals. No 'agos' needed today.")
+            print("Kanban board already has 20 or more active deals. No 'Flow' needed today.")
             return
 
         needed_count = 20 - current_active_count
