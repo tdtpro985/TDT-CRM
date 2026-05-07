@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { API_BASE, saveToken } from '../api'
 
 const BRANCHES = [
@@ -49,7 +49,7 @@ export default function LoginPage({ onLogin }) {
       let data = null
       try {
         data = await res.json()
-      } catch (err) {
+      } catch {
         // response not JSON
       }
       if (!res.ok) {

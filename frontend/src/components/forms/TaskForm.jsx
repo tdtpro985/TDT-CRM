@@ -23,7 +23,7 @@ function DealCombobox({ deals, dealId, onChange }) {
         autoComplete="off"
       />
       <datalist id="deal-options-task">
-        {deals.map((d) => <option key={d.id} value={d.name} />)}
+        {deals?.map((d) => <option key={d.id} value={d.name} />)}
       </datalist>
     </>
   )

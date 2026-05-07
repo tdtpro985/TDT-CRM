@@ -48,11 +48,11 @@
   width: 100%;
   max-width: 200px;
   height: auto;
-  object-fit: contain;
-  display: block;
-  background: #c8cdd8;
+  object-fit: fill;
+  display: contain;
+  /*background: #c8cdd83a;*/
   border-radius: var(--r-md);
-  padding: 10px 16px;
+  padding: 1px 1px; 
 }
 
 .brand-title {
@@ -107,8 +107,9 @@
 .nav-item:hover,
 .nav-item:focus-visible {
   background: rgba(255,255,255,0.04);
-  border-color: var(--border);
+  /*dborder-color: var(--border);*/
   outline: none;
+  
 }
 
 .nav-item.is-active {

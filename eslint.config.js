@@ -9,10 +9,6 @@ export default defineConfig([
     'dist',
     'frontend/dist',
     'backend/**',
-    'frontend/src/components/**',
-    'frontend/src/pages/**',
-    'frontend/src/constants.js',
-    'frontend/src/utils.js',
   ]),
   {
     files: ['**/*.{js,jsx}'],

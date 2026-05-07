@@ -119,17 +119,18 @@ export default function TasksView({
         title="Log a task quickly"
         kicker="Fast entry"
       >
-        <TaskForm
-          deals={deals}
-          teamMembers={teamMembers}
-          taskTypes={taskTypes}
-          taskPriorities={taskPriorities}
-          onCancel={() => setShowTaskForm(false)}
-          onSubmit={(form) => {
+
+        TaskForm
+          deals = {deals}
+          teamMembers = {teamMembers}
+          taskTypes = {taskTypes}
+          taskPriorities = {taskPriorities}
+          onCancel = {() => setShowTaskForm(false)}
+          onSubmit = {(form) =>{
             onCreateTask(form, ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won'])
             setShowTaskForm(false)
           }}
-        />
+
       </Modal>
     </>
   )

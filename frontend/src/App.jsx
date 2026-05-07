@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
+import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import './App.css'
 import { formatCurrencyCompact, matchesSearch } from './utils'
 import { clearToken, getUser, saveUser } from './api'
@@ -38,15 +39,15 @@ function shortStageLabel(stage) { return SHORT_STAGE_LABEL[stage] ?? stage }
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [activeView, setActiveView]         = useState('dashboard')
+  const navigate = useNavigate()
+  const location = useLocation()
+  const activeView = location.pathname.substring(1) || 'dashboard'
+
   const [searchQuery, setSearchQuery]       = useState('')
-  const [databaseTab, setDatabaseTab]       = useState('leads')
   const [stageFilter, setStageFilter]       = useState('all')
   const [taskFilter, setTaskFilter]         = useState('open')
 
   const [selectedLeadId,    setSelectedLeadId]    = useState(null)
-  const [selectedContactId, setSelectedContactId] = useState(null)
-  const [selectedCompanyId, setSelectedCompanyId] = useState(null)
 
   const [notice, setNotice] = useState('TDT Powersteel CRM is focused on clean data, pipeline visibility, activity tracking, and a 5 KPI dashboard.')
   const [showLeadForm, setShowLeadForm] = useState(false)
@@ -116,14 +117,6 @@ export default function App() {
     matchesSearch(searchQuery, [l.customerName, l.contactNum, l.address, l.region, l.sr, l.branch, l.status]),
   ), [leads, searchQuery])
 
-  const filteredContacts = useMemo(() => contacts.filter((c) =>
-    matchesSearch(searchQuery, [c.name, companyMap[c.companyId]?.name, c.role, c.owner, c.email]),
-  ), [contacts, searchQuery, companyMap])
-
-  const filteredCompanies = useMemo(() => companies.filter((c) =>
-    matchesSearch(searchQuery, [c.name, c.industry, c.city ?? c.website, c.owner, c.status]),
-  ), [companies, searchQuery])
-
   const filteredDeals = useMemo(() => deals.filter(
     (d) =>
       (stageFilter === 'all' || d.stage === stageFilter) &&
@@ -141,7 +134,6 @@ export default function App() {
   const handleCreateLead = async (form) => {
     const newLead = await actions.createLead(form);
     setSelectedLeadId(newLead.id)
-    setDatabaseTab('leads')
   }
 
   const handleCreateDeal = async (form) => {
@@ -155,7 +147,7 @@ export default function App() {
   // ─── Navigation helpers ─────────────────────────────────────────────────────
 
   function focusSection(viewId, sectionId, message) {
-    setActiveView(viewId)
+    navigate(`/${viewId}`)
     setNotice(message)
     window.setTimeout(() => {
       const section = document.getElementById(sectionId)
@@ -167,12 +159,12 @@ export default function App() {
   }
 
   function handleViewChange(viewId) {
-    setActiveView(viewId)
+    navigate(`/${viewId}`)
     setSearchQuery('')
     setShowLeadForm(false)
     setShowDealForm(false)
     setShowTaskForm(false)
-    setNotice(`${VIEW_META[viewId].title} is active.`)
+    setNotice(`${VIEW_META[viewId]?.title || viewId} is active.`)
     setSidebarOpen(false)
   }
 
@@ -217,89 +209,86 @@ export default function App() {
       : `${openTasks.length}`,
   }))
 
-  const currentMeta = VIEW_META[activeView]
+  const currentMeta = VIEW_META[activeView] || VIEW_META.dashboard
 
   // ─── View routing ────────────────────────────────────────────────────────────
 
-  function renderView() {
-    if (activeView === 'dashboard') {
-      return (
-        <DashboardView
-          topKpis={topKpis}
-          stageSummary={stageSummary}
-          pipelineValue={pipelineValue}
-          leads={leads}
-          contacts={contacts}
-          companies={companies}
-          openTasks={openTasks}
-          linkHealth={linkHealth}
-        />
-      )
-    }
-
-    if (activeView === 'database') {
-      return (
-        <DatabaseView
-          setNotice={setNotice}
-          filteredLeads={filteredLeads}
-          leads={leads}
-          teamMembers={teamMembers}
-          selectedLeadId={selectedLeadId}
-          setSelectedLeadId={setSelectedLeadId}
-          leadStatuses={LEAD_STATUSES}
-          onCreateLead={handleCreateLead}
-          handleLeadStatusChange={actions.updateLeadStatus}
-          linkHealth={linkHealth}
-          showLeadForm={showLeadForm}
-          setShowLeadForm={setShowLeadForm}
-          currentUser={currentUser}
-        />
-      )
-    }
-
-    if (activeView === 'pipeline') {
-      return (
-        <PipelineView
-          filteredDeals={filteredDeals}
-          deals={deals}
-          leads={leads}
-          contacts={contacts}
-          companies={companies}
-          teamMembers={teamMembers}
-          activeDeals={activeDeals}
-          pipelineValue={pipelineValue}
-          averageDealSize={averageDealSize}
-          dealStages={DEAL_STAGES}
-          stageFilter={stageFilter}
-          setStageFilter={setStageFilter}
-          setNotice={setNotice}
-          companyMap={companyMap}
-          onCreateDeal={handleCreateDeal}
-          handleDealStageChange={actions.updateDealStage}
-          showDealForm={showDealForm}
-          setShowDealForm={setShowDealForm}
-        />
-      )
-    }
-
+  function renderRoutes() {
     return (
-      <TasksView
-        filteredTasks={filteredTasks}
-        tasks={tasks}
-        openTasks={openTasks}
-        dueToday={dueToday}
-        deals={deals}
-        companyMap={companyMap}
-        taskTypes={TASK_TYPES}
-        taskPriorities={TASK_PRIORITIES}
-        teamMembers={teamMembers}
-        taskFilter={taskFilter}
-        setTaskFilter={setTaskFilter}
-        onCreateTask={handleCreateTask}
-        handleTaskStatusToggle={actions.toggleTaskStatus}
-        showTaskForm={showTaskForm}
-        setShowTaskForm={setShowTaskForm}
-      />
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={
+          <DashboardView
+            topKpis={topKpis}
+            stageSummary={stageSummary}
+            pipelineValue={pipelineValue}
+            leads={leads}
+            contacts={contacts}
+            companies={companies}
+            openTasks={openTasks}
+            linkHealth={linkHealth}
+          />
+        } />
+        <Route path="/database" element={
+          <DatabaseView
+            setNotice={setNotice}
+            filteredLeads={filteredLeads}
+            leads={leads}
+            teamMembers={teamMembers}
+            selectedLeadId={selectedLeadId}
+            setSelectedLeadId={setSelectedLeadId}
+            leadStatuses={LEAD_STATUSES}
+            onCreateLead={handleCreateLead}
+            handleLeadStatusChange={actions.updateLeadStatus}
+            linkHealth={linkHealth}
+            showLeadForm={showLeadForm}
+            setShowLeadForm={setShowLeadForm}
+            currentUser={currentUser}
+          />
+        } />
+        <Route path="/pipeline" element={
+          <PipelineView
+            filteredDeals={filteredDeals}
+            deals={deals}
+            leads={leads}
+            contacts={contacts}
+            companies={companies}
+            teamMembers={teamMembers}
+            activeDeals={activeDeals}
+            pipelineValue={pipelineValue}
+            averageDealSize={averageDealSize}
+            dealStages={DEAL_STAGES}
+            stageFilter={stageFilter}
+            setStageFilter={setStageFilter}
+            setNotice={setNotice}
+            companyMap={companyMap}
+            onCreateDeal={handleCreateDeal}
+            handleDealStageChange={actions.updateDealStage}
+            showDealForm={showDealForm}
+            setShowDealForm={setShowDealForm}
+          />
+        } />
+        <Route path="/tasks" element={
+          <TasksView
+            filteredTasks={filteredTasks}
+            tasks={tasks}
+            openTasks={openTasks}
+            dueToday={dueToday}
+            deals={deals}
+            companyMap={companyMap}
+            taskTypes={TASK_TYPES}
+            taskPriorities={TASK_PRIORITIES}
+            teamMembers={teamMembers}
+            taskFilter={taskFilter}
+            setTaskFilter={setTaskFilter}
+            onCreateTask={handleCreateTask}
+            handleTaskStatusToggle={actions.toggleTaskStatus}
+            showTaskForm={showTaskForm}
+            setShowTaskForm={setShowTaskForm}
+          />
+        } />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
     )
   }
 
@@ -407,7 +396,7 @@ export default function App() {
           <p style={{ padding: '2rem' }}>Loading data…</p>
         ) : (
           <div className="view-content">
-            {renderView()}
+            {renderRoutes()}
           </div>
         )}
       </main>

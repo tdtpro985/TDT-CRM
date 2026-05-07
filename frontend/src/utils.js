@@ -54,7 +54,8 @@ export function getToneClass(value) {
     normalizedValue.includes('won') ||
     normalizedValue.includes('customer') ||
     normalizedValue.includes('completed') ||
-    normalizedValue.includes('qualified') 
+    normalizedValue.includes('qualified') ||
+    normalizedValue.includes('low')
   ) {
     return 'is-positive'
   }
@@ -63,7 +64,8 @@ export function getToneClass(value) {
     normalizedValue.includes('proposal') ||
     normalizedValue.includes('negotiation') ||
     normalizedValue.includes('in progress') ||
-    normalizedValue.includes('new') 
+    normalizedValue.includes('new') ||
+    normalizedValue.includes('medium')
   ) {
     return 'is-warning'
   }
