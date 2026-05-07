@@ -82,7 +82,7 @@ export function getToneClass(value) {
     normalizedValue.includes('negotiation') ||
     normalizedValue.includes('in progress') ||
     normalizedValue.includes('new') ||
-    normalizedValue.includes('medium')
+    normalizedValue.includes('medium') 
   ) {
     return 'is-warning'
   }
@@ -94,7 +94,9 @@ export function getToneClass(value) {
     return 'is-alert'
   }
 
-  if (normalizedValue.includes('converted')) {
+  if (
+    normalizedValue.includes('converted')
+  ) {
     return 'is-converted'
   }
 

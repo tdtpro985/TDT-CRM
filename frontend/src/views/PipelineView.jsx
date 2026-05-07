@@ -7,6 +7,32 @@ import DealForm from '../components/forms/DealForm'
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
 
+const STAGE_TONES = {
+  'New Opportunity': 'is-stage-new-opportunity',
+  Qualified: 'is-stage-qualified',
+  Proposal: 'is-stage-proposal',
+  Negotiation: 'is-stage-negotiation',
+  'Closed Won': 'is-stage-closed-won',
+  'Closed Lost': 'is-stage-closed-lost',
+}
+
+const DEAL_STAGE_ORDER = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
+
+function getStageTone(stage) {
+  return STAGE_TONES[stage] ?? 'is-neutral'
+}
+
+function getStagePipState(stage, selectedStage) {
+  if (stage === selectedStage) return 'is-active'
+  if (selectedStage === 'Closed Lost') {
+    return stage === 'Closed Won' ? '' : DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
+  }
+  if (selectedStage === 'Closed Won') {
+    return DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
+  }
+  return DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
+}
+
 export default function PipelineView({
   filteredDeals,
   deals,
@@ -105,7 +131,7 @@ export default function PipelineView({
                         </div>
                       ) : (
                         stageDeals.map((deal) => (
-                          <article key={deal.id} className="pipeline-card">
+                          <article key={deal.id} className={`pipeline-card ${getStageTone(deal.stage)}`}>
                             <div className="pipeline-card__top">
                               <strong>{deal.name}</strong>
                               <span className="tone-pill is-warning">{deal.probability}%</span>
@@ -132,7 +158,7 @@ export default function PipelineView({
                               Last touch {formatRelativeDays(deal.lastTouch) || '—'}
                             </p>
                             <div className="field--compact" style={{ textAlign: 'center', marginTop: '8px' }}>
-                              <button type="button" className="ghost-button" onClick={() => setSelectedDeal(deal)}>View details</button>
+                              <button type="button" className="secondary-button pipeline-card__details-btn" onClick={() => setSelectedDeal(deal)}>View details</button>
                             </div>
                           </article>
                         ))
@@ -233,7 +259,8 @@ export default function PipelineView({
                 {dealStages.map((s) => (
                   <div
                     key={s}
-                    className={`deal-modal__stage-pip ${s === selectedDeal.stage ? 'is-active' : dealStages.indexOf(s) < dealStages.indexOf(selectedDeal.stage) ? 'is-done' : ''}`}
+                    data-stage={s}
+                    className={`deal-modal__stage-pip ${getStagePipState(s, selectedDeal.stage)}`}
                   >
                     <span>{s}</span>
                   </div>
