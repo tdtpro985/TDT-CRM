@@ -2,10 +2,36 @@ import { useState } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
-import { formatCurrencyCompact, formatDateLabel } from '../utils'
+import { formatCurrencyCompact, formatDateLabel, formatRelativeDays } from '../utils'
 import DealForm from '../components/forms/DealForm'
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
+
+const STAGE_TONES = {
+  'New Opportunity': 'is-stage-new-opportunity',
+  Qualified: 'is-stage-qualified',
+  Proposal: 'is-stage-proposal',
+  Negotiation: 'is-stage-negotiation',
+  'Closed Won': 'is-stage-closed-won',
+  'Closed Lost': 'is-stage-closed-lost',
+}
+
+const DEAL_STAGE_ORDER = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
+
+function getStageTone(stage) {
+  return STAGE_TONES[stage] ?? 'is-neutral'
+}
+
+function getStagePipState(stage, selectedStage) {
+  if (stage === selectedStage) return 'is-active'
+  if (selectedStage === 'Closed Lost') {
+    return stage === 'Closed Won' ? '' : DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
+  }
+  if (selectedStage === 'Closed Won') {
+    return DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
+  }
+  return DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
+}
 
 export default function PipelineView({
   filteredDeals,
@@ -79,7 +105,13 @@ export default function PipelineView({
           <div className="pipeline-board-wrapper">
             <div className="pipeline-board">
               {dealStages.map((stage) => {
-                const stageDeals = paginatedDeals.filter((d) => d.stage === stage)
+                const stageDeals = paginatedDeals
+                  .filter((d) => d.stage === stage)
+                  .sort((a, b) => {
+                    const urgencyDiff = (b.urgencyScore ?? 0) - (a.urgencyScore ?? 0)
+                    if (urgencyDiff !== 0) return urgencyDiff
+                    return (b.lastTouch ?? '').localeCompare(a.lastTouch ?? '')
+                  })
                 const stageValue = stageDeals.reduce((sum, d) => sum + d.value, 0)
 
                 return (
@@ -99,10 +131,22 @@ export default function PipelineView({
                         </div>
                       ) : (
                         stageDeals.map((deal) => (
-                          <article key={deal.id} className="pipeline-card">
+                          <article key={deal.id} className={`pipeline-card ${getStageTone(deal.stage)}`}>
                             <div className="pipeline-card__top">
                               <strong>{deal.name}</strong>
                               <span className="tone-pill is-warning">{deal.probability}%</span>
+                            </div>
+                            <div className="pipeline-card__badges">
+                              {deal.isAgos ? <span className="tone-pill is-neutral">Agos</span> : null}
+                              {deal.urgencyLabel === 'Overdue' ? (
+                                <span className="tone-pill is-alert">Overdue</span>
+                              ) : null}
+                              {deal.urgencyLabel === 'High Priority' ? (
+                                <span className="tone-pill is-warning">High</span>
+                              ) : null}
+                              {deal.urgencyLabel === 'Due Today' ? (
+                                <span className="tone-pill is-warning">Today</span>
+                              ) : null}
                             </div>
                             <p>{companyMap[deal.companyId]?.name ?? deal.companyId}</p>
                             <p className="pipeline-card__owner">{deal.owner}</p>
@@ -110,8 +154,11 @@ export default function PipelineView({
                               <span>{formatCurrencyCompact(deal.value)}</span>
                               <span>{formatDateLabel(deal.expectedClose)}</span>
                             </div>
+                            <p className="pipeline-card__touch">
+                              Last touch {formatRelativeDays(deal.lastTouch) || '—'}
+                            </p>
                             <div className="field--compact" style={{ textAlign: 'center', marginTop: '8px' }}>
-                              <button type="button" className="ghost-button" onClick={() => setSelectedDeal(deal)}>View details</button>
+                              <button type="button" className="secondary-button pipeline-card__details-btn" onClick={() => setSelectedDeal(deal)}>View details</button>
                             </div>
                           </article>
                         ))
@@ -212,7 +259,8 @@ export default function PipelineView({
                 {dealStages.map((s) => (
                   <div
                     key={s}
-                    className={`deal-modal__stage-pip ${s === selectedDeal.stage ? 'is-active' : dealStages.indexOf(s) < dealStages.indexOf(selectedDeal.stage) ? 'is-done' : ''}`}
+                    data-stage={s}
+                    className={`deal-modal__stage-pip ${getStagePipState(s, selectedDeal.stage)}`}
                   >
                     <span>{s}</span>
                   </div>

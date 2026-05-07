@@ -322,12 +322,51 @@
   box-sizing: border-box;
 }
 
-.kanban-card:hover,
-.pipeline-card:hover {
+.kanban-card:hover {
   transform: translateY(-2px) scale(1.01);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2), 0 3px 6px rgba(0, 0, 0, 0.12);
   border-color: rgba(255, 152, 0, 0.3);
   background: linear-gradient(135deg, rgba(255, 152, 0, 0.08), rgba(255, 255, 255, 0.05));
+}
+
+.pipeline-card:hover {
+  transform: translateY(-2px) scale(1.01);
+}
+
+.pipeline-card.is-stage-new-opportunity:hover {
+  border-color: rgba(255, 152, 0, 0.34);
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
+  box-shadow: 0 6px 16px rgba(255, 152, 0, 0.14), 0 3px 6px rgba(0, 0, 0, 0.12);
+}
+
+.pipeline-card.is-stage-qualified:hover {
+  border-color: rgba(59, 130, 246, 0.34);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(255, 255, 255, 0.05));
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.14), 0 3px 6px rgba(0, 0, 0, 0.12);
+}
+
+.pipeline-card.is-stage-proposal:hover {
+  border-color: rgba(70, 246, 70, 0.529);
+  background: linear-gradient(135deg, rgba(85, 247, 96, 0.1), rgba(255, 255, 255, 0.05));
+  box-shadow: 0 6px 16px rgba(88, 247, 85, 0.12), 0 3px 6px rgba(0, 0, 0, 0.12);
+}
+
+.pipeline-card.is-stage-negotiation:hover {
+  border-color: rgba(251, 113, 133, 0.32);
+  background: linear-gradient(135deg, rgba(251, 113, 133, 0.1), rgba(255, 255, 255, 0.05));
+  box-shadow: 0 6px 16px rgba(251, 113, 133, 0.12), 0 3px 6px rgba(0, 0, 0, 0.12);
+}
+
+.pipeline-card.is-stage-closed-won:hover {
+  border-color: rgba(255, 152, 0, 0.34);
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
+  box-shadow: 0 6px 16px rgba(255, 152, 0, 0.14), 0 3px 6px rgba(0, 0, 0, 0.12);
+}
+
+.pipeline-card.is-stage-closed-lost:hover {
+  border-color: rgba(255, 152, 0, 0.34);
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
+  box-shadow: 0 6px 16px rgba(255, 152, 0, 0.14), 0 3px 6px rgba(0, 0, 0, 0.12);
 }
 
 .pipeline-card__top {
@@ -353,6 +392,18 @@
 
 .pipeline-card__top .tone-pill {
   flex-shrink: 0;
+}
+
+.pipeline-card__details-btn {
+  color: #e15716;
+  border-color: rgba(225, 87, 22, 0.35);
+  background: rgba(225, 87, 22, 0.08);
+}
+
+.pipeline-card__details-btn:hover {
+  color: #e15716;
+  border-color: rgba(225, 87, 22, 0.5);
+  background: rgba(225, 87, 22, 0.14);
 }
 
 .pipeline-card p {
@@ -396,6 +447,12 @@
   white-space: nowrap;
   flex: 1;
   min-width: 0;
+}
+
+.pipeline-card__touch {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
 }
 
 .pipeline-card--empty {

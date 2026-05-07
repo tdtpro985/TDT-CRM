@@ -12,8 +12,21 @@ export default function DashboardView({
   openTasks,
   linkHealth,
 }) {
+  const today = new Date().toISOString().split('T')[0]
   const focusTasks = [...openTasks]
-    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+    .sort((a, b) => {
+      const statusScore = (task) => {
+        if (task.status !== 'Open') return 5
+        if (!task.dueDate) return 4
+        if (task.dueDate < today) return 1
+        if (task.priority === 'High') return 2
+        if (task.dueDate === today) return 3
+        return 4
+      }
+      const scoreDiff = statusScore(a) - statusScore(b)
+      if (scoreDiff !== 0) return scoreDiff
+      return (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
+    })
     .slice(0, 4)
 
   return (

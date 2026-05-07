@@ -7,7 +7,6 @@ import { formatDateLabel, getToneClass } from '../utils'
 import LeadForm from '../components/forms/LeadForm'
 
 export default function DatabaseView({
-  setNotice,
   filteredLeads,
   leads,
   teamMembers,
@@ -24,7 +23,10 @@ export default function DatabaseView({
   const [leadPage, setLeadPage] = useState(1)
   const ITEMS_PER_PAGE = 5
 
-  useEffect(() => setLeadPage(1), [filteredLeads])
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLeadPage(1)
+  }, [filteredLeads])
 
   const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? leads[0] ?? null
 
@@ -89,7 +91,7 @@ export default function DatabaseView({
                       onClick={() => setSelectedLeadId(lead.id)}
                     >
                       <div>
-                        <strong>{lead.customerName}</strong>
+                        <strong>{lead.customerName} - </strong>
                         <span>{lead.region}</span>
                       </div>
                       <p>SR: {lead.sr} &mdash; {lead.branch}</p>
@@ -148,10 +150,10 @@ export default function DatabaseView({
         kicker="Customer entry"
       >
         <LeadForm
-          teamMembers={teamMembers}
-          branch={currentUser?.branch ?? ''}
-          onCancel={() => setShowLeadForm(false)}
-          onSubmit={(form) => {
+          teamMembers = {teamMembers}
+          branch = {currentUser?.branch ?? ''}
+          onCancel = {() => setShowLeadForm(false)}
+          onSubmit = {(form) =>{
             onCreateLead(form)
             setShowLeadForm(false)
           }}

@@ -264,26 +264,26 @@ export default function AdminView({ currentUser, showToast }) {
           )}
 
           {totalPages > 1 && (
-            <div className="analytics-pagination">
+            <div className = "analytics-pagination">
               <button
-                type="button"
-                className="secondary-button"
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                ← Prev
-              </button>
-              <span className="analytics-pagination__label">
-                Page {page} of {totalPages} · {filteredUsers.length} accounts
-              </span>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={page === totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next →
-              </button>
+                type = "button"
+                className = "secondary-button"
+                disabled = {page === 1}
+                onClick = {() => setPage((p) => p -1)}
+                >
+                  Prev
+                </button>
+                <span classname = "analytics-pagination_label">
+                  Page {page} of {totalPages} . {filteredUsers.length} accounts
+                </span>
+                <button
+                  type = "button"
+                  classname = "secondary-button"
+                  disabled = {page === totalPages}
+                  onClick = {() => setPage((p) => p + 1)}
+                >
+                  Next
+                </button>
             </div>
           )}
         </Panel>

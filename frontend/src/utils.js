@@ -25,6 +25,23 @@ export function formatDateLabel(value) {
   }).format(new Date(value))
 }
 
+export function formatRelativeDays(value) {
+  if (!value) return ''
+  const dateValue = new Date(value)
+  if (Number.isNaN(dateValue.getTime())) return ''
+  const today = new Date()
+  const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const normalizedValue = new Date(dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate())
+  const diffMs = normalizedToday - normalizedValue
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) return 'today'
+  if (diffDays === 1) return '1 day ago'
+  if (diffDays > 1) return `${diffDays} days ago`
+  if (diffDays === -1) return 'in 1 day'
+  return `in ${Math.abs(diffDays)} days`
+}
+
 export function formatMetricValue(value, metricType) {
   if (metricType === 'currency') {
     return formatCurrencyCompact(value)
@@ -54,7 +71,8 @@ export function getToneClass(value) {
     normalizedValue.includes('won') ||
     normalizedValue.includes('customer') ||
     normalizedValue.includes('completed') ||
-    normalizedValue.includes('qualified') 
+    normalizedValue.includes('qualified') ||
+    normalizedValue.includes('low')
   ) {
     return 'is-positive'
   }
@@ -63,7 +81,8 @@ export function getToneClass(value) {
     normalizedValue.includes('proposal') ||
     normalizedValue.includes('negotiation') ||
     normalizedValue.includes('in progress') ||
-    normalizedValue.includes('new') 
+    normalizedValue.includes('new') ||
+    normalizedValue.includes('medium') 
   ) {
     return 'is-warning'
   }
@@ -75,7 +94,9 @@ export function getToneClass(value) {
     return 'is-alert'
   }
 
-  if (normalizedValue.includes('converted')) {
+  if (
+    normalizedValue.includes('converted')
+  ) {
     return 'is-converted'
   }
 

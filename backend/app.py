@@ -551,13 +551,59 @@ def get_deals():
             cursor.execute(
                 '''
                 SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
-                       d.lead_id AS leadId, d.stage, d.value, d.close_date AS expectedClose,
-                       d.probability, d.owner, d.created_at
+                       d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
+                       d.probability, d.owner, d.created_at,
+                       COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
+                       CASE
+                           WHEN urgency.hasOverdue = 1 THEN 'Overdue'
+                           WHEN urgency.hasHigh = 1 THEN 'High Priority'
+                           WHEN urgency.hasToday = 1 THEN 'Due Today'
+                           ELSE NULL
+                       END AS urgencyLabel,
+                       urgency.nextDueDate,
+                       GREATEST(
+                           IFNULL(activity_touch.lastActivityDate, DATE('1000-01-01')),
+                           IFNULL(DATE(audit_touch.lastAuditDate), DATE('1000-01-01')),
+                           IFNULL(d.created_at, DATE('1000-01-01'))
+                       ) AS lastTouch,
+                       CASE WHEN agos.agosCount > 0 THEN 1 ELSE 0 END AS isAgos
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                LEFT JOIN (
+                    SELECT a.deal_id,
+                           MAX(CASE
+                               WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 3
+                               WHEN a.status = 'Open' AND a.priority = 'High' THEN 2
+                               WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 1
+                               ELSE 0
+                           END) AS urgencyScore,
+                           MAX(CASE WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 1 ELSE 0 END) AS hasOverdue,
+                           MAX(CASE WHEN a.status = 'Open' AND a.priority = 'High' THEN 1 ELSE 0 END) AS hasHigh,
+                           MAX(CASE WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 1 ELSE 0 END) AS hasToday,
+                           MIN(CASE WHEN a.status = 'Open' THEN a.due_date END) AS nextDueDate
+                    FROM activities a
+                    GROUP BY a.deal_id
+                ) urgency ON urgency.deal_id = d.id
+                LEFT JOIN (
+                    SELECT a.deal_id, MAX(a.created_at) AS lastActivityDate
+                    FROM activities a
+                    GROUP BY a.deal_id
+                ) activity_touch ON activity_touch.deal_id = d.id
+                LEFT JOIN (
+                    SELECT al.entity_id AS deal_id, MAX(al.changed_at) AS lastAuditDate
+                    FROM audit_log al
+                    WHERE al.entity_type = 'deal'
+                    GROUP BY al.entity_id
+                ) audit_touch ON audit_touch.deal_id = d.id
+                LEFT JOIN (
+                    SELECT a.deal_id,
+                           SUM(CASE WHEN a.notes LIKE '%Automatic task generated%' THEN 1 ELSE 0 END) AS agosCount
+                    FROM activities a
+                    GROUP BY a.deal_id
+                ) agos ON agos.deal_id = d.id
                 WHERE LOWER(TRIM(l.branch)) = %s
                   AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
-                ORDER BY d.created_at DESC
+                ORDER BY urgencyScore DESC, d.created_at DESC
                 ''',
                 (normalize_branch(branch),),
             )
@@ -565,12 +611,58 @@ def get_deals():
             cursor.execute(
                 """SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
                           d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
-                          d.probability, d.owner, d.created_at
+                          d.probability, d.owner, d.created_at,
+                          COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
+                          CASE
+                              WHEN urgency.hasOverdue = 1 THEN 'Overdue'
+                              WHEN urgency.hasHigh = 1 THEN 'High Priority'
+                              WHEN urgency.hasToday = 1 THEN 'Due Today'
+                              ELSE NULL
+                          END AS urgencyLabel,
+                          urgency.nextDueDate,
+                          GREATEST(
+                              IFNULL(activity_touch.lastActivityDate, DATE('1000-01-01')),
+                              IFNULL(DATE(audit_touch.lastAuditDate), DATE('1000-01-01')),
+                              IFNULL(d.created_at, DATE('1000-01-01'))
+                          ) AS lastTouch,
+                          CASE WHEN agos.agosCount > 0 THEN 1 ELSE 0 END AS isAgos
                    FROM deals d
                    LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                   LEFT JOIN (
+                       SELECT a.deal_id,
+                              MAX(CASE
+                                  WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 3
+                                  WHEN a.status = 'Open' AND a.priority = 'High' THEN 2
+                                  WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 1
+                                  ELSE 0
+                              END) AS urgencyScore,
+                              MAX(CASE WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 1 ELSE 0 END) AS hasOverdue,
+                              MAX(CASE WHEN a.status = 'Open' AND a.priority = 'High' THEN 1 ELSE 0 END) AS hasHigh,
+                              MAX(CASE WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 1 ELSE 0 END) AS hasToday,
+                              MIN(CASE WHEN a.status = 'Open' THEN a.due_date END) AS nextDueDate
+                       FROM activities a
+                       GROUP BY a.deal_id
+                   ) urgency ON urgency.deal_id = d.id
+                   LEFT JOIN (
+                       SELECT a.deal_id, MAX(a.created_at) AS lastActivityDate
+                       FROM activities a
+                       GROUP BY a.deal_id
+                   ) activity_touch ON activity_touch.deal_id = d.id
+                   LEFT JOIN (
+                       SELECT al.entity_id AS deal_id, MAX(al.changed_at) AS lastAuditDate
+                       FROM audit_log al
+                       WHERE al.entity_type = 'deal'
+                       GROUP BY al.entity_id
+                   ) audit_touch ON audit_touch.deal_id = d.id
+                   LEFT JOIN (
+                       SELECT a.deal_id,
+                              SUM(CASE WHEN a.notes LIKE '%Automatic task generated%' THEN 1 ELSE 0 END) AS agosCount
+                       FROM activities a
+                       GROUP BY a.deal_id
+                   ) agos ON agos.deal_id = d.id
                    WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                      AND l.branch IS NOT NULL
-                   ORDER BY d.created_at DESC"""
+                   ORDER BY urgencyScore DESC, d.created_at DESC"""
             )
         return jsonify(rows_to_list(cursor))
     finally:
@@ -665,7 +757,15 @@ def get_activities():
                 LEFT JOIN deals d ON d.id = a.deal_id
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE LOWER(TRIM(l.branch)) = %s
-                ORDER BY a.due_date ASC
+                ORDER BY
+                    CASE
+                        WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 1
+                        WHEN a.status = 'Open' AND a.priority = 'High' THEN 2
+                        WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 3
+                        WHEN a.status = 'Open' THEN 4
+                        ELSE 5
+                    END,
+                    a.due_date ASC
                 ''',
                 (normalize_branch(branch),),
             )
@@ -673,7 +773,16 @@ def get_activities():
             cursor.execute(
                 """SELECT id, subject, type, owner, deal_id AS dealId,
                           due_date AS dueDate, priority, status, notes, created_at
-                   FROM activities ORDER BY due_date ASC"""
+                   FROM activities
+                   ORDER BY
+                       CASE
+                           WHEN status = 'Open' AND due_date < CURDATE() THEN 1
+                           WHEN status = 'Open' AND priority = 'High' THEN 2
+                           WHEN status = 'Open' AND due_date = CURDATE() THEN 3
+                           WHEN status = 'Open' THEN 4
+                           ELSE 5
+                       END,
+                       due_date ASC"""
             )
         return jsonify(rows_to_list(cursor))
     finally:

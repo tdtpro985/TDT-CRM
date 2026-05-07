@@ -28,7 +28,7 @@ export default function AdminLoginPage({ onLogin }) {
       let data = null
       try {
         data = await res.json()
-      } catch (err) {
+      } catch {
         // response not JSON
       }
       if (!res.ok) {

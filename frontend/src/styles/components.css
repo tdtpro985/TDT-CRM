@@ -128,7 +128,7 @@
 .primary-button:hover,
 .secondary-button:hover,
 .ghost-button:hover {
-  opacity: 0.88;
+  opacity: 1.88;
   transform: translateY(-1px);
 }
 
@@ -374,18 +374,19 @@ section.content-grid--primary {
 /* ── 6. Detail List & Card ──────────────────────────────────── */
 
 .detail-list {
-  display: grid;
-  gap: 2px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .detail-list > div {
   display: grid;
   grid-template-columns: 140px 1fr;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   padding: 10px 0;
   border-bottom: 1px solid var(--border);
-  max-height: 100%;
+  flex: 1;
 }
 
 .detail-list > div:last-child {
@@ -414,6 +415,9 @@ section.content-grid--primary {
   border-radius: var(--r-md);
   background: rgba(255,255,255,0.02);
   border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .detail-card strong {
@@ -586,11 +590,13 @@ section.content-grid--primary {
   font-weight: 700;
 }
 
-.tone-pill.is-neutral { background: rgba(255,255,255,0.06); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); }
+.tone-pill.is-neutral { background: rgba(255, 255, 255, 0.203); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.4); color: darkgray; }
 .tone-pill.is-positive { background: rgba(52,211,153,0.1); color: var(--positive); border: 1px solid rgba(52,211,153,0.2); }
 .tone-pill.is-warning { background: rgba(255,181,71,0.1); color: var(--warning); border: 1px solid rgba(255,181,71,0.2); }
 .tone-pill.is-alert { background: rgba(251,113,133,0.1); color: var(--alert); border: 1px solid rgba(251,113,133,0.2); }
 .tone-pill.is-converted { background: rgba(55, 151, 229, 0.1); color: var(--text-cyan); border: 1px solid rgba(0, 200, 255, 0.25); color: darkcyan;}
+.tone-pill.is-caution { background: rgba(255,181,71,0.1); color: var(--caution); border: 1px solid rgba(255,181,71,0.2); }
+
 
 .brand-branch-badge {
   background: rgba(255,152,0,0.14);
@@ -789,6 +795,24 @@ section.content-grid--primary {
 .deal-modal__stage-pip.is-active span {
   color: var(--accent-strong);
   font-weight: 800;
+}
+
+.deal-modal__stage-pip.is-active[data-stage="Closed Won"] {
+  background: rgba(52, 211, 153, 0.18);
+  box-shadow: inset 0 -2px 0 rgba(52, 211, 153, 0.9);
+}
+
+.deal-modal__stage-pip.is-active[data-stage="Closed Won"] span {
+  color: var(--positive);
+}
+
+.deal-modal__stage-pip.is-active[data-stage="Closed Lost"] {
+  background: rgba(251, 113, 133, 0.18);
+  box-shadow: inset 0 -2px 0 rgba(251, 113, 133, 0.9);
+}
+
+.deal-modal__stage-pip.is-active[data-stage="Closed Lost"] span {
+  color: var(--alert);
 }
 
 /* Detail fields 2-col grid */

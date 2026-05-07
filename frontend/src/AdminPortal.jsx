@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import './App.css'
 import { clearToken, getUser, saveUser } from './api'
 import AdminLoginPage from './components/AdminLoginPage'
@@ -19,8 +20,12 @@ const VIEW_META = {
 }
 
 export default function AdminPortal() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  // Ensure we get the correct active view based on the path (e.g. /admin/analytics)
+  const activeView = location.pathname.split('/')[2] || 'analytics'
+
   const [adminUser, setAdminUser]     = useState(getUser())
-  const [activeView, setActiveView]   = useState('analytics')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [toast, setToast]             = useState(null)
 
@@ -30,7 +35,7 @@ export default function AdminPortal() {
   }
 
   function handleNavChange(id) {
-    setActiveView(id)
+    navigate(`/admin/${id}`)
     setSidebarOpen(false)
   }
 
@@ -48,7 +53,7 @@ export default function AdminPortal() {
     return <AdminLoginPage onLogin={handleAdminLogin} />
   }
 
-  const meta = VIEW_META[activeView]
+  const meta = VIEW_META[activeView] || VIEW_META.analytics
 
   return (
     <div className="crm-shell">
@@ -90,7 +95,7 @@ export default function AdminPortal() {
             <span className="sidebar-user__name">{adminUser.name}</span>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
-          <a href="/" className="admin-back-link sidebar-back-link">← Go to Branch Portal</a>
+          <Link to="/" className="admin-back-link sidebar-back-link">← Go to Branch Portal</Link>
         </div>
       </aside>
 
@@ -115,9 +120,13 @@ export default function AdminPortal() {
         </header>
 
         <div className="view-content">
-          {activeView === 'analytics' && <AdminAnalyticsView />}
-          {activeView === 'accounts'  && <AdminView currentUser={adminUser} showToast={showToast} />}
-          {activeView === 'profile'   && <AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />}
+          <Routes>
+            <Route path="/" element={<Navigate to="/admin/analytics" replace />} />
+            <Route path="/analytics" element={<AdminAnalyticsView />} />
+            <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} />} />
+            <Route path="/profile" element={<AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />} />
+            <Route path="*" element={<Navigate to="/admin/analytics" replace />} />
+          </Routes>
         </div>
       </main>
 

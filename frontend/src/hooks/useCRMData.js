@@ -57,8 +57,13 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         setDeals(
           fetchedDeals.map((d) => ({
             ...d,
-            expectedClose: d.closeDate ?? '',
+            expectedClose: d.closeDate ?? d.expectedClose ?? '',
             probability: d.probability ?? getProbabilityForStage(d.stage),
+            urgencyScore: d.urgencyScore ?? 0,
+            urgencyLabel: d.urgencyLabel ?? null,
+            nextDueDate: d.nextDueDate ?? null,
+            lastTouch: d.lastTouch ?? null,
+            isAgos: Boolean(d.isAgos),
           })),
         )
         setTasks(
