@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
-import { formatCurrencyCompact, formatDateLabel } from '../utils'
+import { formatCurrencyCompact, formatDateLabel, formatRelativeDays } from '../utils'
 import DealForm from '../components/forms/DealForm'
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
@@ -79,7 +79,13 @@ export default function PipelineView({
           <div className="pipeline-board-wrapper">
             <div className="pipeline-board">
               {dealStages.map((stage) => {
-                const stageDeals = paginatedDeals.filter((d) => d.stage === stage)
+                const stageDeals = paginatedDeals
+                  .filter((d) => d.stage === stage)
+                  .sort((a, b) => {
+                    const urgencyDiff = (b.urgencyScore ?? 0) - (a.urgencyScore ?? 0)
+                    if (urgencyDiff !== 0) return urgencyDiff
+                    return (b.lastTouch ?? '').localeCompare(a.lastTouch ?? '')
+                  })
                 const stageValue = stageDeals.reduce((sum, d) => sum + d.value, 0)
 
                 return (
@@ -104,12 +110,27 @@ export default function PipelineView({
                               <strong>{deal.name}</strong>
                               <span className="tone-pill is-warning">{deal.probability}%</span>
                             </div>
+                            <div className="pipeline-card__badges">
+                              {deal.isAgos ? <span className="tone-pill is-neutral">Agos</span> : null}
+                              {deal.urgencyLabel === 'Overdue' ? (
+                                <span className="tone-pill is-alert">Overdue</span>
+                              ) : null}
+                              {deal.urgencyLabel === 'High Priority' ? (
+                                <span className="tone-pill is-warning">High</span>
+                              ) : null}
+                              {deal.urgencyLabel === 'Due Today' ? (
+                                <span className="tone-pill is-warning">Today</span>
+                              ) : null}
+                            </div>
                             <p>{companyMap[deal.companyId]?.name ?? deal.companyId}</p>
                             <p className="pipeline-card__owner">{deal.owner}</p>
                             <div className="pipeline-card__meta">
                               <span>{formatCurrencyCompact(deal.value)}</span>
                               <span>{formatDateLabel(deal.expectedClose)}</span>
                             </div>
+                            <p className="pipeline-card__touch">
+                              Last touch {formatRelativeDays(deal.lastTouch) || '—'}
+                            </p>
                             <div className="field--compact" style={{ textAlign: 'center', marginTop: '8px' }}>
                               <button type="button" className="ghost-button" onClick={() => setSelectedDeal(deal)}>View details</button>
                             </div>
