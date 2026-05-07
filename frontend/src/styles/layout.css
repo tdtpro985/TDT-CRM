@@ -101,15 +101,17 @@
   color: var(--text);
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
 }
 
-.nav-item:hover,
-.nav-item:focus-visible {
-  background: rgba(255,255,255,0.04);
-  /*dborder-color: var(--border);*/
+.nav-item:hover:not(.is-active),
+.nav-item:focus-visible:not(.is-active) {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
+  border-color: rgba(255, 152, 0, 0.34);
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
   outline: none;
-  
 }
 
 .nav-item.is-active {
