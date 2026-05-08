@@ -57,7 +57,14 @@ export default function AdminAnalyticsView() {
   })
   const branchRows = Object.values(branchMap).sort((a, b) => a.branch?.localeCompare(b.branch))
   const totalPages = Math.ceil(branchRows.length / PAGE_SIZE)
-  const pagedRows  = branchRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const getPaginatedData = (data, currentPage, limit) => {
+    const pageNum = currentPage === '' || isNaN(currentPage) ? 1 : parseInt(currentPage, 10)
+    const start = (pageNum - 1) * limit
+    return data.slice(start, start + limit)
+  }
+
+  const pagedRows = getPaginatedData(branchRows, page, PAGE_SIZE)
 
   const maxLeads = Math.max(...branchRows.map((r) => r.leads), 1)
 
@@ -86,7 +93,7 @@ export default function AdminAnalyticsView() {
                   <th>Leads</th>
                   <th>Converted</th>
                   <th>Conv. Rate</th>
-                  <th>Deals</th>
+                  <th>Active Deals</th>
                   <th>Pipeline</th>
                   <th style={{ minWidth: '120px' }}>Lead volume</th>
                 </tr>

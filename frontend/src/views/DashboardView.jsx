@@ -203,14 +203,15 @@ export default function DashboardView({
         >
           <div className="simple-list">
             {focusTasks.map((task) => (
-              <article key={task.id} className="simple-list__item">
-                <div>
-                  <strong>{task.title}</strong>
-                  <p>{task.owner} | due {formatDateLabel(task.dueDate)}</p>
+              <article key={task.id} className="simple-list__item" style={{ position: 'relative' }}>
+                <div style={{ paddingRight: '110px' }}>
+                  <strong style={{ display: 'block' }}>{task.title}</strong>
+                  <p style={{ margin: '4px 0 0' }}>{task.owner} | due {formatDateLabel(task.dueDate)}</p>
                 </div>
-                <span className={`tone-pill ${getToneClass(task.priority)}`}>
-                  {task.priority}
-                </span>
+                <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                  <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
+                  <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
+                </div>
               </article>
             ))}
           </div>

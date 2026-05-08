@@ -50,17 +50,24 @@ export default function PipelineView({
   onCreateDeal,
   handleDealStageChange,
   showDealForm,
-  setShowDealForm
+  setShowDealForm,
+  currentPage,
+  setCurrentPage
 }) {
   const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
   const [selectedDeal, setSelectedDeal] = useState(null)
-  const [currentPage, setCurrentPage] = useState(1)
 
   const ITEMS_PER_PAGE = 10
   const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-  const paginatedDeals = filteredDeals.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+  
+  const getPaginatedData = (data, page, limit) => {
+    const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 10)
+    const start = (pageNum - 1) * limit
+    return data.slice(start, start + limit)
+  }
+
+  const paginatedDeals = getPaginatedData(filteredDeals, currentPage, ITEMS_PER_PAGE)
 
   const closingThisMonth = activeDeals.filter((d) => d.expectedClose?.startsWith(CURRENT_MONTH)).length
 
@@ -92,6 +99,7 @@ export default function PipelineView({
                   value={stageFilter}
                   onChange={(e) => {
                     setStageFilter(e.target.value)
+                    setCurrentPage(1)
                     setNotice('Pipeline filter updated for the current opportunity view.')
                   }}
                 >

@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
@@ -21,19 +20,16 @@ export default function DatabaseView({
   handleLeadStatusChange,
   linkHealth,
   currentUser,
+  leadPage,
+  setLeadPage
 }) {
-  const [leadPage, setLeadPage] = useState(1)
   const ITEMS_PER_PAGE = 5
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLeadPage(1)
-  }, [filteredLeads])
 
   const selectedLead = leads.find((l) => l.id === selectedLeadId) ?? leads[0] ?? null
 
   const getPaginatedData = (data, page) => {
-    const startIndex = (page - 1) * ITEMS_PER_PAGE
+    const p = page === '' || isNaN(page) ? 1 : parseInt(page, 10)
+    const startIndex = (p - 1) * ITEMS_PER_PAGE
     return data.slice(startIndex, startIndex + ITEMS_PER_PAGE)
   }
 
@@ -111,7 +107,10 @@ export default function DatabaseView({
                 <span>Status</span>
                 <select 
                   value={leadStatusFilter} 
-                  onChange={(e) => setLeadStatusFilter(e.target.value)}
+                  onChange={(e) => {
+                    setLeadStatusFilter(e.target.value)
+                    setLeadPage(1)
+                  }}
                 >
                   <option value="all">All</option>
                   {leadStatuses.map(s => <option key={s} value={s}>{s}</option>)}
@@ -130,16 +129,22 @@ export default function DatabaseView({
                       <div
                         key={lead.id}
                         className={`contact-card ${selectedLeadId === lead.id ? 'is-selected' : ''}`}
+                        style={{ position: 'relative' }}
                         onClick={() => setSelectedLeadId(lead.id)}
                       >
-                        <div>
+                        <span 
+                          className={`tone-pill ${getToneClass(lead.status)}`}
+                          style={{ position: 'absolute', top: '12px', right: '12px' }}
+                        >
+                          {lead.status}
+                        </span>
+                        <div style={{ paddingRight: '60px' }}>
                           <strong>{lead.customerName} - </strong>
                           <span>{lead.region}</span>
                         </div>
                         <p>SR: {lead.sr} &mdash; {lead.branch}</p>
                         <div className="contact-card__meta">
                           <span>{formatDateLabel(lead.createdAt)}</span>
-                          <span className={`tone-pill ${getToneClass(lead.status)}`}>{lead.status}</span>
                         </div>
                       </div>
                     ))}
