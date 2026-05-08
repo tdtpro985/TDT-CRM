@@ -108,7 +108,7 @@ def sync_pipeline():
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     deal_id,
-                    f"Deal - {customer_name}",
+                    customer_name,
                     lead_id,
                     lead_id,
                     stage,
