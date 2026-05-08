@@ -628,9 +628,7 @@
   color: var(--text-strong);
   font-size: var(--fs-sm);
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.4;
 }
 
 .activity-card__header>div p {
