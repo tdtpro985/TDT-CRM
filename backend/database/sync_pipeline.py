@@ -49,12 +49,13 @@ def sync_pipeline():
         ]
         
         for branch in ACTIVE_BRANCHES:
-            # Check active deals for this branch
+            # Check active deals for this branch (excluding filtered SR)
             cursor.execute("""
                 SELECT COUNT(*) FROM deals d
-                LEFT JOIN leads l ON d.lead_id = l.id
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
                   AND l.branch = %s
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
             """, (branch,))
             current_active_count = cursor.fetchone()[0]
             
@@ -65,7 +66,7 @@ def sync_pipeline():
             needed_count = 20 - current_active_count
             print(f"Branch {branch}: 'Agos' needed to add {needed_count} fresh deals and tasks...")
 
-            # 2. Fetch fresh leads for THIS branch
+            # 2. Fetch fresh leads for THIS branch (excluding filtered SR)
             cursor.execute("""
                 SELECT l.id, l.customer_name, l.sr, l.branch 
                 FROM leads l
@@ -73,6 +74,7 @@ def sync_pipeline():
                 WHERE l.status != 'Converted' 
                   AND d.id IS NULL
                   AND l.branch = %s
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ORDER BY l.created_at DESC
                 LIMIT %s
             """, (branch, needed_count))
