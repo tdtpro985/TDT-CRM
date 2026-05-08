@@ -4,6 +4,7 @@ import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
 import { formatCurrencyCompact, formatDateLabel, formatRelativeDays } from '../utils'
 import DealForm from '../components/forms/DealForm'
+import { ITEMS_PER_PAGE } from '../constants'
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
 
@@ -58,11 +59,10 @@ export default function PipelineView({
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
   const [selectedDeal, setSelectedDeal] = useState(null)
 
-  const ITEMS_PER_PAGE = 10
   const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
   
   const getPaginatedData = (data, page, limit) => {
-    const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 10)
+    const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 20)
     const start = (pageNum - 1) * limit
     return data.slice(start, start + limit)
   }
@@ -196,7 +196,7 @@ export default function PipelineView({
                   value={currentPage}
                   onChange={(e) => {
                     const val = e.target.value.replace(/\D/g, '');
-                    const num = parseInt(val, 10);
+                    const num = parseInt(val, 20);
                     if (val === '') {
                       // Allow empty input while typing
                       setCurrentPage('');
