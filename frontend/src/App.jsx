@@ -45,6 +45,7 @@ export default function App() {
 
   const [searchQuery, setSearchQuery]       = useState('')
   const [stageFilter, setStageFilter]       = useState('all')
+  const [leadStatusFilter, setLeadStatusFilter] = useState('all')
   const [taskFilter, setTaskFilter]         = useState('open')
 
   const [selectedLeadId,    setSelectedLeadId]    = useState(null)
@@ -114,8 +115,9 @@ export default function App() {
   // ─── Filtered lists ─────────────────────────────────────────────────────────
 
   const filteredLeads = useMemo(() => leads.filter((l) =>
+    (leadStatusFilter === 'all' || l.status === leadStatusFilter) &&
     matchesSearch(searchQuery, [l.customerName, l.contactNum, l.address, l.region, l.sr, l.branch, l.status]),
-  ), [leads, searchQuery])
+  ), [leads, searchQuery, leadStatusFilter])
 
   const filteredDeals = useMemo(() => deals.filter(
     (d) =>
@@ -238,6 +240,8 @@ export default function App() {
             selectedLeadId={selectedLeadId}
             setSelectedLeadId={setSelectedLeadId}
             leadStatuses={LEAD_STATUSES}
+            leadStatusFilter={leadStatusFilter}
+            setLeadStatusFilter={setLeadStatusFilter}
             onCreateLead={handleCreateLead}
             handleLeadStatusChange={actions.updateLeadStatus}
             linkHealth={linkHealth}
@@ -346,7 +350,6 @@ export default function App() {
             <span>Open tasks still waiting on follow-through</span>
           </div>
           <div className="sidebar-user">
-            <span className="sidebar-user__name">{currentUser.name}</span>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
         </div>

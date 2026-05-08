@@ -264,26 +264,52 @@ export default function AdminView({ currentUser, showToast }) {
           )}
 
           {totalPages > 1 && (
-            <div className = "analytics-pagination">
+            <div className="analytics-pagination">
               <button
-                type = "button"
-                className = "secondary-button"
-                disabled = {page === 1}
-                onClick = {() => setPage((p) => p -1)}
-                >
-                  Prev
-                </button>
-                <span classname = "analytics-pagination_label">
-                  Page {page} of {totalPages} . {filteredUsers.length} accounts
-                </span>
-                <button
-                  type = "button"
-                  classname = "secondary-button"
-                  disabled = {page === totalPages}
-                  onClick = {() => setPage((p) => p + 1)}
-                >
-                  Next
-                </button>
+                type="button"
+                className="secondary-button"
+                disabled={page === 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Prev
+              </button>
+              <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={page}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    const num = parseInt(val, 10);
+                    if (val === '') {
+                      setPage('');
+                    } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
+                      setPage(num);
+                    }
+                  }}
+                  style={{ 
+                    width: '40px', 
+                    textAlign: 'center', 
+                    padding: '4px 0',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)',
+                    color: 'var(--text-strong)',
+                    fontWeight: 700,
+                    outline: 'none'
+                  }}
+                />
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
+              </div>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={page === totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </button>
             </div>
           )}
         </Panel>

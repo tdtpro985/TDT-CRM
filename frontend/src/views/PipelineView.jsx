@@ -137,7 +137,6 @@ export default function PipelineView({
                               <span className="tone-pill is-warning">{deal.probability}%</span>
                             </div>
                             <div className="pipeline-card__badges">
-                              {deal.isAgos ? <span className="tone-pill is-neutral">Agos</span> : null}
                               {deal.urgencyLabel === 'Overdue' ? (
                                 <span className="tone-pill is-alert">Overdue</span>
                               ) : null}
@@ -181,9 +180,36 @@ export default function PipelineView({
               >
                 Previous
               </button>
-              <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Page {currentPage} of {totalPages}
-              </span>
+              <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={currentPage}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    const num = parseInt(val, 10);
+                    if (val === '') {
+                      // Allow empty input while typing
+                      setCurrentPage('');
+                    } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
+                      setCurrentPage(num);
+                    }
+                  }}
+                  style={{ 
+                    width: '40px', 
+                    textAlign: 'center', 
+                    padding: '4px 0',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)',
+                    color: 'var(--text-strong)',
+                    fontWeight: 700,
+                    outline: 'none'
+                  }}
+                />
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
+              </div>
               <button
                 type="button"
                 className="secondary-button"
