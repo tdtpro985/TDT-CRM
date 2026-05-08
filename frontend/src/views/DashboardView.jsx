@@ -1,3 +1,4 @@
+import { useRef, useEffect, useState } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, getToneClass } from '../utils'
@@ -13,6 +14,24 @@ export default function DashboardView({
   linkHealth,
 }) {
   const today = new Date().toISOString().split('T')[0]
+  const stageListRef = useRef(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const el = stageListRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.2 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const focusTasks = [...openTasks]
     .sort((a, b) => {
       const statusScore = (task) => {
@@ -119,8 +138,8 @@ export default function DashboardView({
           title="Deals by stage with expected revenue"
           detail="This keeps opportunity movement visible without leaving the dashboard."
         >
-          <div className="stage-list">
-            {stageSummary.map((stage) => (
+          <div ref={stageListRef} className="stage-list">
+            {stageSummary.map((stage, i) => (
               <div key={stage.stage} className="stage-row">
                 <div className="stage-meta">
                   <div>
@@ -131,14 +150,12 @@ export default function DashboardView({
                 </div>
                 <div className="stage-track">
                   <div
-                    className="stage-fill"
+                    className={`stage-fill${visible ? ' visible' : ''}`}
                     style={{
-                      width: `${Math.max(
-                        stage.value
-                          ? Math.round((stage.value / Math.max(pipelineValue, 1)) * 100)
-                          : stage.count * 12,
-                        10,
-                      )}%`,
+                      width: `${stage.count > 0
+                        ? Math.round((stage.value / Math.max(pipelineValue, 1)) * 100)
+                        : 0}%`,
+                      animationDelay: visible ? `${i * 0.1}s` : undefined,
                     }}
                   />
                 </div>
