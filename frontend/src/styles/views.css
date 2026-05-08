@@ -345,6 +345,27 @@
   border-color: var(--accent) transparent transparent transparent;
 }
 
+.priority-legend {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  padding: 0 0 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.priority-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.priority-dot.is-overdue { background: #fb7185; }
+.priority-dot.is-high    { background: var(--accent); }
+.priority-dot.is-today   { background: var(--accent); }
+
 .pipeline-card__btn-wrap {
   opacity: 0;
   transition: opacity 0.15s ease;
