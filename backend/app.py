@@ -1050,17 +1050,24 @@ def admin_analytics():
         cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY role ORDER BY role")
         role_distribution = rows_to_list(cursor)
 
-        # Leads per branch
-        cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads GROUP BY branch ORDER BY branch')
+        # Leads per branch (excluding filtered SR)
+        cursor.execute('''
+            SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted 
+            FROM leads 
+            WHERE (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')
+            GROUP BY branch ORDER BY branch
+        ''')
         leads_per_branch = rows_to_list(cursor)
 
-        # Deals per branch (via leads join)
+        # Deals per branch (via robust join, active only, excluding filtered SR)
         cursor.execute('''
             SELECT l.branch,
                    COUNT(d.id)              AS deal_count,
                    COALESCE(SUM(d.value),0) AS pipeline_value
             FROM deals d
-            LEFT JOIN leads l ON d.lead_id = l.id
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
+              AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
             GROUP BY l.branch
             ORDER BY l.branch
         ''')
@@ -1070,13 +1077,25 @@ def admin_analytics():
         cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters'")
         total_users = cursor.fetchone()[0]
 
-        cursor.execute('SELECT COUNT(*) FROM leads')
+        cursor.execute("SELECT COUNT(*) FROM leads WHERE (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')")
         total_leads = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COUNT(*) FROM deals WHERE stage != 'Closed Won'")
+        cursor.execute('''
+            SELECT COUNT(*) 
+            FROM deals d
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
+              AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+        ''')
         active_deals = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COALESCE(SUM(value),0) FROM deals WHERE stage != 'Closed Won'")
+        cursor.execute('''
+            SELECT COALESCE(SUM(d.value),0) 
+            FROM deals d
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
+              AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+        ''')
         pipeline_value = float(cursor.fetchone()[0])
 
         # Recent audit log (last 20)
