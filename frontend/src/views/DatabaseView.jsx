@@ -13,6 +13,8 @@ export default function DatabaseView({
   selectedLeadId,
   setSelectedLeadId,
   leadStatuses,
+  leadStatusFilter,
+  setLeadStatusFilter,
   showLeadForm,
   setShowLeadForm,
   onCreateLead,
@@ -48,9 +50,35 @@ export default function DatabaseView({
         >
           Previous
         </button>
-        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-          Page {currentPage} of {totalPages}
-        </span>
+        <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={currentPage}
+            onChange={(e) => {
+              const val = e.target.value.replace(/\D/g, '');
+              const num = parseInt(val, 10);
+              if (val === '') {
+                setPage('');
+              } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
+                setPage(num);
+              }
+            }}
+            style={{ 
+              width: '40px', 
+              textAlign: 'center', 
+              padding: '4px 0',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--r-md)',
+              color: 'var(--text-strong)',
+              fontWeight: 700,
+              outline: 'none'
+            }}
+          />
+          <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
+        </div>
         <button
           type="button"
           className="secondary-button"
@@ -77,35 +105,50 @@ export default function DatabaseView({
           kicker="Clean data"
           title="Customer Registry"
           detail="Every record is designed to stay linked properly, which keeps the CRM clean and reporting dependable."
-        >
-          {filteredLeads.length === 0
-            ? <EmptyState title="No customers match this search" copy="Clear the search box to see the full customer registry." />
-            : (
-              <>
-                <div className="contact-list">
-                  {paginatedLeads.map((lead) => (
-                    <button
-                      key={lead.id}
-                      type="button"
-                      className={`contact-card ${selectedLeadId === lead.id ? 'is-selected' : ''}`}
-                      onClick={() => setSelectedLeadId(lead.id)}
-                    >
-                      <div>
-                        <strong>{lead.customerName} - </strong>
-                        <span>{lead.region}</span>
-                      </div>
-                      <p>SR: {lead.sr} &mdash; {lead.branch}</p>
-                      <div className="contact-card__meta">
-                        <span>{formatDateLabel(lead.createdAt)}</span>
-                        <span className={`tone-pill ${getToneClass(lead.status)}`}>{lead.status}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                {renderPagination(filteredLeads.length, leadPage, setLeadPage)}
-              </>
-            )
+          action={
+            <div className="panel-inline-controls">
+              <label className="filter-wrap">
+                <span>Status</span>
+                <select 
+                  value={leadStatusFilter} 
+                  onChange={(e) => setLeadStatusFilter(e.target.value)}
+                >
+                  <option value="all">All</option>
+                  {leadStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+            </div>
           }
+        >
+          <div style={{ minHeight: '600px', display: 'flex', flexDirection: 'column' }}>
+            {filteredLeads.length === 0
+              ? <EmptyState title="No customers match this search" copy="Clear the search box to see the full customer registry." />
+              : (
+                <>
+                  <div className="contact-list" style={{ flex: 1, alignContent: 'start' }}>
+                    {paginatedLeads.map((lead) => (
+                      <div
+                        key={lead.id}
+                        className={`contact-card ${selectedLeadId === lead.id ? 'is-selected' : ''}`}
+                        onClick={() => setSelectedLeadId(lead.id)}
+                      >
+                        <div>
+                          <strong>{lead.customerName} - </strong>
+                          <span>{lead.region}</span>
+                        </div>
+                        <p>SR: {lead.sr} &mdash; {lead.branch}</p>
+                        <div className="contact-card__meta">
+                          <span>{formatDateLabel(lead.createdAt)}</span>
+                          <span className={`tone-pill ${getToneClass(lead.status)}`}>{lead.status}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {renderPagination(filteredLeads.length, leadPage, setLeadPage)}
+                </>
+              )
+            }
+          </div>
         </Panel>
 
         <div className="panel-stack">
