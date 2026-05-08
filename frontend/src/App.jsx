@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import './App.css'
 import { formatCurrencyCompact, matchesSearch } from './utils'
@@ -47,6 +47,10 @@ export default function App() {
   const [stageFilter, setStageFilter]       = useState('all')
   const [leadStatusFilter, setLeadStatusFilter] = useState('all')
   const [taskFilter, setTaskFilter]         = useState('open')
+
+  const [leadPage, setLeadPage]             = useState(1)
+  const [pipelinePage, setPipelinePage]     = useState(1)
+  const [tasksPage, setTasksPage]           = useState(1)
 
   const [selectedLeadId,    setSelectedLeadId]    = useState(null)
 
@@ -163,6 +167,9 @@ export default function App() {
   function handleViewChange(viewId) {
     navigate(`/${viewId}`)
     setSearchQuery('')
+    setLeadPage(1)
+    setPipelinePage(1)
+    setTasksPage(1)
     setShowLeadForm(false)
     setShowDealForm(false)
     setShowTaskForm(false)
@@ -248,6 +255,9 @@ export default function App() {
             showLeadForm={showLeadForm}
             setShowLeadForm={setShowLeadForm}
             currentUser={currentUser}
+            searchQuery={searchQuery}
+            leadPage={leadPage}
+            setLeadPage={setLeadPage}
           />
         } />
         <Route path="/pipeline" element={
@@ -270,6 +280,8 @@ export default function App() {
             handleDealStageChange={actions.updateDealStage}
             showDealForm={showDealForm}
             setShowDealForm={setShowDealForm}
+            currentPage={pipelinePage}
+            setCurrentPage={setPipelinePage}
           />
         } />
         <Route path="/tasks" element={
@@ -289,6 +301,8 @@ export default function App() {
             handleTaskStatusToggle={actions.toggleTaskStatus}
             showTaskForm={showTaskForm}
             setShowTaskForm={setShowTaskForm}
+            currentPage={tasksPage}
+            setCurrentPage={setTasksPage}
           />
         } />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -380,7 +394,12 @@ export default function App() {
               <input
                 type="search"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setLeadPage(1)
+                  setPipelinePage(1)
+                  setTasksPage(1)
+                }}
                 placeholder={currentMeta.searchPlaceholder}
                 aria-label={currentMeta.searchPlaceholder}
               />

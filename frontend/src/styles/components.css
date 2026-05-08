@@ -521,19 +521,14 @@ section.content-grid--primary {
   color: var(--text-strong);
   font-size: var(--fs-sm);
   font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.4;
 }
 
 .simple-list__item > div p {
-  margin: 0;
+  margin: 4px 0 0;
   color: var(--text-muted);
   font-size: var(--fs-xs);
-  line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.5;
 }
 
 .stage-row {
