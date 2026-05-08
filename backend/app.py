@@ -10,6 +10,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from database.database import get_db_connection, close_connection
+from database.sync_pipeline import fill_pipeline
 from gsheets_sync import sync_from_sheets, sync_to_sheets
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -719,12 +720,13 @@ def update_deal_stage(deal_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT stage FROM deals WHERE id = %s', (deal_id,))
+        cursor.execute('SELECT stage, lead_id FROM deals WHERE id = %s', (deal_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'error': 'Deal not found'}), 404
 
         old_stage = row[0]
+        lead_id = row[1]
         new_probability = STAGE_PROBABILITY.get(new_stage, 20)
         cursor.execute(
             'UPDATE deals SET stage = %s, probability = %s WHERE id = %s',
@@ -732,6 +734,15 @@ def update_deal_stage(deal_id):
         )
         log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage)
         conn.commit()
+
+        is_closed = new_stage in ('Closed Won', 'Closed Lost')
+        if is_closed and lead_id:
+            cursor.execute('SELECT branch FROM leads WHERE id = %s', (lead_id,))
+            lead_row = cursor.fetchone()
+            if lead_row:
+                fill_pipeline(conn, branch=lead_row[0])
+                conn.commit()
+
         return jsonify({'message': 'Deal stage updated', 'probability': new_probability})
     finally:
         close_connection(conn)

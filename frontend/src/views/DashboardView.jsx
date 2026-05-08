@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, getToneClass } from '../utils'
+import { ITEMS_PER_PAGE } from '../constants'
 
 export default function DashboardView({
   topKpis,
@@ -148,17 +149,19 @@ export default function DashboardView({
                   </div>
                   <span>{formatCurrencyCompact(stage.value)}</span>
                 </div>
-                <div className="stage-track">
-                  <div
-                    className={`stage-fill${visible ? ' visible' : ''}`}
-                    style={{
-                      width: `${stage.count > 0
-                        ? Math.round((stage.value / Math.max(pipelineValue, 1)) * 100)
-                        : 0}%`,
-                      animationDelay: visible ? `${i * 0.1}s` : undefined,
-                    }}
-                  />
-                </div>
+                {stage.stage !== 'Closed Won' && stage.stage !== 'Closed Lost' && (
+                  <div className="stage-track">
+                    <div
+                      className={`stage-fill${visible ? ' visible' : ''}`}
+                      style={{
+                        width: `${stage.count > 0
+                          ? Math.min(Math.round((stage.count / ITEMS_PER_PAGE) * 100), 100)
+                          : 0}%`,
+                        animationDelay: visible ? `${i * 0.1}s` : undefined,
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
