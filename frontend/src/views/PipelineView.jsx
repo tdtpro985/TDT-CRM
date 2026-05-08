@@ -139,32 +139,21 @@ export default function PipelineView({
                         </div>
                       ) : (
                         stageDeals.map((deal) => (
-                          <article key={deal.id} className={`pipeline-card ${getStageTone(deal.stage)}`}>
+                          <article key={deal.id} className={`pipeline-card ${getStageTone(deal.stage)}${deal.urgencyLabel === 'Overdue' ? ' is-urgent-overdue' : ''}${deal.urgencyLabel === 'High Priority' ? ' is-urgent-high' : ''}${deal.urgencyLabel === 'Due Today' ? ' is-urgent-today' : ''}`}>
                             <div className="pipeline-card__top">
                               <strong>{deal.name}</strong>
                               <span className="tone-pill is-warning">{deal.probability}%</span>
                             </div>
-                            <div className="pipeline-card__badges">
-                              {deal.urgencyLabel === 'Overdue' ? (
-                                <span className="tone-pill is-alert">Overdue</span>
-                              ) : null}
-                              {deal.urgencyLabel === 'High Priority' ? (
-                                <span className="tone-pill is-warning">High</span>
-                              ) : null}
-                              {deal.urgencyLabel === 'Due Today' ? (
-                                <span className="tone-pill is-warning">Today</span>
-                              ) : null}
+                            <div className="pipeline-card__value">
+                              <span className="tone-pill is-warning">{formatCurrencyCompact(deal.value)}</span>
                             </div>
                             <p>{companyMap[deal.companyId]?.name ?? deal.companyId}</p>
                             <p className="pipeline-card__owner">{deal.owner}</p>
-                            <div className="pipeline-card__meta">
-                              <span>{formatCurrencyCompact(deal.value)}</span>
-                              <span>{formatDateLabel(deal.expectedClose)}</span>
-                            </div>
+                            <p className="pipeline-card__close-date">{formatDateLabel(deal.expectedClose)}</p>
                             <p className="pipeline-card__touch">
                               Last touch {formatRelativeDays(deal.lastTouch) || '—'}
                             </p>
-                            <div className="field--compact" style={{ textAlign: 'center', marginTop: '8px' }}>
+                            <div className="field--compact pipeline-card__btn-wrap" style={{ textAlign: 'center', marginTop: '8px' }}>
                               <button type="button" className="secondary-button pipeline-card__details-btn" onClick={() => setSelectedDeal(deal)}>View details</button>
                             </div>
                           </article>
