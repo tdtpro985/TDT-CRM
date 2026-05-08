@@ -311,7 +311,7 @@ export default function AdminView({ currentUser, showToast }) {
                 Next
               </button>
             </div>
-          )}
+           )}
         </Panel>
 
         {/* Branch breakdown sidebar */}

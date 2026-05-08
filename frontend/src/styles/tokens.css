@@ -39,10 +39,10 @@
   --bg-input: rgba(10, 14, 23, 0.7);
 
   /* ── Colors: Text ───────────────── */
-  --text:        #97a3b6;
-  --text-strong: #e8edf5;
-  --text-muted:  #5d6b82;
-  --text-secondary: #7a8a9e;
+  --text:        #e2e8f0;
+  --text-strong: #ffffff;
+  --text-muted:  #94a3b8;
+  --text-secondary: #cbd5e1;
 
   /* ── Colors: Border ─────────────── */
   --border: rgba(255, 255, 255, 0.08);

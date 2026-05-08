@@ -14,7 +14,7 @@
 
 .hero-text {
   margin-top: 10px;
-  color: var(--text-muted);
+  color: white;
   font-size: var(--fs-sm);
   line-height: 1.65;
   max-width: 52ch;
