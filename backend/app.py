@@ -282,13 +282,20 @@ def get_companies():
                 FROM companies c
                 INNER JOIN leads l ON l.id = c.id
                 WHERE LOWER(TRIM(l.branch)) = %s
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ORDER BY c.name
                 ''',
                 (normalize_branch(branch),),
             )
         else:
             cursor.execute(
-                'SELECT id, name, industry, website, city, owner, status, created_at FROM companies ORDER BY name'
+                '''
+                SELECT c.id, c.name, c.industry, c.website, c.city, c.owner, c.status, c.created_at 
+                FROM companies c
+                LEFT JOIN leads l ON l.id = c.id
+                WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+                ORDER BY c.name
+                '''
             )
         return jsonify(rows_to_list(cursor))
     finally:
@@ -346,15 +353,19 @@ def get_contacts():
                 FROM contacts c
                 INNER JOIN leads l ON l.id = c.company_id
                 WHERE LOWER(TRIM(l.branch)) = %s
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ORDER BY c.name
                 ''',
                 (normalize_branch(branch),),
             )
         else:
             cursor.execute(
-                """SELECT id, name, company_id AS companyId, role, owner,
-                          email, phone, last_touch AS lastTouch, status, created_at
-                   FROM contacts ORDER BY name"""
+                """SELECT c.id, c.name, c.company_id AS companyId, c.role, c.owner,
+                          c.email, c.phone, c.last_touch AS lastTouch, c.status, c.created_at
+                   FROM contacts c
+                   LEFT JOIN leads l ON l.id = c.company_id
+                   WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+                   ORDER BY c.name"""
             )
         return jsonify(rows_to_list(cursor))
     finally:
@@ -768,6 +779,7 @@ def get_activities():
                 LEFT JOIN deals d ON d.id = a.deal_id
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE LOWER(TRIM(l.branch)) = %s
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ORDER BY
                     CASE
                         WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 1
@@ -782,18 +794,21 @@ def get_activities():
             )
         else:
             cursor.execute(
-                """SELECT id, subject, type, owner, deal_id AS dealId,
-                          due_date AS dueDate, priority, status, notes, created_at
-                   FROM activities
+                """SELECT a.id, a.subject, a.type, a.owner, a.deal_id AS dealId,
+                          a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at
+                   FROM activities a
+                   LEFT JOIN deals d ON d.id = a.deal_id
+                   LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                   WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                    ORDER BY
                        CASE
-                           WHEN status = 'Open' AND due_date < CURDATE() THEN 1
-                           WHEN status = 'Open' AND priority = 'High' THEN 2
-                           WHEN status = 'Open' AND due_date = CURDATE() THEN 3
-                           WHEN status = 'Open' THEN 4
+                           WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 1
+                           WHEN a.status = 'Open' AND a.priority = 'High' THEN 2
+                           WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 3
+                           WHEN a.status = 'Open' THEN 4
                            ELSE 5
                        END,
-                       due_date ASC"""
+                       a.due_date ASC"""
             )
         return jsonify(rows_to_list(cursor))
     finally:
@@ -875,7 +890,8 @@ def get_dashboard():
         branch_params = (normalize_branch(branch),) if has_branch else ()
 
         # New leads this month
-        new_leads_query = "SELECT COUNT(*) FROM leads WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m') AND (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')"
+        new_leads_query = "SELECT COUNT(*) FROM leads WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"
+        new_leads_query += " AND (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')"
         if has_branch:
             new_leads_query += " AND LOWER(TRIM(branch)) = %s"
         cursor.execute(new_leads_query, branch_params)
@@ -888,7 +904,8 @@ def get_dashboard():
                 SELECT COUNT(*)
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND LOWER(TRIM(l.branch)) = %s
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
+                  AND LOWER(TRIM(l.branch)) = %s
                   AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ''',
                 branch_params,
@@ -899,8 +916,8 @@ def get_dashboard():
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                   AND l.branch IS NOT NULL
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
             """)
         active_deals = cursor.fetchone()[0]
 
@@ -922,8 +939,8 @@ def get_dashboard():
                 SELECT d.stage, COUNT(*) AS count, SUM(d.value) AS value 
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
-                  AND l.branch IS NOT NULL
+                WHERE l.branch IS NOT NULL
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 GROUP BY d.stage
             """)
         deals_per_stage = rows_to_list(cursor)
@@ -950,7 +967,8 @@ def get_dashboard():
                 SELECT COALESCE(SUM(d.value), 0)
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND LOWER(TRIM(l.branch)) = %s
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
+                  AND LOWER(TRIM(l.branch)) = %s
                   AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ''',
                 branch_params,
@@ -961,8 +979,8 @@ def get_dashboard():
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                   AND l.branch IS NOT NULL
+                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
             """)
         pipeline_value = float(cursor.fetchone()[0])
 
