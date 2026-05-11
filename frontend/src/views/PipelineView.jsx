@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
@@ -45,6 +46,27 @@ export default function PipelineView({
   const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
   const [selectedDeal, setSelectedDeal] = useState(null)
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (location.state?.openDealId) {
+      const deal = deals.find(d => d.id === location.state.openDealId)
+      if (deal) {
+        setSelectedDeal(deal)
+        // Clear state so it doesn't reopen on every navigation
+        navigate(location.pathname, { replace: true, state: {} })
+        
+        // Scroll to task history after modal opens
+        setTimeout(() => {
+          const section = document.getElementById('task-history-section')
+          if (section) {
+            section.scrollIntoView({ behavior: 'smooth' })
+          }
+        }, 100)
+      }
+    }
+  }, [location.state, deals, navigate, location.pathname])
 
   const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
   
@@ -294,7 +316,7 @@ export default function PipelineView({
               </div>
 
               {/* Task History */}
-              <div className="deal-modal__history">
+              <div className="deal-modal__history" id="task-history-section">
                 <h3 className="deal-modal__subheading">Task History</h3>
                 <div className="deal-modal__task-list">
                   {(tasks ?? []).filter(t => t.dealId === selectedDeal.id).length === 0 ? (
