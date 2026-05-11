@@ -9,6 +9,22 @@
   background: #0a0e17;
 }
 
+.sidebar-hover-trigger {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 100vh;
+  z-index: 298;
+  background: transparent;
+}
+
+@media (max-width: 768px) {
+  .sidebar-hover-trigger {
+    display: none;
+  }
+}
+
 .sidebar {
   position: fixed;
   top: 0;

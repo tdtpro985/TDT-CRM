@@ -1,9 +1,7 @@
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
-import Modal from '../components/Modal'
 import { formatDateLabel, getToneClass } from '../utils'
-import TaskForm from '../components/forms/TaskForm'
 
 export default function TasksView({
   filteredTasks,
@@ -12,15 +10,9 @@ export default function TasksView({
   dueToday,
   deals,
   companyMap,
-  taskTypes,
-  taskPriorities,
-  teamMembers,
   taskFilter,
   setTaskFilter,
-  onCreateTask,
   handleTaskStatusToggle,
-  showTaskForm,
-  setShowTaskForm,
   currentPage,
   setCurrentPage
 }) {
@@ -69,6 +61,7 @@ export default function TasksView({
                 >
                   <option value="all">All tasks</option>
                   <option value="open">Open</option>
+                  <option value="reopened">Reopened</option>
                   <option value="completed">Completed</option>
                 </select>
               </label>
@@ -100,7 +93,7 @@ export default function TasksView({
                       </p>
                       <div className="activity-card__footer">
                         <span>Due {formatDateLabel(task.dueDate)}</span>
-                        <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id)}>
+                        <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id, task.status)}>
                           {task.status === 'Completed' ? 'Reopen task' : 'Mark complete'}
                         </button>
                       </div>
@@ -183,28 +176,8 @@ export default function TasksView({
               ))}
             </div>
           </Panel>
-
         </div>
       </section>
-
-      <Modal
-        isOpen={showTaskForm}
-        onClose={() => setShowTaskForm(false)}
-        title="Log a task quickly"
-        kicker="Fast entry"
-      >
-        <TaskForm
-          deals={deals}
-          teamMembers={teamMembers}
-          taskTypes={taskTypes}
-          taskPriorities={taskPriorities}
-          onCancel={() => setShowTaskForm(false)}
-          onSubmit={(form) => {
-            onCreateTask(form, ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won'])
-            setShowTaskForm(false)
-          }}
-        />
-      </Modal>
     </>
   )
 }
