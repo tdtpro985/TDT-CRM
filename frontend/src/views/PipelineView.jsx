@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
 import { formatCurrencyCompact, formatDateLabel, formatRelativeDays } from '../utils'
 import DealForm from '../components/forms/DealForm'
 import { ITEMS_PER_PAGE } from '../constants'
+import { apiFetch } from '../api'
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
 
@@ -58,9 +59,29 @@ export default function PipelineView({
   const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
   const [selectedDeal, setSelectedDeal] = useState(null)
+  const [dealContacts, setDealContacts] = useState([])
+  const [loadingContacts, setLoadingContacts] = useState(false)
 
   const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
-  
+
+  useEffect(() => {
+    if (selectedDeal) {
+      setLoadingContacts(true)
+      apiFetch(`/api/deals/${selectedDeal.id}/contacts`)
+        .then(res => res.json())
+        .then(data => {
+          setDealContacts(data)
+          setLoadingContacts(false)
+        })
+        .catch(err => {
+          console.error('Failed to fetch deal contacts:', err)
+          setLoadingContacts(false)
+        })
+    } else {
+      setDealContacts([])
+    }
+  }, [selectedDeal])
+
   const getPaginatedData = (data, page, limit) => {
     const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 20)
     const start = (pageNum - 1) * limit
@@ -326,8 +347,20 @@ export default function PipelineView({
                 </div>
                 {selectedDeal.contactId && (
                   <div className="deal-modal__field">
-                    <span className="deal-modal__label">Contact</span>
+                    <span className="deal-modal__label">Primary Contact</span>
                     <strong className="deal-modal__value">{contactMap[selectedDeal.contactId]?.name ?? selectedDeal.contactId}</strong>
+                  </div>
+                )}
+                {dealContacts.length > 0 && (
+                  <div className="deal-modal__field" style={{ gridColumn: 'span 2' }}>
+                    <span className="deal-modal__label">All Associated Contacts</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                      {dealContacts.map(c => (
+                        <span key={c.id} className="tone-pill is-neutral" style={{ padding: '4px 12px' }}>
+                          {c.name} {c.deal_role !== 'Primary' ? `(${c.deal_role})` : ''}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {selectedDeal.leadId && (

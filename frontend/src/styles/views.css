@@ -1476,10 +1476,109 @@
   flex-wrap: wrap;
 }
 
-.analytics-pagination__label {
+/* ── Timeline & Transaction History ─────────────────────────── */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 12px;
+  position: relative;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 17px;
+  width: 2px;
+  background: var(--border);
+}
+
+.timeline-item {
+  display: flex;
+  gap: 16px;
+  position: relative;
+}
+
+.timeline-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--bg-card);
+  flex-shrink: 0;
+  z-index: 1;
+  margin-top: 5px;
+}
+
+.timeline-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.timeline-time {
   font-size: var(--fs-xs);
   color: var(--text-muted);
-  font-weight: 600;
-  text-align: center;
-  flex: 1;
 }
+
+.timeline-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--r-full);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.timeline-badge.is-activity {
+  background: rgba(255, 152, 0, 0.12);
+  color: var(--accent-strong);
+  border: 1px solid rgba(255, 152, 0, 0.2);
+}
+
+.timeline-badge.is-audit {
+  background: rgba(100, 160, 255, 0.12);
+  color: #7eb8ff;
+  border: 1px solid rgba(100, 160, 255, 0.2);
+}
+
+.timeline-body {
+  font-size: var(--fs-sm);
+  color: var(--text-strong);
+}
+
+.timeline-body p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.timeline-old {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  margin: 0 4px;
+}
+
+.timeline-notes {
+  margin-top: 4px !important;
+  font-size: var(--fs-xs) !important;
+  color: var(--text-muted) !important;
+  font-style: italic;
+}
+
+.customer-detail-view .admin-table td {
+  padding: 10px 12px;
+}
+
+.customer-detail-view .admin-table th {
+  padding: 8px 12px;
+}
+

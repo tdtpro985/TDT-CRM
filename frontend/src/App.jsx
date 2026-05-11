@@ -4,7 +4,7 @@ import './App.css'
 import { formatCurrencyCompact, matchesSearch, formatPercentage } from './utils'
 import { clearToken, getUser, saveUser } from './api'
 import DashboardView from './views/DashboardView'
-import DatabaseView  from './views/DatabaseView'
+import CustomersView from './views/CustomersView'
 import PipelineView  from './views/PipelineView'
 import TasksView     from './views/TasksView'
 import useCRMData    from './hooks/useCRMData'
@@ -13,6 +13,7 @@ import LoginPage     from './components/LoginPage'
 const CURRENT_DATE = new Date().toISOString().split('T')[0]
 
 const LEAD_STATUSES  = ['New', 'Working', 'Qualified', 'Unqualified', 'Converted']
+const CUSTOMER_STATUSES = ['New', 'Prospect', 'Negotiation', 'Converted']
 const DEAL_STAGES    = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
 const TASK_TYPES     = ['Call', 'Follow-up', 'Meeting', 'Email']
 const TASK_PRIORITIES = ['Low', 'Medium', 'High']
@@ -29,7 +30,7 @@ const NAV_CONFIG = [
 
 const VIEW_META = {
   dashboard: { eyebrow: 'In-house CRM prototype', title: 'Dashboard', description: '', searchPlaceholder: 'Search leads, deals, tasks, or companies' },
-  database:  { eyebrow: 'Clean data', title: 'Customer Database', description: '', searchPlaceholder: 'Search customer name, region, SR, or branch' },
+  database:  { eyebrow: 'Transaction history', title: 'Customer Database', description: '', searchPlaceholder: 'Search customer name, region, SR, or branch' },
   pipeline:  { eyebrow: 'Pipeline visibility', title: 'Pipeline', description: '', searchPlaceholder: 'Search deal, company, stage, or owner' },
   tasks:     { eyebrow: 'Activity tracking', title: 'Tasks', description: '', searchPlaceholder: 'Search tasks, deals, owners, or due dates' },
 }
@@ -80,7 +81,8 @@ export default function App() {
   }
 
   const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
-  const { companies, contacts, leads, deals, tasks, teamMembers, loading } = data
+  const { companies, customers, contacts, leads, deals, tasks, teamMembers, loading } = data
+  const teamNames = teamMembers.map(m => m.name)
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
@@ -94,10 +96,10 @@ export default function App() {
   const currentMonth     = CURRENT_DATE.slice(0, 7)
   const newLeads         = leads.filter((l) => l.createdAt?.startsWith(currentMonth))
   const convertedLeads   = leads.filter((l) => l.status === 'Converted')
-  const conversionRate   = leads.length ? formatPercentage((convertedLeads.length / leads.length) * 100) : 0
+  const conversionRate   = leads.length ? Math.floor((convertedLeads.length / leads.length) * 100) : 0
   const linkedLeadCount  = leads.filter((l) => l.contactNum && l.region).length
   const linkHealth       = leads.length ? Math.round((linkedLeadCount / leads.length) * 100) : 100
-  const averageDealSize  = activeDeals.length ? Math.round(pipelineValue / activeDeals.length) : 0
+  const averageDealSize  = activeDeals.length ? Math.floor(pipelineValue / activeDeals.length) : 0
 
   const stageSummary = DEAL_STAGES.map((stage) => {
     const stageDeals = deals.filter((d) => d.stage === stage)
@@ -118,10 +120,10 @@ export default function App() {
 
   // ─── Filtered lists ─────────────────────────────────────────────────────────
 
-  const filteredLeads = useMemo(() => leads.filter((l) =>
-    (leadStatusFilter === 'all' || l.status === leadStatusFilter) &&
-    matchesSearch(searchQuery, [l.customerName, l.contactNum, l.address, l.region, l.sr, l.branch, l.status]),
-  ), [leads, searchQuery, leadStatusFilter])
+  const filteredCustomers = useMemo(() => customers.filter((c) =>
+    (leadStatusFilter === 'all' || c.customerStatus === leadStatusFilter) &&
+    matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus]),
+  ), [customers, searchQuery, leadStatusFilter])
 
   const filteredDeals = useMemo(() => deals.filter(
     (d) =>
@@ -213,7 +215,7 @@ export default function App() {
   const navItems = NAV_CONFIG.map((item) => ({
     ...item,
     badge: item.id === 'dashboard' ? '5'
-      : item.id === 'database'  ? `${leads.length}`
+      : item.id === 'database'  ? `${customers.length}`
       : item.id === 'pipeline'  ? `${activeDeals.length}`
       : `${openTasks.length}`,
   }))
@@ -239,25 +241,24 @@ export default function App() {
           />
         } />
         <Route path="/database" element={
-          <DatabaseView
+          <CustomersView
             setNotice={setNotice}
-            filteredLeads={filteredLeads}
-            leads={leads}
+            filteredCustomers={filteredCustomers}
+            customers={customers}
             teamMembers={teamMembers}
-            selectedLeadId={selectedLeadId}
-            setSelectedLeadId={setSelectedLeadId}
-            leadStatuses={LEAD_STATUSES}
-            leadStatusFilter={leadStatusFilter}
-            setLeadStatusFilter={setLeadStatusFilter}
-            onCreateLead={handleCreateLead}
-            handleLeadStatusChange={actions.updateLeadStatus}
+            selectedCustomerId={selectedLeadId}
+            setSelectedCustomerId={setSelectedLeadId}
+            customerStatuses={CUSTOMER_STATUSES}
+            statusFilter={leadStatusFilter}
+            setStatusFilter={setLeadStatusFilter}
+            onCreateCustomer={handleCreateLead}
             linkHealth={linkHealth}
-            showLeadForm={showLeadForm}
-            setShowLeadForm={setShowLeadForm}
+            showCustomerForm={showLeadForm}
+            setShowCustomerForm={setShowLeadForm}
             currentUser={currentUser}
             searchQuery={searchQuery}
-            leadPage={leadPage}
-            setLeadPage={setLeadPage}
+            page={leadPage}
+            setPage={setLeadPage}
           />
         } />
         <Route path="/pipeline" element={

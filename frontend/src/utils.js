@@ -4,13 +4,15 @@ export function formatPercentage(value) {
 }
 
 export function formatCurrencyCompact(value) {
-  if (value >= 1000000) {
-    return `PHP ${(value / 1000000).toFixed(1)}M`
+  const num = Number(value)
+  if (isNaN(num)) return 'PHP 0'
+  if (num >= 1000000) {
+    return `PHP ${(num / 1000000).toFixed(1)}M`
   }
-  if (value >= 1000) {
-    return `PHP ${(value / 1000).toFixed(0)}K`
+  if (num >= 1000) {
+    return `PHP ${(num / 1000).toFixed(0)}K`
   }
-  return `PHP ${value.toLocaleString()}`
+  return `PHP ${num.toLocaleString()}`
 }
 
 export function formatCurrencyFull(value) {

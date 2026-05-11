@@ -6,12 +6,22 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, branch }) {
     contactNum: '',
     address: '',
     region: '',
-    sr: teamMembers[0] ?? '',
+    sr: '',
+    ownerId: '',
   })
 
   function handleChange(e) {
     const { name, value } = e.target
-    setLeadForm((f) => ({ ...f, [name]: value }))
+    if (name === 'ownerId') {
+      const selectedMember = teamMembers.find(m => String(m.id) === value)
+      setLeadForm((f) => ({ 
+        ...f, 
+        ownerId: value,
+        sr: selectedMember ? selectedMember.name : ''
+      }))
+    } else {
+      setLeadForm((f) => ({ ...f, [name]: value }))
+    }
   }
 
   function handleSubmit(e) {
@@ -73,18 +83,22 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, branch }) {
 
       <label className="field">
         <span>SR (Sales Representative)</span>
-        <input
-          name="sr"
-          list="sr-list"
-          value={leadForm.sr}
+        <select
+          name="ownerId"
+          value={leadForm.ownerId}
           onChange={handleChange}
-          placeholder="Assigned sales representative"
           required
-          maxLength={100}
-        />
-        <datalist id="sr-list">
-          {teamMembers.map((m) => <option key={m} value={m} />)}
-        </datalist>
+        >
+          <option value="">Select Representative</option>
+          {teamMembers
+            .filter(m => m.branch === branch || branch === 'Headquarters')
+            .map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} ({m.region})
+              </option>
+            ))
+          }
+        </select>
       </label>
 
       <label className="field">
