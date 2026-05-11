@@ -1565,14 +1565,6 @@ def health_check():
     return jsonify({'status': 'healthy'}), 200
 
 
-from database.purge_legacy_columns import run_purge_migration
-
-# Run non-destructive migration on startup
-try:
-    print("Checking database schema...")
-    run_purge_migration()
-except Exception as e:
-    print(f"Warning: Startup migration failed: {e}")
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
