@@ -1,59 +1,86 @@
 import mysql.connector
-import os
-from dotenv import load_dotenv
+from .database import get_db_connection, close_connection
+from .migrate_owner_ids import migrate_owner_ids
 
-load_dotenv()
-
-def run_drop_migration():
+def run_purge_migration():
     """
-    Safely drops legacy columns (sr, owner) from tables if they still exist.
-    This script is intended to be run once by anyone pulling the relational schema changes.
+    Startup migration that handles schema expansion, data backfill, and legacy column removal.
+    This script ensures that any device pulling the relational changes stays in sync.
     """
-    config = {
-        'host': os.getenv('DB_HOST', 'localhost'),
-        'user': os.getenv('DB_USER', 'root'),
-        'password': os.getenv('DB_PASSWORD', ''),
-        'database': os.getenv('DB_NAME', 'tdt_crm')
-    }
+    conn = get_db_connection()
+    if not conn:
+        print("Failed to connect to database.")
+        return
 
     try:
-        conn = mysql.connector.connect(**config)
         cursor = conn.cursor()
         
-        # List of (table, column) pairs to drop
+        # 1. Identify if migration is needed (check for legacy columns)
         legacy_columns = [
             ('deals', 'owner'),
             ('contacts', 'owner'),
             ('activities', 'owner'),
-            ('leads', 'sr'),
-            ('companies', 'sr'),
-            ('companies', 'owner')
+            ('leads', 'sr')
         ]
-
-        print("Checking for legacy columns to drop...")
         
+        needed = False
+        for table, column in legacy_columns:
+            cursor.execute(f"SHOW COLUMNS FROM {table} LIKE '{column}'")
+            if cursor.fetchone():
+                needed = True
+                break
+        
+        if not needed:
+            # Quick exit if already clean
+            return
+
+        print("Relational schema migration detected - updating database...")
+
+        # 2. Schema Expansion (Ensure owner_id columns exist before backfilling)
+        # Helper to safely add columns
+        def add_column_if_not_exists(table, column, definition):
+            try:
+                cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+                print(f"  [+] Added {column} to {table}")
+            except mysql.connector.Error as err:
+                if err.errno == 1060: # Duplicate column name
+                    pass # Already exists
+                else:
+                    print(f"  [!] Error adding {column} to {table}: {err}")
+
+        # Add owner_id columns and region/stage if missing
+        add_column_if_not_exists("team", "region", "ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'North Luzon'")
+        add_column_if_not_exists("companies", "owner_id", "INT")
+        add_column_if_not_exists("contacts", "owner_id", "INT")
+        add_column_if_not_exists("leads", "owner_id", "INT")
+        add_column_if_not_exists("deals", "owner_id", "INT")
+        add_column_if_not_exists("activities", "owner_id", "INT")
+        add_column_if_not_exists("activities", "stage", "VARCHAR(100) DEFAULT NULL")
+        
+        # 3. Data Takeover (Backfill FKs from strings)
+        print("  [>] Backfilling owner IDs from legacy data...")
+        migrate_owner_ids()
+
+        # 4. Final Cleanup: Drop legacy string columns
+        print("  [>] Dropping legacy string columns...")
         for table, column in legacy_columns:
             try:
-                # Check if column exists
-                cursor.execute(f"SHOW COLUMNS FROM {table} LIKE '{column}'")
-                if cursor.fetchone():
-                    print(f"Dropping column '{column}' from table '{table}'...")
-                    cursor.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
-                    print(f"Successfully dropped '{column}' from '{table}'.")
-                else:
-                    print(f"Column '{column}' in table '{table}' already gone.")
+                cursor.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
+                print(f"  [-] Dropped {column} from {table}")
             except mysql.connector.Error as err:
-                print(f"Error handling {table}.{column}: {err}")
+                if err.errno == 1091: # Column doesn't exist
+                    pass
+                else:
+                    print(f"  [!] Error dropping {column} from {table}: {err}")
 
         conn.commit()
-        print("\nMigration complete. You can now delete this script.")
+        print("Database schema is now fully relational and clean.")
 
-    except mysql.connector.Error as err:
-        print(f"Database connection error: {err}")
+    except Exception as e:
+        print(f"Critical error during startup migration: {e}")
+        conn.rollback()
     finally:
-        if 'conn' in locals() and conn.is_connected():
-            cursor.close()
-            conn.close()
+        close_connection(conn)
 
-if __name__ == "__main__":
-    run_drop_migration()
+if __name__ == '__main__':
+    run_purge_migration()
