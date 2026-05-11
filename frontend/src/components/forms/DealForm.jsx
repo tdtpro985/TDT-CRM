@@ -10,19 +10,30 @@ export default function DealForm({ onSubmit, onCancel, companies, contacts, team
     stage: dealStages[0],
     value: '',
     expectedClose: '',
-    owner: teamMembers[0] ?? ''
+    owner: '',
+    ownerId: ''
   })
 
   function handleChange(e) {
     const { name, value } = e.target
     setDealForm((current) => {
-      const next = { ...current, [name]: value }
-      if (name === 'companyName' && value) {
+      let next = { ...current, [name]: value }
+      if (name === 'ownerId') {
+        const selectedMember = teamMembers.find(m => String(m.id) === value)
+        next.owner = selectedMember ? selectedMember.name : ''
+        next.ownerId = value
+      } else if (name === 'companyName' && value) {
         const c = companies.find((comp) => comp.name.toLowerCase() === value.toLowerCase())
-        if (c && !current.owner) next.owner = c.owner
+        if (c && !current.ownerId) {
+          next.ownerId = c.ownerId || ''
+          next.owner = c.owner || ''
+        }
       } else if (name === 'contactName' && value) {
         const c = contacts.find((cont) => cont.name.toLowerCase() === value.toLowerCase())
-        if (c && !current.owner) next.owner = c.owner
+        if (c && !current.ownerId) {
+          next.ownerId = c.ownerId || ''
+          next.owner = c.owner || ''
+        }
         if (c && !current.companyName) {
           const comp = companies.find((comp) => comp.id === c.companyId)
           if (comp) next.companyName = comp.name
@@ -73,7 +84,19 @@ export default function DealForm({ onSubmit, onCancel, companies, contacts, team
 
       <label className="field field--span-2">
         <span>Owner</span>
-        <input name="owner" list="owners-deal-list" value={dealForm.owner} onChange={handleChange} placeholder="Enter owner name" />
+        <select
+          name="ownerId"
+          value={dealForm.ownerId}
+          onChange={handleChange}
+          required
+        >
+          <option value="">Select Representative</option>
+          {teamMembers.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name} ({m.branch})
+            </option>
+          ))}
+        </select>
       </label>
 
       <div className="form-actions field--span-2">
@@ -86,9 +109,6 @@ export default function DealForm({ onSubmit, onCancel, companies, contacts, team
       </datalist>
       <datalist id="contacts-deal-list">
         {contacts.map((c) => <option key={c.id} value={c.name} />)}
-      </datalist>
-      <datalist id="owners-deal-list">
-        {teamMembers.map((m) => <option key={m} value={m} />)}
       </datalist>
     </form>
   )

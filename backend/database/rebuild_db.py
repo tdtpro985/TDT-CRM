@@ -19,11 +19,15 @@ def init_db():
         
         # Split by semicolon and execute
         statements = [s.strip() for s in sql.split(';') if s.strip()]
+        
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
         for statement in statements:
             try:
                 cursor.execute(statement)
             except Exception as e:
-                print(f"Error executing statement: {statement[:50]}... Error: {e}")
+                # Use a safe way to print errors that might have non-ASCII characters
+                print(f"Error executing statement. Error: {str(e).encode('ascii', 'ignore').decode('ascii')}")
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
 
         conn.commit()
         print("Database rebuilt successfully from schema.sql!")

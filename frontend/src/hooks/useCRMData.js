@@ -16,6 +16,7 @@ function getProbabilityForStage(stage) { return STAGE_PROBABILITY[stage] ?? 100 
 
 export default function useCRMData({ setNotice, showToast, currentUser }) {
   const [companies, setCompanies] = useState([])
+  const [customers, setCustomers] = useState([])
   const [contacts, setContacts] = useState([])
   const [leads, setLeads] = useState([])
   const [deals, setDeals] = useState([])
@@ -32,6 +33,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         const branchParam = branch ? `?branch=${encodeURIComponent(branch)}` : ''
         const responses = await Promise.all([
           apiFetch(`/api/companies${branchParam}`),
+          apiFetch(`/api/customers${branchParam}`),
           apiFetch(`/api/contacts${branchParam}`),
           apiFetch(`/api/leads${branchParam}`),
           apiFetch(`/api/deals${branchParam}`),
@@ -43,16 +45,18 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           throw new Error('API or Database error')
         }
 
-        const [companiesRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes] = responses
+        const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes] = responses
 
         const fetchedLeads = await leadsRes.json()
         const fetchedCompanies = await companiesRes.json()
+        const fetchedCustomers = await customersRes.json()
         const fetchedContacts = await contactsRes.json()
         const fetchedDeals = await dealsRes.json()
         const fetchedActivities = await activitiesRes.json()
 
         setLeads(fetchedLeads)
         setCompanies(fetchedCompanies)
+        setCustomers(fetchedCustomers)
         setContacts(fetchedContacts.map((c) => ({ ...c, lastActivity: c.lastTouch ?? '' })))
         setDeals(
           fetchedDeals.map((d) => ({
@@ -75,7 +79,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
             status: ['Completed', 'Open'].includes(a.status) ? a.status : 'Open',
           })),
         )
-        setTeamMembers((await teamRes.json()).map((u) => u.name))
+        setTeamMembers(await teamRes.json())
       } catch {
         setNotice('Backend is not reachable or database is down. Start the server and configure database to load live data.')
       } finally {
@@ -86,6 +90,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }, [currentUser, branch, setNotice])
 
   async function createLead(leadForm) {
+    const rsm = teamMembers.find(m => m.name === leadForm.sr)
     const newLead = {
       id: createRecordId('lead'),
       customerName: leadForm.customerName.trim(),
@@ -93,6 +98,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       address: leadForm.address,
       region: leadForm.region,
       sr: leadForm.sr,
+      ownerId: rsm?.id || null,
       branch: branch,
       status: 'New',
       createdAt: CURRENT_DATE,
@@ -191,11 +197,13 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       await apiFetch(`/api/contacts`, { method: 'POST', body: JSON.stringify(newContact) }).catch(() => {})
     }
 
+    const rsm = teamMembers.find(m => m.name === dealForm.owner)
     const newDeal = {
       id: createRecordId('deal'),
       ...dealForm,
       companyId: companyIdToUse,
       contactId: contactIdToUse,
+      ownerId: rsm?.id || null,
       name: dealForm.name.trim(),
       value: Number(dealForm.value),
       probability: getProbabilityForStage(dealForm.stage),
@@ -329,7 +337,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   return {
-    data: { companies, contacts, leads, deals, tasks, teamMembers, loading },
+    data: { companies, customers, contacts, leads, deals, tasks, teamMembers, loading },
     actions: { 
       createLead, 
       createContact, 
