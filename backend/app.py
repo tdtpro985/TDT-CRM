@@ -747,12 +747,12 @@ def update_deal_stage(deal_id):
         conn.commit()
 
         is_closed = new_stage in ('Closed Won', 'Closed Lost')
-        if is_closed and lead_id:
-            cursor.execute('SELECT branch FROM leads WHERE id = %s', (lead_id,))
-            lead_row = cursor.fetchone()
-            if lead_row:
-                fill_pipeline(conn, branch=lead_row[0])
-                conn.commit()
+        # if is_closed and lead_id:
+        #     cursor.execute('SELECT branch FROM leads WHERE id = %s', (lead_id,))
+        #     lead_row = cursor.fetchone()
+        #     if lead_row:
+        #         fill_pipeline(conn, branch=lead_row[0])
+        #         conn.commit()
 
         return jsonify({'message': 'Deal stage updated', 'probability': new_probability})
     finally:
