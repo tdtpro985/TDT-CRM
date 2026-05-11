@@ -12,7 +12,7 @@ import LoginPage     from './components/LoginPage'
 
 const CURRENT_DATE = new Date().toISOString().split('T')[0]
 
-const LEAD_STATUSES  = ['New', 'Working', 'Qualified', 'Converted']
+const LEAD_STATUSES  = ['New', 'Working', 'Qualified', 'Unqualified', 'Converted']
 const DEAL_STAGES    = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
 const TASK_TYPES     = ['Call', 'Follow-up', 'Meeting', 'Email']
 const TASK_PRIORITIES = ['Low', 'Medium', 'High']
