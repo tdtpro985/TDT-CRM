@@ -600,7 +600,8 @@ section.content-grid--primary {
 .tone-pill.is-positive { background: rgba(52,211,153,0.1); color: var(--positive); border: 1px solid rgba(52,211,153,0.2); }
 .tone-pill.is-warning { background: rgba(255,181,71,0.1); color: var(--warning); border: 1px solid rgba(255,181,71,0.2); }
 .tone-pill.is-alert { background: rgba(251,113,133,0.1); color: var(--alert); border: 1px solid rgba(251,113,133,0.2); }
-.tone-pill.is-converted { background: rgba(55, 151, 229, 0.1); color: var(--text-cyan); border: 1px solid rgba(0, 200, 255, 0.25); color: darkcyan;}
+.tone-pill.is-open { background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.25); }
+.tone-pill.is-converted { background: rgba(139, 92, 246, 0.1); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.25); }
 .tone-pill.is-caution { background: rgba(255,181,71,0.1); color: var(--caution); border: 1px solid rgba(255,181,71,0.2); }
 
 
@@ -906,6 +907,72 @@ section.content-grid--primary {
   border-color: rgba(255, 152, 0, 0.4);
   color: var(--accent-strong);
   font-weight: 700;
+}
+
+.deal-modal__history {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.deal-modal__subheading {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-strong);
+  margin-bottom: 16px;
+  letter-spacing: -0.01em;
+}
+
+.deal-modal__task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.deal-modal__history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+
+.deal-modal__history-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding-right: 16px;
+}
+
+.deal-modal__history-info strong {
+  font-size: var(--fs-sm);
+  color: var(--text-strong);
+}
+
+.deal-modal__history-meta {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+.deal-modal__history-notes {
+  font-size: var(--fs-xs);
+  color: var(--text-secondary);
+  margin-top: 8px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.deal-modal__empty-history {
+  padding: 24px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
 }
 
 .toast {

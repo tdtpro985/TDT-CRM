@@ -776,16 +776,16 @@ def get_deals():
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 LEFT JOIN (
                     SELECT a.deal_id,
-                           MAX(CASE
-                               WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 3
-                               WHEN a.status = 'Open' AND a.priority = 'High' THEN 2
-                               WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 1
-                               ELSE 0
-                           END) AS urgencyScore,
-                           MAX(CASE WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 1 ELSE 0 END) AS hasOverdue,
-                           MAX(CASE WHEN a.status = 'Open' AND a.priority = 'High' THEN 1 ELSE 0 END) AS hasHigh,
-                           MAX(CASE WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 1 ELSE 0 END) AS hasToday,
-                           MIN(CASE WHEN a.status = 'Open' THEN a.due_date END) AS nextDueDate
+                               MAX(CASE
+                                   WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 3
+                                   WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 2
+                                   WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 1
+                                   ELSE 0
+                               END) AS urgencyScore,
+                               MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1 ELSE 0 END) AS hasOverdue,
+                               MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 1 ELSE 0 END) AS hasHigh,
+                               MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 1 ELSE 0 END) AS hasToday,
+                               MIN(CASE WHEN a.status IN ('Open', 'Reopened') THEN a.due_date END) AS nextDueDate
                     FROM activities a
                     GROUP BY a.deal_id
                 ) urgency ON urgency.deal_id = d.id
@@ -836,15 +836,15 @@ def get_deals():
                    LEFT JOIN (
                        SELECT a.deal_id,
                               MAX(CASE
-                                  WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 3
-                                  WHEN a.status = 'Open' AND a.priority = 'High' THEN 2
-                                  WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 1
+                                  WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 3
+                                  WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 2
+                                  WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 1
                                   ELSE 0
                               END) AS urgencyScore,
-                              MAX(CASE WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 1 ELSE 0 END) AS hasOverdue,
-                              MAX(CASE WHEN a.status = 'Open' AND a.priority = 'High' THEN 1 ELSE 0 END) AS hasHigh,
-                              MAX(CASE WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 1 ELSE 0 END) AS hasToday,
-                              MIN(CASE WHEN a.status = 'Open' THEN a.due_date END) AS nextDueDate
+                              MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1 ELSE 0 END) AS hasOverdue,
+                              MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 1 ELSE 0 END) AS hasHigh,
+                              MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 1 ELSE 0 END) AS hasToday,
+                              MIN(CASE WHEN a.status IN ('Open', 'Reopened') THEN a.due_date END) AS nextDueDate
                        FROM activities a
                        GROUP BY a.deal_id
                    ) urgency ON urgency.deal_id = d.id
@@ -937,38 +937,63 @@ def create_deal():
 def update_deal_stage(deal_id):
     data = request.get_json()
     new_stage = data.get('stage')
-    if not new_stage:
-        return jsonify({'error': 'stage is required'}), 400
+    new_value = data.get('value')
+    new_close = data.get('closeDate')
+    new_owner = data.get('owner')
 
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT stage, lead_id FROM deals WHERE id = %s', (deal_id,))
+        cursor.execute('SELECT stage, value, close_date, owner, lead_id FROM deals WHERE id = %s', (deal_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'error': 'Deal not found'}), 404
 
-        old_stage = row[0]
-        lead_id = row[1]
-        new_probability = STAGE_PROBABILITY.get(new_stage, 20)
-        cursor.execute(
-            'UPDATE deals SET stage = %s, probability = %s WHERE id = %s',
-            (new_stage, new_probability, deal_id),
-        )
-        log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage)
+        old_stage, old_value, old_close, old_owner, lead_id = row
+        
+        updates = []
+        params = []
+        
+        if new_stage:
+            new_probability = STAGE_PROBABILITY.get(new_stage, 20)
+            updates.append('stage = %s, probability = %s')
+            params.extend([new_stage, new_probability])
+            log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage)
+        
+        if new_value is not None:
+            updates.append('value = %s')
+            params.append(new_value)
+            log_audit(conn, 'deal', deal_id, 'value_change', str(old_value), str(new_value))
+            
+        if new_close:
+            updates.append('close_date = %s')
+            params.append(new_close)
+            log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close))
+            
+        if new_owner:
+            updates.append('owner = %s')
+            params.append(new_owner)
+            log_audit(conn, 'deal', deal_id, 'owner_change', old_owner, new_owner)
+
+        if not updates:
+            return jsonify({'message': 'No updates provided'}), 400
+
+        params.append(deal_id)
+        cursor.execute(f'UPDATE deals SET {", ".join(updates)} WHERE id = %s', params)
         conn.commit()
 
-        is_closed = new_stage in ('Closed Won', 'Closed Lost')
-        if is_closed and lead_id:
-            cursor.execute('SELECT branch FROM leads WHERE id = %s', (lead_id,))
-            lead_row = cursor.fetchone()
-            if lead_row:
-                fill_pipeline(conn, branch=lead_row[0])
-                conn.commit()
+        if new_stage:
+            is_closed = new_stage in ('Closed Won', 'Closed Lost')
+            if is_closed and lead_id:
+                cursor.execute('SELECT branch FROM leads WHERE id = %s', (lead_id,))
+                lead_row = cursor.fetchone()
+                if lead_row:
+                    fill_pipeline(conn, branch=lead_row[0])
+                    conn.commit()
 
-        return jsonify({'message': 'Deal stage updated', 'probability': new_probability})
+        return jsonify({'message': 'Deal updated successfully'})
     finally:
         close_connection(conn)
 
@@ -988,7 +1013,7 @@ def get_activities():
             cursor.execute(
                 '''
                 SELECT a.id, a.subject, a.type, a.owner, a.deal_id AS dealId,
-                       a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at
+                       a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage
                 FROM activities a
                 LEFT JOIN deals d ON d.id = a.deal_id
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
@@ -996,10 +1021,10 @@ def get_activities():
                   AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ORDER BY
                     CASE
-                        WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 1
-                        WHEN a.status = 'Open' AND a.priority = 'High' THEN 2
-                        WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 3
-                        WHEN a.status = 'Open' THEN 4
+                        WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1
+                        WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 2
+                        WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 3
+                        WHEN a.status IN ('Open', 'Reopened') THEN 4
                         ELSE 5
                     END,
                     a.due_date ASC
@@ -1009,17 +1034,17 @@ def get_activities():
         else:
             cursor.execute(
                 """SELECT a.id, a.subject, a.type, a.owner, a.deal_id AS dealId,
-                          a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at
+                          a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage
                    FROM activities a
                    LEFT JOIN deals d ON d.id = a.deal_id
                    LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                    WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                    ORDER BY
                        CASE
-                           WHEN a.status = 'Open' AND a.due_date < CURDATE() THEN 1
-                           WHEN a.status = 'Open' AND a.priority = 'High' THEN 2
-                           WHEN a.status = 'Open' AND a.due_date = CURDATE() THEN 3
-                           WHEN a.status = 'Open' THEN 4
+                           WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1
+                           WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 2
+                           WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 3
+                           WHEN a.status IN ('Open', 'Reopened') THEN 4
                            ELSE 5
                        END,
                        a.due_date ASC"""
@@ -1042,8 +1067,8 @@ def create_activity():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO activities (id, subject, type, owner, deal_id, due_date, priority, status, notes)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO activities (id, subject, type, owner, deal_id, due_date, priority, status, notes, stage)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 data['id'],
                 data['subject'],
@@ -1054,6 +1079,7 @@ def create_activity():
                 data.get('priority', 'Medium'),
                 data.get('status', 'Open'),
                 data.get('notes'),
+                data.get('stage'),
             ),
         )
         conn.commit()
@@ -1533,6 +1559,11 @@ def add_deal_contact(deal_id):
         return jsonify({'message': 'Contact added to deal'}), 201
     finally:
         close_connection(conn)
+
+
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({'status': 'healthy'}), 200
 
 
 if __name__ == '__main__':
