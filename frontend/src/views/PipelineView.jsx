@@ -90,7 +90,13 @@ export default function PipelineView({
         <Panel
           kicker="Deal pipeline visualization"
           title="Track every opportunity by stage"
-          detail="This board is designed for quick visibility, simple updates, and a cleaner handoff to a future backend."
+          detail={
+            <div className="priority-legend">
+              <span><span className="priority-dot is-overdue" /> Overdue</span>
+              <span><span className="priority-dot is-high" /> High Priority</span>
+              <span><span className="priority-dot is-today" /> Due Today</span>
+            </div>
+          }
           action={
             <div className="panel-inline-controls">
               <label className="filter-wrap">

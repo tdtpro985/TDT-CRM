@@ -1,3 +1,8 @@
+export function formatPercentage(value) {
+  const rounded = Math.round(value * 10) / 10
+  return rounded % 1 === 0 ? rounded.toString() : rounded.toFixed(1)
+}
+
 export function formatCurrencyCompact(value) {
   if (value >= 1000000) {
     return `PHP ${(value / 1000000).toFixed(1)}M`
@@ -66,6 +71,11 @@ export function createRecordId(prefix) {
 export function getToneClass(value) {
   if (!value) return 'is-neutral'
   const normalizedValue = String(value).toLowerCase()
+
+  if (normalizedValue.includes('unqualified')
+  ) {
+    return 'is-neutral'
+  }
 
   if (
     normalizedValue.includes('won') ||
