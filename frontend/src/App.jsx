@@ -379,10 +379,7 @@ export default function App() {
           >
             <span /><span /><span />
           </button>
-          <div className="mobile-brand">
-            <img src="/tdt-powersteel-logo.png" alt="TDT" />
-            <span>Sales CRM</span>
-          </div>
+
           <div className="top-bar-title">
             <p className="eyebrow">{currentMeta.eyebrow}</p>
             <h2 className="page-title">{currentMeta.title}</h2>
