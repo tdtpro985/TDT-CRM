@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
@@ -16,6 +17,7 @@ export default function TasksView({
   currentPage,
   setCurrentPage
 }) {
+  const navigate = useNavigate()
   const ITEMS_PER_PAGE = 10
   const totalPages = Math.ceil(filteredTasks.length / ITEMS_PER_PAGE)
 
@@ -85,6 +87,14 @@ export default function TasksView({
                         <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                           <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
                           <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
+                          <button 
+                            type="button" 
+                            className="ghost-button" 
+                            style={{ fontSize: '11px', padding: '2px 8px', marginTop: '4px', textDecoration: 'underline' }}
+                            onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
+                          >
+                            View
+                          </button>
                         </div>
                       </div>
                       <p className="activity-notes" style={{ paddingRight: '110px' }}>
@@ -171,6 +181,14 @@ export default function TasksView({
                   <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                     <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
                     <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
+                    <button 
+                      type="button" 
+                      className="ghost-button" 
+                      style={{ fontSize: '11px', padding: '2px 8px', marginTop: '4px', textDecoration: 'underline' }}
+                      onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
+                    >
+                      View
+                    </button>
                   </div>
                 </article>
               ))}

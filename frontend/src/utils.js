@@ -88,12 +88,24 @@ export function getToneClass(value) {
   }
 
   if (
+    normalizedValue.includes('converted') ||
+    normalizedValue.includes('reopened')
+  ) {
+    return 'is-converted'
+  }
+
+  if (
+    normalizedValue.includes('open')
+  ) {
+    return 'is-open'
+  }
+
+  if (
     normalizedValue.includes('proposal') ||
     normalizedValue.includes('negotiation') ||
     normalizedValue.includes('in progress') ||
     normalizedValue.includes('new') ||
-    normalizedValue.includes('medium') ||
-    normalizedValue.includes('open')
+    normalizedValue.includes('medium')
   ) {
     return 'is-warning'
   }
@@ -103,13 +115,6 @@ export function getToneClass(value) {
     normalizedValue.includes('working') 
   ) {
     return 'is-alert'
-  }
-
-  if (
-    normalizedValue.includes('converted') ||
-    normalizedValue.includes('reopened')
-  ) {
-    return 'is-converted'
   }
 
   return 'is-neutral'
