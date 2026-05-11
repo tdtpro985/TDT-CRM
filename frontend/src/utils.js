@@ -92,7 +92,8 @@ export function getToneClass(value) {
     normalizedValue.includes('negotiation') ||
     normalizedValue.includes('in progress') ||
     normalizedValue.includes('new') ||
-    normalizedValue.includes('medium') 
+    normalizedValue.includes('medium') ||
+    normalizedValue.includes('open')
   ) {
     return 'is-warning'
   }
@@ -105,7 +106,8 @@ export function getToneClass(value) {
   }
 
   if (
-    normalizedValue.includes('converted')
+    normalizedValue.includes('converted') ||
+    normalizedValue.includes('reopened')
   ) {
     return 'is-converted'
   }

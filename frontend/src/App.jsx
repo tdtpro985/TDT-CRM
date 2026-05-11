@@ -9,6 +9,9 @@ import PipelineView  from './views/PipelineView'
 import TasksView     from './views/TasksView'
 import useCRMData    from './hooks/useCRMData'
 import LoginPage     from './components/LoginPage'
+import Modal         from './components/Modal'
+import LeadForm      from './components/forms/LeadForm'
+import TaskForm      from './components/forms/TaskForm'
 
 const CURRENT_DATE = new Date().toISOString().split('T')[0]
 
@@ -56,7 +59,6 @@ export default function App() {
 
   const [notice, setNotice] = useState('TDT Powersteel CRM is focused on clean data, pipeline visibility, activity tracking, and a 5 KPI dashboard.')
   const [showLeadForm, setShowLeadForm] = useState(false)
-  const [showDealForm, setShowDealForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(getUser())
@@ -131,7 +133,10 @@ export default function App() {
 
   const filteredTasks = useMemo(() => tasks.filter(
     (t) =>
-      (taskFilter === 'all' || (taskFilter === 'open' && t.status === 'Open') || (taskFilter === 'completed' && t.status === 'Completed')) &&
+      (taskFilter === 'all' || 
+       (taskFilter === 'open' && t.status === 'Open') || 
+       (taskFilter === 'completed' && t.status === 'Completed') ||
+       (taskFilter === 'reopened' && t.status === 'Reopened')) &&
       matchesSearch(searchQuery, [t.title, t.type, t.owner, deals.find((d) => d.id === t.dealId)?.name]),
   ), [tasks, taskFilter, searchQuery, deals])
 
@@ -140,10 +145,6 @@ export default function App() {
   const handleCreateLead = async (form) => {
     const newLead = await actions.createLead(form);
     setSelectedLeadId(newLead.id)
-  }
-
-  const handleCreateDeal = async (form) => {
-    await actions.createDeal(form);
   }
 
   const handleCreateTask = async (form) => {
@@ -171,7 +172,6 @@ export default function App() {
     setPipelinePage(1)
     setTasksPage(1)
     setShowLeadForm(false)
-    setShowDealForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId]?.title || viewId} is active.`)
     setSidebarOpen(false)
@@ -186,12 +186,9 @@ export default function App() {
       setShowLeadForm(true)
       return setNotice('New customer entry is ready.')
     }
-    if (activeView === 'pipeline') {
-      setShowDealForm(true)
-      return focusSection('pipeline', 'deal-form', 'Deal entry is ready.')
-    }
+    // Consolidated: Pipeline now uses Task flow for entry
     setShowTaskForm(true)
-    focusSection('tasks', 'task-form', 'Task entry is ready.')
+    focusSection(activeView === 'pipeline' ? 'pipeline' : 'tasks', 'task-form', 'Activity entry is ready.')
   }
 
   async function handleShareCurrentView() {
@@ -205,9 +202,9 @@ export default function App() {
   }
 
   const primaryActionLabel =
-    activeView === 'pipeline' ? 'New deal'
+    activeView === 'database' ? 'New customer'
+    : activeView === 'pipeline' ? 'Add task'
     : activeView === 'tasks' ? 'Add task'
-    : activeView === 'database' ? 'New customer'
     : 'New lead'
 
   const navItems = NAV_CONFIG.map((item) => ({
@@ -264,6 +261,7 @@ export default function App() {
           <PipelineView
             filteredDeals={filteredDeals}
             deals={deals}
+            tasks={tasks}
             leads={leads}
             contacts={contacts}
             companies={companies}
@@ -276,12 +274,15 @@ export default function App() {
             setStageFilter={setStageFilter}
             setNotice={setNotice}
             companyMap={companyMap}
-            onCreateDeal={handleCreateDeal}
             handleDealStageChange={actions.updateDealStage}
-            showDealForm={showDealForm}
-            setShowDealForm={setShowDealForm}
+            handleTaskStatusToggle={actions.toggleTaskStatus}
             currentPage={pipelinePage}
             setCurrentPage={setPipelinePage}
+            onViewTasks={(filter) => {
+              setTaskFilter(filter)
+              setTasksPage(1)
+              navigate('/tasks')
+            }}
           />
         } />
         <Route path="/tasks" element={
@@ -294,6 +295,7 @@ export default function App() {
             companyMap={companyMap}
             taskTypes={TASK_TYPES}
             taskPriorities={TASK_PRIORITIES}
+            dealStages={DEAL_STAGES}
             teamMembers={teamMembers}
             taskFilter={taskFilter}
             setTaskFilter={setTaskFilter}
@@ -319,6 +321,12 @@ export default function App() {
 
   return (
     <div className="crm-shell">
+      {/* Invisible hover trigger zone for sidebar */}
+      <div 
+        className="sidebar-hover-trigger" 
+        onMouseEnter={() => setSidebarOpen(true)}
+      />
+
       {/* Mobile sidebar overlay */}
       <div
         className={`sidebar-overlay ${sidebarOpen ? 'is-open' : ''}`}
@@ -326,7 +334,10 @@ export default function App() {
         aria-hidden="true"
       />
 
-      <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
+      <aside 
+        className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}
+        onMouseLeave={() => setSidebarOpen(false)}
+      >
         <div className="brand-block">
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
           <p className="brand-name">Sales CRM</p>
@@ -402,7 +413,9 @@ export default function App() {
               />
             </label>
             <button type="button" className="secondary-button" onClick={handleShareCurrentView}>Share view</button>
-            <button type="button" className="primary-button" onClick={handlePrimaryAction}>{primaryActionLabel}</button>
+            {activeView !== 'pipeline' && (
+              <button type="button" className="primary-button" onClick={handlePrimaryAction}>{primaryActionLabel}</button>
+            )}
           </div>
         </header>
 
@@ -426,6 +439,44 @@ export default function App() {
           <span>{toast}</span>
         </div>
       )}
+
+      <Modal
+        isOpen={showTaskForm}
+        onClose={() => setShowTaskForm(false)}
+        title="Log a task & Update deal"
+        kicker="Activity entry"
+      >
+        <TaskForm
+          deals={deals}
+          teamMembers={teamMembers}
+          taskTypes={TASK_TYPES}
+          taskPriorities={TASK_PRIORITIES}
+          dealStages={DEAL_STAGES}
+          currentUser={currentUser}
+          onCancel={() => setShowTaskForm(false)}
+          onSubmit={(form) => {
+            handleCreateTask(form)
+            setShowTaskForm(false)
+          }}
+        />
+      </Modal>
+
+      <Modal
+        isOpen={showLeadForm}
+        onClose={() => setShowLeadForm(false)}
+        title="Add a new customer"
+        kicker="Fast entry"
+      >
+        <LeadForm
+          teamMembers={teamMembers}
+          branch={currentUser?.branch}
+          onCancel={() => setShowLeadForm(false)}
+          onSubmit={(form) => {
+            handleCreateLead(form)
+            setShowLeadForm(false)
+          }}
+        />
+      </Modal>
     </div>
   )
 }
