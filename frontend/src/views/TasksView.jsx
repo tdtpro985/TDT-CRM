@@ -1,9 +1,8 @@
+import { useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
-import Modal from '../components/Modal'
 import { formatDateLabel, getToneClass } from '../utils'
-import TaskForm from '../components/forms/TaskForm'
 
 export default function TasksView({
   filteredTasks,
@@ -12,18 +11,13 @@ export default function TasksView({
   dueToday,
   deals,
   companyMap,
-  taskTypes,
-  taskPriorities,
-  teamMembers,
   taskFilter,
   setTaskFilter,
-  onCreateTask,
   handleTaskStatusToggle,
-  showTaskForm,
-  setShowTaskForm,
   currentPage,
   setCurrentPage
 }) {
+  const navigate = useNavigate()
   const ITEMS_PER_PAGE = 10
   const totalPages = Math.ceil(filteredTasks.length / ITEMS_PER_PAGE)
 
@@ -69,6 +63,7 @@ export default function TasksView({
                 >
                   <option value="all">All tasks</option>
                   <option value="open">Open</option>
+                  <option value="reopened">Reopened</option>
                   <option value="completed">Completed</option>
                 </select>
               </label>
@@ -92,6 +87,14 @@ export default function TasksView({
                         <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                           <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
                           <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
+                          <button 
+                            type="button" 
+                            className="ghost-button" 
+                            style={{ fontSize: '11px', padding: '2px 8px', marginTop: '4px', textDecoration: 'underline' }}
+                            onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
+                          >
+                            View
+                          </button>
                         </div>
                       </div>
                       <p className="activity-notes" style={{ paddingRight: '110px' }}>
@@ -100,7 +103,7 @@ export default function TasksView({
                       </p>
                       <div className="activity-card__footer">
                         <span>Due {formatDateLabel(task.dueDate)}</span>
-                        <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id)}>
+                        <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id, task.status)}>
                           {task.status === 'Completed' ? 'Reopen task' : 'Mark complete'}
                         </button>
                       </div>
@@ -178,33 +181,21 @@ export default function TasksView({
                   <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                     <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
                     <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
+                    <button 
+                      type="button" 
+                      className="ghost-button" 
+                      style={{ fontSize: '11px', padding: '2px 8px', marginTop: '4px', textDecoration: 'underline' }}
+                      onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
+                    >
+                      View
+                    </button>
                   </div>
                 </article>
               ))}
             </div>
           </Panel>
-
         </div>
       </section>
-
-      <Modal
-        isOpen={showTaskForm}
-        onClose={() => setShowTaskForm(false)}
-        title="Log a task quickly"
-        kicker="Fast entry"
-      >
-        <TaskForm
-          deals={deals}
-          teamMembers={teamMembers}
-          taskTypes={taskTypes}
-          taskPriorities={taskPriorities}
-          onCancel={() => setShowTaskForm(false)}
-          onSubmit={(form) => {
-            onCreateTask(form, ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won'])
-            setShowTaskForm(false)
-          }}
-        />
-      </Modal>
     </>
   )
 }

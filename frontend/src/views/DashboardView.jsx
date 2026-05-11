@@ -36,7 +36,7 @@ export default function DashboardView({
   const focusTasks = [...openTasks]
     .sort((a, b) => {
       const statusScore = (task) => {
-        if (task.status !== 'Open') return 5
+        if (!['Open', 'Reopened'].includes(task.status)) return 5
         if (!task.dueDate) return 4
         if (task.dueDate < today) return 1
         if (task.priority === 'High') return 2

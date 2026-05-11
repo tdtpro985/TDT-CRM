@@ -76,7 +76,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
             ...a,
             title: a.subject ?? a.title ?? '',
             priority: a.priority ?? 'Medium',
-            status: ['Completed', 'Open'].includes(a.status) ? a.status : 'Open',
+            status: ['Completed', 'Open', 'Reopened'].includes(a.status) ? a.status : 'Open',
           })),
         )
         setTeamMembers(await teamRes.json())
@@ -228,28 +228,61 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   async function createTask(taskForm, DEAL_STAGES) {
     let dealIdToUse = taskForm.dealId
     const isExistingId = deals.some((d) => d.id === taskForm.dealId)
+    const existingDeal = deals.find((d) => d.id === taskForm.dealId || d.name === taskForm.dealId)
 
-    if (!isExistingId && taskForm.dealId) {
-      const matchName = deals.find((d) => d.name.toLowerCase() === taskForm.dealId.toLowerCase())
-      if (matchName) {
-        dealIdToUse = matchName.id
-      } else {
-        dealIdToUse = createRecordId('deal')
-        const newDeal = {
-          id: dealIdToUse,
-          name: taskForm.dealId.trim(),
-          stage: DEAL_STAGES[0],
-          probability: getProbabilityForStage(DEAL_STAGES[0]),
-          value: 0,
-        }
-        setDeals((d) => [newDeal, ...d])
-        await apiFetch(`/api/deals`, { method: 'POST', body: JSON.stringify(newDeal) }).catch(() => {})
+    if (!isExistingId && taskForm.dealId && !existingDeal) {
+      // Create new deal if it doesn't exist
+      dealIdToUse = createRecordId('deal')
+      const newDeal = {
+        id: dealIdToUse,
+        name: taskForm.dealId.trim(),
+        stage: taskForm.dealStage || DEAL_STAGES[0],
+        probability: getProbabilityForStage(taskForm.dealStage || DEAL_STAGES[0]),
+        value: Number(taskForm.dealValue) || 0,
+        expectedClose: taskForm.expectedClose || null,
+        owner: taskForm.owner,
       }
+      setDeals((d) => [newDeal, ...d])
+      await apiFetch(`/api/deals`, { 
+        method: 'POST', 
+        body: JSON.stringify({ ...newDeal, closeDate: newDeal.expectedClose }) 
+      }).catch(() => {})
+    } else if (existingDeal) {
+      // Update existing deal with new values from task form
+      dealIdToUse = existingDeal.id
+      const updatedDeal = {
+        ...existingDeal,
+        stage: taskForm.dealStage || existingDeal.stage,
+        value: taskForm.dealValue !== '' ? Number(taskForm.dealValue) : existingDeal.value,
+        expectedClose: taskForm.expectedClose || existingDeal.expectedClose,
+        probability: getProbabilityForStage(taskForm.dealStage || existingDeal.stage),
+        owner: taskForm.owner || existingDeal.owner,
+      }
+      
+      setDeals((current) => current.map(d => d.id === dealIdToUse ? updatedDeal : d))
+      
+      // Update deal on backend
+      await apiFetch(`/api/deals/${dealIdToUse}/stage`, {
+        method: 'PATCH',
+        body: JSON.stringify({ 
+          stage: updatedDeal.stage,
+          value: updatedDeal.value,
+          closeDate: updatedDeal.expectedClose,
+          owner: updatedDeal.owner
+        })
+      }).catch(() => {})
     } else if (!taskForm.dealId) {
       dealIdToUse = null
     }
 
-    const newTask = { id: createRecordId('task'), ...taskForm, dealId: dealIdToUse, title: taskForm.title.trim(), status: 'Open' }
+    const newTask = { 
+      id: createRecordId('task'), 
+      ...taskForm, 
+      dealId: dealIdToUse, 
+      title: taskForm.title.trim(), 
+      status: 'Open',
+      stage: taskForm.dealStage // Record the stage context in the activity
+    }
 
     setTasks((current) => [newTask, ...current])
     showToast(`Task "${newTask.title}" saved successfully!`)
@@ -257,7 +290,11 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     try {
       const res = await apiFetch(`/api/activities`, {
         method: 'POST',
-        body: JSON.stringify({ ...newTask, subject: newTask.title }),
+        body: JSON.stringify({ 
+          ...newTask, 
+          subject: newTask.title,
+          stage: newTask.stage // Pass stage to backend
+        }),
       })
       if (!res.ok) throw new Error('Network error')
       setNotice(`${newTask.title} was saved to the database.`)
@@ -298,7 +335,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   async function toggleTaskStatus(taskId, currentStatus) {
-    const nextStatus = currentStatus === 'Completed' ? 'Open' : 'Completed'
+    const nextStatus = currentStatus === 'Completed' ? 'Reopened' : 'Completed'
     setTasks((current) => current.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t)))
     try {
       const res = await apiFetch(`/api/activities/${taskId}/status`, {

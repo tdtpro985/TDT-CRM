@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
-import { formatCurrencyCompact, formatDateLabel, formatRelativeDays } from '../utils'
-import DealForm from '../components/forms/DealForm'
+import { formatCurrencyCompact, formatDateLabel, formatRelativeDays, getToneClass } from '../utils'
 import { ITEMS_PER_PAGE } from '../constants'
 import { apiFetch } from '../api'
 
@@ -24,23 +24,12 @@ function getStageTone(stage) {
   return STAGE_TONES[stage] ?? 'is-neutral'
 }
 
-function getStagePipState(stage, selectedStage) {
-  if (stage === selectedStage) return 'is-active'
-  if (selectedStage === 'Closed Lost') {
-    return stage === 'Closed Won' ? '' : DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
-  }
-  if (selectedStage === 'Closed Won') {
-    return DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
-  }
-  return DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
-}
-
 export default function PipelineView({
   filteredDeals,
   deals,
+  tasks,
   leads,
   contacts,
-  teamMembers,
   activeDeals,
   pipelineValue,
   averageDealSize,
@@ -49,18 +38,36 @@ export default function PipelineView({
   setStageFilter,
   setNotice,
   companyMap,
-  onCreateDeal,
   handleDealStageChange,
-  showDealForm,
-  setShowDealForm,
+  handleTaskStatusToggle,
   currentPage,
-  setCurrentPage
+  setCurrentPage,
+  onViewTasks
 }) {
   const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
   const [selectedDeal, setSelectedDeal] = useState(null)
-  const [dealContacts, setDealContacts] = useState([])
-  const [loadingContacts, setLoadingContacts] = useState(false)
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (location.state?.openDealId) {
+      const deal = deals.find(d => d.id === location.state.openDealId)
+      if (deal) {
+        setSelectedDeal(deal)
+        // Clear state so it doesn't reopen on every navigation
+        navigate(location.pathname, { replace: true, state: {} })
+        
+        // Scroll to task history after modal opens
+        setTimeout(() => {
+          const section = document.getElementById('task-history-section')
+          if (section) {
+            section.scrollIntoView({ behavior: 'smooth' })
+          }
+        }, 100)
+      }
+    }
+  }, [location.state, deals, navigate, location.pathname])
 
   const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
 
@@ -83,7 +90,7 @@ export default function PipelineView({
   }, [selectedDeal])
 
   const getPaginatedData = (data, page, limit) => {
-    const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 20)
+    const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 10)
     const start = (pageNum - 1) * limit
     return data.slice(start, start + limit)
   }
@@ -212,7 +219,7 @@ export default function PipelineView({
                   value={currentPage}
                   onChange={(e) => {
                     const val = e.target.value.replace(/\D/g, '');
-                    const num = parseInt(val, 20);
+                    const num = parseInt(val, 10);
                     if (val === '') {
                       // Allow empty input while typing
                       setCurrentPage('');
@@ -269,25 +276,6 @@ export default function PipelineView({
         </Panel>
       </section>
 
-      <Modal
-        isOpen={showDealForm}
-        onClose={() => setShowDealForm(false)}
-        title="Add a new opportunity"
-        kicker="Fast entry"
-      >
-        <DealForm
-          companies={Object.values(companyMap)}
-          contacts={[]}
-          teamMembers={teamMembers}
-          dealStages={dealStages}
-          onCancel={() => setShowDealForm(false)}
-          onSubmit={(form) => {
-            onCreateDeal(form)
-            setShowDealForm(false)
-          }}
-        />
-      </Modal>
-
       {selectedDeal && (
         <div className="deal-modal-overlay" onClick={() => setSelectedDeal(null)}>
           <div className="deal-modal" onClick={(e) => e.stopPropagation()}>
@@ -301,21 +289,8 @@ export default function PipelineView({
               <button type="button" className="deal-modal__close" aria-label="Close" onClick={() => setSelectedDeal(null)}>✕</button>
             </div>
 
-            {/* ── Body ── */}
+            {/* Body */}
             <div className="modal-body-scroll">
-
-              {/* Stage progress bar */}
-              <div className="deal-modal__stage-track">
-                {dealStages.map((s) => (
-                  <div
-                    key={s}
-                    data-stage={s}
-                    className={`deal-modal__stage-pip ${getStagePipState(s, selectedDeal.stage)}`}
-                  >
-                    <span>{s}</span>
-                  </div>
-                ))}
-              </div>
 
               {/* Detail grid */}
               <div className="deal-modal__grid">
@@ -369,6 +344,61 @@ export default function PipelineView({
                     <strong className="deal-modal__value">{leadMap[selectedDeal.leadId]?.customerName ?? selectedDeal.leadId}</strong>
                   </div>
                 )}
+              </div>
+
+              {/* Task History */}
+              <div className="deal-modal__history" id="task-history-section">
+                <h3 className="deal-modal__subheading">Task History</h3>
+                <div className="deal-modal__task-list">
+                  {(tasks ?? []).filter(t => t.dealId === selectedDeal.id).length === 0 ? (
+                    <div className="deal-modal__empty-history">
+                      No tasks found for this deal.
+                    </div>
+                  ) : (
+                    (tasks ?? [])
+                      .filter(t => t.dealId === selectedDeal.id)
+                      .sort((a, b) => new Date(b.dueDate || 0) - new Date(a.dueDate || 0))
+                      .map(task => (
+                        <div key={task.id} className="deal-modal__history-item">
+                          <div className="deal-modal__history-info">
+                            <strong>{task.title}</strong>
+                            <span className="deal-modal__history-meta">{task.type} • {formatDateLabel(task.dueDate)}</span>
+                            {task.notes && (
+                              <p className="deal-modal__history-notes">{task.notes}</p>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                            <span 
+                              className={`tone-pill ${getToneClass(task.status)}`}
+                              style={{ cursor: 'pointer' }}
+                              title={`View all ${task.status.toLowerCase()} tasks`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onViewTasks(task.status.toLowerCase());
+                                setSelectedDeal(null);
+                              }}
+                            >
+                              {task.status}
+                            </span>
+                            <button 
+                              type="button" 
+                              className="ghost-button" 
+                              style={{ fontSize: '10px', padding: '4px 8px' }}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const nextStatus = task.status === 'Completed' ? 'reopened' : 'completed';
+                                await handleTaskStatusToggle(task.id, task.status);
+                                onViewTasks(nextStatus);
+                                setSelectedDeal(null);
+                              }}
+                            >
+                              {task.status === 'Completed' ? 'Reopen' : 'Complete'}
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
               </div>
             </div>
 

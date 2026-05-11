@@ -29,19 +29,36 @@ function DealCombobox({ deals, dealId, onChange }) {
   )
 }
 
-export default function TaskForm({ onSubmit, onCancel, deals, teamMembers, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES }) {
+export default function TaskForm({ onSubmit, onCancel, deals, teamMembers, currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES, dealStages = [] }) {
   const [taskForm, setTaskForm] = useState({
     title: '',
     type: taskTypes[1],
-    owner: teamMembers[0] ?? '',
+    owner: currentUser?.branch || '',
     dealId: deals[0]?.id ?? '',
     dueDate: '',
-    priority: 'Medium'
+    priority: 'Medium',
+    // New fields transferred from DealForm
+    dealStage: dealStages[0] ?? 'New Opportunity',
+    dealValue: '',
+    expectedClose: '',
   })
 
   function handleChange(e) {
     const { name, value } = e.target
-    setTaskForm((current) => ({ ...current, [name]: value }))
+    setTaskForm((current) => {
+      const next = { ...current, [name]: value }
+      
+      // Auto-fill logic when selecting an existing deal
+      if (name === 'dealId' && value) {
+        const existingDeal = deals.find(d => d.id === value || d.name === value)
+        if (existingDeal) {
+          next.dealStage = existingDeal.stage
+          next.dealValue = existingDeal.value
+          next.expectedClose = existingDeal.expectedClose
+        }
+      }
+      return next
+    })
   }
 
   function handleSubmit(e) {
@@ -65,7 +82,13 @@ export default function TaskForm({ onSubmit, onCancel, deals, teamMembers, taskT
 
       <label className="field">
         <span>Owner</span>
-        <input name="owner" value={taskForm.owner} onChange={handleChange} placeholder="Enter owner name" />
+        <input 
+          name="owner" 
+          value={taskForm.owner} 
+          readOnly 
+          className="input--readonly" 
+          placeholder="Enter owner name" 
+        />
       </label>
 
       <label className="field field--span-2">
@@ -73,12 +96,30 @@ export default function TaskForm({ onSubmit, onCancel, deals, teamMembers, taskT
         <DealCombobox deals={deals} dealId={taskForm.dealId} onChange={handleChange} />
       </label>
 
+      {/* Transferred Deal Fields */}
+      <label className="field">
+        <span>Deal stage</span>
+        <select name="dealStage" value={taskForm.dealStage} onChange={handleChange}>
+          {dealStages.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </label>
+
+      <label className="field">
+        <span>Deal value</span>
+        <input name="dealValue" type="number" min="0" value={taskForm.dealValue} onChange={handleChange} placeholder="Enter value" />
+      </label>
+
+      <label className="field">
+        <span>Expected close</span>
+        <input name="expectedClose" type="date" value={taskForm.expectedClose} onChange={handleChange} />
+      </label>
+
       <label className="field">
         <span>Due date</span>
         <input name="dueDate" type="date" value={taskForm.dueDate} onChange={handleChange} required />
       </label>
 
-      <label className="field">
+      <label className="field field--span-2">
         <span>Priority</span>
         <select name="priority" value={taskForm.priority} onChange={handleChange}>
           {taskPriorities.map((p) => <option key={p} value={p}>{p}</option>)}
