@@ -235,10 +235,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
     if (!isExistingId && taskForm.dealId && !existingDeal) {
       // Create new deal if it doesn't exist
-<<<<<<< HEAD
       const rsm = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
-=======
->>>>>>> 39cd7377aa99625c08539c582fd2ce8313280493
       dealIdToUse = createRecordId('deal')
       const newDeal = {
         id: dealIdToUse,
@@ -256,16 +253,16 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       }).catch(() => {})
     } else if (existingDeal) {
       // Update existing deal with new values from task form
-    const rsmForTask = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
-    const newTask = { 
-      id: createRecordId('task'), 
-      ...taskForm, 
-      dealId: dealIdToUse, 
-      title: taskForm.title.trim(), 
-      status: 'Open',
-      ownerId: rsmForTask?.id || taskForm.ownerId || currentUser?.id || null,
-      stage: taskForm.dealStage // Record the stage context in the activity
-    }
+      const rsm = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
+      dealIdToUse = existingDeal.id
+      const updatedDeal = {
+        ...existingDeal,
+        stage: taskForm.dealStage || existingDeal.stage,
+        value: taskForm.dealValue !== '' ? Number(taskForm.dealValue) : existingDeal.value,
+        expectedClose: taskForm.expectedClose || existingDeal.expectedClose,
+        probability: getProbabilityForStage(taskForm.dealStage || existingDeal.stage),
+        ownerId: rsm?.id || taskForm.ownerId || existingDeal.ownerId || null,
+      }
       
       setDeals((current) => current.map(d => d.id === dealIdToUse ? updatedDeal : d))
       
@@ -283,14 +280,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       dealIdToUse = null
     }
 
-      const rsm = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
+    const rsmForTask = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
     const newTask = { 
       id: createRecordId('task'), 
       ...taskForm, 
       dealId: dealIdToUse, 
       title: taskForm.title.trim(), 
       status: 'Open',
-      const rsm = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
+      ownerId: rsmForTask?.id || taskForm.ownerId || currentUser?.id || null,
       stage: taskForm.dealStage // Record the stage context in the activity
     }
 
