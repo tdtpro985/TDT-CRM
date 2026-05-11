@@ -19,7 +19,6 @@ export default function CustomersView({
   showCustomerForm,
   setShowCustomerForm,
   onCreateCustomer,
-  linkHealth,
   currentUser,
   page,
   setPage
@@ -172,34 +171,8 @@ export default function CustomersView({
                         className={`contact-card ${selectedCustomerId === customer.id ? 'is-selected' : ''}`}
                         style={{ position: 'relative' }}
                         onClick={() => setSelectedCustomerId(customer.id)}
+                        onDoubleClick={() => setDetailModalOpen(true)}
                       >
-                        <button
-                          type="button"
-                          className="info-trigger-button"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setSelectedCustomerId(customer.id)
-                            setDetailModalOpen(true)
-                          }}
-                          style={{
-                            position: 'absolute',
-                            bottom: '12px',
-                            right: '12px',
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            fontSize: '1.25rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            padding: '4px',
-                            zIndex: 2
-                          }}
-                          title="View Record Information"
-                        >
-                          ⓘ
-                        </button>
                         <span 
                           className={`tone-pill ${getToneClass(customer.customerStatus)}`}
                           style={{ position: 'absolute', top: '12px', right: '12px' }}

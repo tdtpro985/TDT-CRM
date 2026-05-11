@@ -70,14 +70,43 @@ def run_migration_v2():
                 FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
             )
         """)
+        add_column_if_not_exists("activities", "stage", "VARCHAR(100) DEFAULT NULL")
         print("  [+] Verified deal_contacts join table exists")
+
+        # 7. Activities: Add stage column (for origin's task-deal integration)
+        add_column_if_not_exists("activities", "stage", "VARCHAR(100) DEFAULT NULL")
+        add_column_if_not_exists("activities", "owner_id", "INT")
+        try:
+            cursor.execute("ALTER TABLE activities ADD FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL")
+            print("  [+] Added FK for activities.owner_id")
+        except: pass
 
         conn.commit()
         print("Schema expansion complete.")
 
-        # 7. Perform Data Takeover (Backfill FKs from strings)
+        # 8. Perform Data Takeover (Backfill FKs from strings)
         print("\nStarting Data Takeover (backfilling owner_ids from legacy strings)...")
         migrate_owner_ids()
+
+        # 9. Final Cleanup: Drop legacy string columns if they exist
+        print("\nFinal Cleanup: Dropping legacy string columns...")
+        def drop_column_if_exists(table, column):
+            try:
+                cursor.execute(f"ALTER TABLE {table} DROP COLUMN {column}")
+                print(f"  [-] Dropped {column} from {table}")
+            except mysql.connector.Error as err:
+                if err.errno == 1091: # Can't DROP 'column'; check that it exists
+                    print(f"  [.] Column {column} already dropped from {table}")
+                else:
+                    print(f"  [!] Error dropping {column} from {table}: {err}")
+
+        drop_column_if_exists("companies", "owner")
+        drop_column_if_exists("contacts", "owner")
+        drop_column_if_exists("leads", "sr")
+        drop_column_if_exists("deals", "owner")
+        drop_column_if_exists("activities", "owner")
+        conn.commit()
+        print("Legacy column cleanup complete.")
 
     except Exception as e:
         print(f"Critical error during migration: {e}")

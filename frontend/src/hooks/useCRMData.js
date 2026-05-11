@@ -90,15 +90,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }, [currentUser, branch, setNotice])
 
   async function createLead(leadForm) {
-    const rsm = teamMembers.find(m => m.name === leadForm.sr)
+    const rsm = teamMembers.find(m => m.name === leadForm.sr || m.id === leadForm.ownerId)
     const newLead = {
       id: createRecordId('lead'),
       customerName: leadForm.customerName.trim(),
       contactNum: leadForm.contactNum,
       address: leadForm.address,
       region: leadForm.region,
-      sr: leadForm.sr,
-      ownerId: rsm?.id || null,
+      ownerId: rsm?.id || leadForm.ownerId || null,
       branch: branch,
       status: 'New',
       createdAt: CURRENT_DATE,
@@ -131,11 +130,13 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       await apiFetch(`/api/companies`, { method: 'POST', body: JSON.stringify(newCompany) }).catch(() => {})
     }
 
+    const rsm = teamMembers.find(m => m.name === contactForm.owner || m.id === contactForm.ownerId)
     const newContact = {
       id: createRecordId('contact'),
       ...contactForm,
       companyId: companyIdToUse,
       name: contactForm.name.trim(),
+      ownerId: rsm?.id || contactForm.ownerId || null,
       lastActivity: CURRENT_DATE,
     }
 
@@ -155,10 +156,12 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   async function createCompany(companyForm) {
+    const rsm = teamMembers.find(m => m.name === companyForm.owner || m.id === companyForm.ownerId)
     const newCompany = {
       id: createRecordId('company'),
       ...companyForm,
       name: companyForm.name.trim(),
+      ownerId: rsm?.id || companyForm.ownerId || null,
       lastTouch: CURRENT_DATE,
     }
 
@@ -197,20 +200,20 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       await apiFetch(`/api/contacts`, { method: 'POST', body: JSON.stringify(newContact) }).catch(() => {})
     }
 
-    const rsm = teamMembers.find(m => m.name === dealForm.owner)
+    const rsm = teamMembers.find(m => m.name === dealForm.owner || m.id === dealForm.ownerId)
     const newDeal = {
       id: createRecordId('deal'),
       ...dealForm,
       companyId: companyIdToUse,
       contactId: contactIdToUse,
-      ownerId: rsm?.id || null,
       name: dealForm.name.trim(),
-      value: Number(dealForm.value),
-      probability: getProbabilityForStage(dealForm.stage),
+      stage: dealForm.stage || 'New Opportunity',
+      probability: getProbabilityForStage(dealForm.stage || 'New Opportunity'),
+      ownerId: rsm?.id || dealForm.ownerId || null,
+      createdAt: CURRENT_DATE,
     }
 
     setDeals((current) => [newDeal, ...current])
-    showToast(`Deal "${newDeal.name}" saved successfully!`)
 
     try {
       const res = await apiFetch(`/api/deals`, {
@@ -232,6 +235,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
     if (!isExistingId && taskForm.dealId && !existingDeal) {
       // Create new deal if it doesn't exist
+      const rsm = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
       dealIdToUse = createRecordId('deal')
       const newDeal = {
         id: dealIdToUse,
@@ -240,7 +244,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         probability: getProbabilityForStage(taskForm.dealStage || DEAL_STAGES[0]),
         value: Number(taskForm.dealValue) || 0,
         expectedClose: taskForm.expectedClose || null,
-        owner: taskForm.owner,
+        ownerId: rsm?.id || taskForm.ownerId || currentUser?.id || null,
       }
       setDeals((d) => [newDeal, ...d])
       await apiFetch(`/api/deals`, { 
@@ -249,6 +253,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       }).catch(() => {})
     } else if (existingDeal) {
       // Update existing deal with new values from task form
+      const rsm = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
       dealIdToUse = existingDeal.id
       const updatedDeal = {
         ...existingDeal,
@@ -256,7 +261,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         value: taskForm.dealValue !== '' ? Number(taskForm.dealValue) : existingDeal.value,
         expectedClose: taskForm.expectedClose || existingDeal.expectedClose,
         probability: getProbabilityForStage(taskForm.dealStage || existingDeal.stage),
-        owner: taskForm.owner || existingDeal.owner,
+        ownerId: rsm?.id || taskForm.ownerId || existingDeal.ownerId || null,
       }
       
       setDeals((current) => current.map(d => d.id === dealIdToUse ? updatedDeal : d))
@@ -268,19 +273,21 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           stage: updatedDeal.stage,
           value: updatedDeal.value,
           closeDate: updatedDeal.expectedClose,
-          owner: updatedDeal.owner
+          ownerId: updatedDeal.ownerId
         })
       }).catch(() => {})
     } else if (!taskForm.dealId) {
       dealIdToUse = null
     }
 
+    const rsmForTask = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
     const newTask = { 
       id: createRecordId('task'), 
       ...taskForm, 
       dealId: dealIdToUse, 
       title: taskForm.title.trim(), 
       status: 'Open',
+      ownerId: rsmForTask?.id || taskForm.ownerId || currentUser?.id || null,
       stage: taskForm.dealStage // Record the stage context in the activity
     }
 
