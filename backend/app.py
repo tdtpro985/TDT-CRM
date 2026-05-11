@@ -958,7 +958,7 @@ def get_dashboard():
         cursor.execute(converted_query, branch_params)
         converted = cursor.fetchone()[0]
         
-        conversion_rate = round((converted / total_leads * 100)) if total_leads else 0
+        conversion_rate = round((converted / total_leads * 100), 1) if total_leads else 0
 
         # Pipeline value
         if has_branch:

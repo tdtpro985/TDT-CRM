@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import './App.css'
-import { formatCurrencyCompact, matchesSearch } from './utils'
+import { formatCurrencyCompact, matchesSearch, formatPercentage } from './utils'
 import { clearToken, getUser, saveUser } from './api'
 import DashboardView from './views/DashboardView'
 import DatabaseView  from './views/DatabaseView'
@@ -94,7 +94,7 @@ export default function App() {
   const currentMonth     = CURRENT_DATE.slice(0, 7)
   const newLeads         = leads.filter((l) => l.createdAt?.startsWith(currentMonth))
   const convertedLeads   = leads.filter((l) => l.status === 'Converted')
-  const conversionRate   = leads.length ? Math.round((convertedLeads.length / leads.length) * 100) : 0
+  const conversionRate   = leads.length ? formatPercentage((convertedLeads.length / leads.length) * 100) : 0
   const linkedLeadCount  = leads.filter((l) => l.contactNum && l.region).length
   const linkHealth       = leads.length ? Math.round((linkedLeadCount / leads.length) * 100) : 100
   const averageDealSize  = activeDeals.length ? Math.round(pipelineValue / activeDeals.length) : 0
