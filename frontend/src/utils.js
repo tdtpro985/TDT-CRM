@@ -72,6 +72,11 @@ export function getToneClass(value) {
   if (!value) return 'is-neutral'
   const normalizedValue = String(value).toLowerCase()
 
+  if (normalizedValue.includes('unqualified')
+  ) {
+    return 'is-neutral'
+  }
+
   if (
     normalizedValue.includes('won') ||
     normalizedValue.includes('customer') ||
