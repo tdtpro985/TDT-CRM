@@ -29,7 +29,7 @@ function DealCombobox({ deals, dealId, onChange }) {
   )
 }
 
-export default function TaskForm({ onSubmit, onCancel, deals, teamMembers, currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES, dealStages = [] }) {
+export default function TaskForm({ onSubmit, onCancel, deals, currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES, dealStages = [] }) {
   const [taskForm, setTaskForm] = useState({
     title: '',
     type: taskTypes[1],

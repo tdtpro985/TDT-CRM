@@ -49,7 +49,6 @@ def fill_pipeline(conn, branch=None, target_per_stage=ITEMS_PER_PAGE):
             LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
             WHERE d.stage IN ('New Opportunity','Qualified','Proposal','Negotiation')
               AND l.branch = %s
-              AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
         """, (b,))
         total_active = cursor.fetchone()[0]
 
@@ -59,67 +58,63 @@ def fill_pipeline(conn, branch=None, target_per_stage=ITEMS_PER_PAGE):
         needed = target_per_stage - total_active
 
         cursor.execute("""
-            SELECT l.id, l.customer_name, l.sr, l.branch
+            SELECT l.id, l.customer_name, l.branch, l.owner_id
             FROM leads l
             LEFT JOIN deals d ON l.id = d.lead_id
-            WHERE l.status != 'Converted'
-              AND d.id IS NULL
-              AND l.branch = %s
-              AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
-            ORDER BY l.created_at DESC
+            WHERE d.id IS NULL
+              AND l.status = 'New'
             LIMIT %s
-        """, (b, needed))
+        """, (needed,))
+        leads = cursor.fetchall()
 
-        leads_to_convert = cursor.fetchall()
+        for lead in leads:
+            lead_id, customer_name, branch_name, owner_id = lead
+            deal_id = str(uuid.uuid4())
+            value = random.randint(25000, 500000)
+            prob = STAGE_PROBABILITY.get('New Opportunity', 20)
+            expected_close = date.today() + timedelta(days=random.randint(15, 60))
 
-        for lead in leads_to_convert:
-                lead_id, customer_name, sr, branch_name = lead
-                deal_id = str(uuid.uuid4())
-                value = random.randint(25000, 500000)
-                prob = STAGE_PROBABILITY.get('New Opportunity', 20)
-                expected_close = date.today() + timedelta(days=random.randint(15, 60))
+            cursor.execute("""
+                INSERT INTO deals (id, name, lead_id, company_id, stage, value, close_date, probability, owner_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                deal_id,
+                customer_name,
+                lead_id,
+                lead_id,
+                'New Opportunity',
+                value,
+                expected_close,
+                prob,
+                owner_id
+            ))
+
+            cursor.execute("UPDATE leads SET status = 'Converted' WHERE id = %s", (lead_id,))
+
+            num_tasks = random.randint(1, 2)
+            selected_templates = random.sample(TASK_TEMPLATES, num_tasks)
+
+            for template in selected_templates:
+                activity_id = str(uuid.uuid4())
+                day_skew = random.choice([-1, 0, 1, 2, 3])
+                due_date = date.today() + timedelta(days=day_skew)
 
                 cursor.execute("""
-                    INSERT INTO deals (id, name, lead_id, company_id, stage, value, close_date, probability, owner)
+                    INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
+                    activity_id,
+                    template['subject'],
+                    template['type'],
+                    owner_id,
                     deal_id,
-                    customer_name,
-                    lead_id,
-                    lead_id,
-                    'New Opportunity',
-                    value,
-                    expected_close,
-                    prob,
-                    sr
+                    due_date,
+                    template['priority'],
+                    'Open',
+                    f"Automatic task generated for new deal flow from {customer_name}."
                 ))
 
-                cursor.execute("UPDATE leads SET status = 'Converted' WHERE id = %s", (lead_id,))
-
-                num_tasks = random.randint(1, 2)
-                selected_templates = random.sample(TASK_TEMPLATES, num_tasks)
-
-                for template in selected_templates:
-                    activity_id = str(uuid.uuid4())
-                    day_skew = random.choice([-1, 0, 1, 2, 3])
-                    due_date = date.today() + timedelta(days=day_skew)
-
-                    cursor.execute("""
-                        INSERT INTO activities (id, subject, type, owner, deal_id, due_date, priority, status, notes)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (
-                        activity_id,
-                        template['subject'],
-                        template['type'],
-                        sr,
-                        deal_id,
-                        due_date,
-                        template['priority'],
-                        'Open',
-                        f"Automatic task generated for new deal flow from {customer_name}."
-                    ))
-
-                created += 1
+            created += 1
 
     return created
 

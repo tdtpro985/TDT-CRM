@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import './App.css'
-import { formatCurrencyCompact, matchesSearch, formatPercentage } from './utils'
+import { formatCurrencyCompact, matchesSearch } from './utils'
 import { clearToken, getUser, saveUser } from './api'
 import DashboardView from './views/DashboardView'
 import CustomersView from './views/CustomersView'
@@ -84,7 +84,6 @@ export default function App() {
 
   const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
   const { companies, customers, contacts, leads, deals, tasks, teamMembers, loading } = data
-  const teamNames = teamMembers.map(m => m.name)
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 

@@ -47,6 +47,7 @@ export default function PipelineView({
   const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
   const [selectedDeal, setSelectedDeal] = useState(null)
+  const [dealContacts, setDealContacts] = useState([])
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -54,12 +55,13 @@ export default function PipelineView({
     if (location.state?.openDealId) {
       const deal = deals.find(d => d.id === location.state.openDealId)
       if (deal) {
-        setSelectedDeal(deal)
         // Clear state so it doesn't reopen on every navigation
         navigate(location.pathname, { replace: true, state: {} })
         
-        // Scroll to task history after modal opens
+        // Use a slight delay to avoid cascading render issue and ensure state updates correctly
         setTimeout(() => {
+          setSelectedDeal(deal)
+          // Scroll to task history after modal opens
           const section = document.getElementById('task-history-section')
           if (section) {
             section.scrollIntoView({ behavior: 'smooth' })
@@ -72,21 +74,21 @@ export default function PipelineView({
   const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
 
   useEffect(() => {
+    let active = true
     if (selectedDeal) {
-      setLoadingContacts(true)
       apiFetch(`/api/deals/${selectedDeal.id}/contacts`)
         .then(res => res.json())
         .then(data => {
-          setDealContacts(data)
-          setLoadingContacts(false)
+          if (active) setDealContacts(data)
         })
         .catch(err => {
           console.error('Failed to fetch deal contacts:', err)
-          setLoadingContacts(false)
         })
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDealContacts([])
     }
+    return () => { active = false }
   }, [selectedDeal])
 
   const getPaginatedData = (data, page, limit) => {

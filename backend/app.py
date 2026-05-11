@@ -262,9 +262,9 @@ def get_customers():
         # Status logic: Negotiation > Prospect > Converted > New
         query = """
             SELECT 
-                c.id, c.name, c.industry, c.website, c.city, c.owner, c.owner_id AS ownerId, 
+                c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
                 c.status AS companyStatus, c.created_at AS createdAt,
-                l.contact_num AS contactNum, l.address, l.region, l.sr, l.branch,
+                l.contact_num AS contactNum, l.address, l.region, t_lead.name AS sr, l.branch,
                 COALESCE(deal_stats.totalDealCount, 0) AS totalDealCount,
                 COALESCE(deal_stats.activeDealCount, 0) AS activeDealCount,
                 COALESCE(deal_stats.closedWonCount, 0) AS closedWonCount,
@@ -284,7 +284,9 @@ def get_customers():
                     ELSE 'New'
                 END AS customerStatus
             FROM companies c
+            LEFT JOIN team t ON c.owner_id = t.id
             LEFT JOIN leads l ON c.id = l.id
+            LEFT JOIN team t_lead ON l.owner_id = t_lead.id
             LEFT JOIN (
                 SELECT 
                     company_id,
@@ -301,7 +303,7 @@ def get_customers():
             ) deal_stats ON c.id = deal_stats.company_id
         """
         
-        where_clauses = ["(l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')"]
+        where_clauses = ["1=1"]
         params = []
         
         if has_branch_filter(branch):
@@ -331,9 +333,9 @@ def get_customer_detail(customer_id):
         # 1. Fetch Company/Customer info
         cursor.execute("""
             SELECT 
-                c.id, c.name, c.industry, c.website, c.city, c.owner, c.owner_id AS ownerId, 
+                c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
                 c.status AS companyStatus, c.created_at AS createdAt,
-                l.contact_num AS contactNum, l.address, l.region, l.sr, l.branch,
+                l.contact_num AS contactNum, l.address, l.region, t_lead.name AS sr, l.branch,
                 COALESCE(deal_stats.totalDealCount, 0) AS totalDealCount,
                 COALESCE(deal_stats.activeDealCount, 0) AS activeDealCount,
                 COALESCE(deal_stats.closedWonCount, 0) AS closedWonCount,
@@ -348,7 +350,9 @@ def get_customer_detail(customer_id):
                     ELSE 'New'
                 END AS customerStatus
             FROM companies c
+            LEFT JOIN team t ON c.owner_id = t.id
             LEFT JOIN leads l ON c.id = l.id
+            LEFT JOIN team t_lead ON l.owner_id = t_lead.id
             LEFT JOIN (
                 SELECT 
                     company_id,
@@ -375,10 +379,12 @@ def get_customer_detail(customer_id):
         
         # 2. Fetch all deals for this customer
         cursor.execute("""
-            SELECT id, name, stage, value, close_date AS closeDate, probability, owner, created_at AS createdAt
-            FROM deals
-            WHERE company_id = %s
-            ORDER BY created_at DESC
+            SELECT d.id, d.name, d.stage, d.value, d.close_date AS closeDate, d.probability, 
+                   t.name AS owner, d.owner_id AS ownerId, d.created_at AS createdAt
+            FROM deals d
+            LEFT JOIN team t ON d.owner_id = t.id
+            WHERE d.company_id = %s
+            ORDER BY d.created_at DESC
         """, (customer_id,))
         deals = rows_to_list(cursor)
         
@@ -388,10 +394,12 @@ def get_customer_detail(customer_id):
         if deal_ids:
             format_strings = ','.join(['%s'] * len(deal_ids))
             cursor.execute(f"""
-                SELECT id, subject, type, owner, deal_id AS dealId, due_date AS dueDate, priority, status, notes, created_at AS createdAt
-                FROM activities
-                WHERE deal_id IN ({format_strings})
-                ORDER BY created_at DESC
+                SELECT a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId,
+                       a.deal_id AS dealId, a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at AS createdAt
+                FROM activities a
+                LEFT JOIN team t ON a.owner_id = t.id
+                WHERE a.deal_id IN ({format_strings})
+                ORDER BY a.created_at DESC
             """, tuple(deal_ids))
             activities = rows_to_list(cursor)
             
@@ -451,11 +459,11 @@ def get_companies():
         if has_branch_filter(branch):
             cursor.execute(
                 '''
-                SELECT c.id, c.name, c.industry, c.website, c.city, c.owner, c.owner_id AS ownerId, c.status, c.created_at
+                SELECT c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, c.status, c.created_at
                 FROM companies c
+                LEFT JOIN team t ON c.owner_id = t.id
                 INNER JOIN leads l ON l.id = c.id
                 WHERE LOWER(TRIM(l.branch)) = %s
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ORDER BY c.name
                 ''',
                 (normalize_branch(branch),),
@@ -463,10 +471,11 @@ def get_companies():
         else:
             cursor.execute(
                 '''
-                SELECT c.id, c.name, c.industry, c.website, c.city, c.owner, c.owner_id AS ownerId, c.status, c.created_at 
+                SELECT c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, c.status, c.created_at 
                 FROM companies c
+                LEFT JOIN team t ON c.owner_id = t.id
                 LEFT JOIN leads l ON l.id = c.id
-                WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+                WHERE 1=1
                 ORDER BY c.name
                 '''
             )
@@ -489,15 +498,14 @@ def create_company():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO companies (id, name, industry, website, city, owner, owner_id, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO companies (id, name, industry, website, city, owner_id, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
             (
                 data['id'],
                 data['name'],
                 data.get('industry'),
                 data.get('website'),
                 data.get('city'),
-                data.get('owner'),
                 data.get('ownerId'),
                 data.get('status', 'Active'),
             ),
@@ -522,23 +530,24 @@ def get_contacts():
         if has_branch_filter(branch):
             cursor.execute(
                 '''
-                SELECT c.id, c.name, c.company_id AS companyId, c.role, c.owner, c.owner_id AS ownerId,
+                SELECT c.id, c.name, c.company_id AS companyId, c.role, t.name AS owner, c.owner_id AS ownerId,
                        c.email, c.phone, c.last_touch AS lastTouch, c.status, c.created_at
                 FROM contacts c
+                LEFT JOIN team t ON c.owner_id = t.id
                 INNER JOIN leads l ON l.id = c.company_id
                 WHERE LOWER(TRIM(l.branch)) = %s
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ORDER BY c.name
                 ''',
                 (normalize_branch(branch),),
             )
         else:
             cursor.execute(
-                """SELECT c.id, c.name, c.company_id AS companyId, c.role, c.owner, c.owner_id AS ownerId,
+                """SELECT c.id, c.name, c.company_id AS companyId, c.role, t.name AS owner, c.owner_id AS ownerId,
                           c.email, c.phone, c.last_touch AS lastTouch, c.status, c.created_at
                    FROM contacts c
+                   LEFT JOIN team t ON c.owner_id = t.id
                    LEFT JOIN leads l ON l.id = c.company_id
-                   WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+                   WHERE 1=1
                    ORDER BY c.name"""
             )
         return jsonify(rows_to_list(cursor))
@@ -559,14 +568,13 @@ def create_contact():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO contacts (id, name, company_id, role, owner, owner_id, email, phone, last_touch, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO contacts (id, name, company_id, role, owner_id, email, phone, last_touch, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 data['id'],
                 data['name'],
                 data.get('companyId'),
                 data.get('role'),
-                data.get('owner'),
                 data.get('ownerId'),
                 data.get('email'),
                 data.get('phone'),
@@ -609,21 +617,22 @@ def get_leads():
         branch = request.args.get('branch', '')
         if has_branch_filter(branch):
             cursor.execute(
-                """SELECT id, customer_name AS customerName, contact_num AS contactNum,
-                          address, region, sr, owner_id AS ownerId, branch, status, created_at AS createdAt
-                   FROM leads 
-                   WHERE LOWER(TRIM(branch)) = %s 
-                     AND (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')
-                   ORDER BY created_at DESC""",
+                """SELECT l.id, l.customer_name AS customerName, l.contact_num AS contactNum,
+                          l.address, l.region, t.name AS sr, l.owner_id AS ownerId, l.branch, l.status, l.created_at AS createdAt
+                   FROM leads l
+                   LEFT JOIN team t ON l.owner_id = t.id
+                   WHERE LOWER(TRIM(l.branch)) = %s
+                   ORDER BY l.created_at DESC""",
                 (normalize_branch(branch),)
             )
         else:
             cursor.execute(
-                """SELECT id, customer_name AS customerName, contact_num AS contactNum,
-                          address, region, sr, owner_id AS ownerId, branch, status, created_at AS createdAt
-                   FROM leads 
-                   WHERE (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')
-                   ORDER BY created_at DESC"""
+                """SELECT l.id, l.customer_name AS customerName, l.contact_num AS contactNum,
+                          l.address, l.region, t.name AS sr, l.owner_id AS ownerId, l.branch, l.status, l.created_at AS createdAt
+                   FROM leads l
+                   LEFT JOIN team t ON l.owner_id = t.id
+                   WHERE 1=1
+                   ORDER BY l.created_at DESC"""
             )
         return jsonify(rows_to_list(cursor))
     finally:
@@ -646,7 +655,6 @@ def create_lead():
         customer_name = data.get('customerName')
         contact_num = data.get('contactNum')
         branch = data.get('branch')
-        sr = data.get('sr')
         owner_id = data.get('ownerId')
 
         # Validation: Ensure owner_id belongs to the correct branch/region
@@ -664,15 +672,14 @@ def create_lead():
         
         # 1. Insert into leads (Master record matching GSheets)
         cursor.execute(
-            """INSERT INTO leads (id, customer_name, contact_num, address, region, sr, owner_id, branch, status, created_at)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO leads (id, customer_name, contact_num, address, region, owner_id, branch, status, created_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 lead_id,
                 customer_name,
                 contact_num,
                 data.get('address'),
                 data.get('region'),
-                sr,
                 owner_id,
                 branch,
                 data.get('status', 'New'),
@@ -683,19 +690,19 @@ def create_lead():
         # 2. Automatically create a Company record
         # Use lead_id as company_id for direct linking
         cursor.execute(
-            """INSERT INTO companies (id, name, city, owner, owner_id, status)
-               VALUES (%s, %s, %s, %s, %s, %s)
+            """INSERT INTO companies (id, name, city, owner_id, status)
+               VALUES (%s, %s, %s, %s, %s)
                ON DUPLICATE KEY UPDATE name = VALUES(name), owner_id = VALUES(owner_id)""",
-            (lead_id, customer_name, data.get('region'), sr, owner_id, 'Active')
+            (lead_id, customer_name, data.get('region'), owner_id, 'Active')
         )
         
         # 3. Automatically create a Contact record
         import uuid
         contact_id = str(uuid.uuid4())
         cursor.execute(
-            """INSERT INTO contacts (id, name, company_id, owner, owner_id, phone, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
-            (contact_id, customer_name, lead_id, sr, owner_id, contact_num, 'Active')
+            """INSERT INTO contacts (id, name, company_id, owner_id, phone, status)
+               VALUES (%s, %s, %s, %s, %s, %s)""",
+            (contact_id, customer_name, lead_id, owner_id, contact_num, 'Active')
         )
 
         # 4. Add the contact to the deal if it's created via pipeline sync (not applicable here, but good for consistency)
@@ -757,7 +764,7 @@ def get_deals():
                 '''
                 SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
                        d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
-                       d.probability, d.owner, d.owner_id AS ownerId, d.created_at,
+                       d.probability, t.name AS owner, d.owner_id AS ownerId, d.created_at,
                        COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
                        CASE
                            WHEN urgency.hasOverdue = 1 THEN 'Overdue'
@@ -773,6 +780,7 @@ def get_deals():
                        ) AS lastTouch,
                        CASE WHEN agos.agosCount > 0 THEN 1 ELSE 0 END AS isAgos
                 FROM deals d
+                LEFT JOIN team t ON d.owner_id = t.id
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 LEFT JOIN (
                     SELECT a.deal_id,
@@ -807,7 +815,6 @@ def get_deals():
                     GROUP BY a.deal_id
                 ) agos ON agos.deal_id = d.id
                 WHERE LOWER(TRIM(l.branch)) = %s
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ORDER BY urgencyScore DESC, d.created_at DESC
                 ''',
                 (normalize_branch(branch),),
@@ -816,7 +823,7 @@ def get_deals():
             cursor.execute(
                 """SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
                           d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
-                          d.probability, d.owner, d.owner_id AS ownerId, d.created_at,
+                          d.probability, t.name AS owner, d.owner_id AS ownerId, d.created_at,
                           COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
                           CASE
                               WHEN urgency.hasOverdue = 1 THEN 'Overdue'
@@ -832,6 +839,7 @@ def get_deals():
                           ) AS lastTouch,
                           CASE WHEN agos.agosCount > 0 THEN 1 ELSE 0 END AS isAgos
                    FROM deals d
+                   LEFT JOIN team t ON d.owner_id = t.id
                    LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                    LEFT JOIN (
                        SELECT a.deal_id,
@@ -865,7 +873,7 @@ def get_deals():
                        FROM activities a
                        GROUP BY a.deal_id
                    ) agos ON agos.deal_id = d.id
-                   WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+                   WHERE 1=1
                      AND l.branch IS NOT NULL
                    ORDER BY urgencyScore DESC, d.created_at DESC"""
             )
@@ -910,8 +918,8 @@ def create_deal():
                             return jsonify({'error': f'Owner branch ({team_row[0]}) mismatch with lead/deal branch ({lead_row[0]})'}), 400
 
         cursor.execute(
-            """INSERT INTO deals (id, name, company_id, contact_id, lead_id, stage, value, close_date, probability, owner, owner_id)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO deals (id, name, company_id, contact_id, lead_id, stage, value, close_date, probability, owner_id)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 data['id'],
                 data['name'],
@@ -922,7 +930,6 @@ def create_deal():
                 data.get('value', 0),
                 data.get('closeDate') or data.get('expectedClose') or None,
                 probability,
-                data.get('owner'),
                 data.get('ownerId'),
             ),
         )
@@ -972,10 +979,10 @@ def update_deal_stage(deal_id):
             params.append(new_close)
             log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close))
             
-        if new_owner:
-            updates.append('owner = %s')
-            params.append(new_owner)
-            log_audit(conn, 'deal', deal_id, 'owner_change', old_owner, new_owner)
+        if data.get('ownerId'):
+            updates.append('owner_id = %s')
+            params.append(data.get('ownerId'))
+            log_audit(conn, 'deal', deal_id, 'owner_id_change', str(row[3]), str(data.get('ownerId')))
 
         if not updates:
             return jsonify({'message': 'No updates provided'}), 400
@@ -1012,13 +1019,13 @@ def get_activities():
         if has_branch_filter(branch):
             cursor.execute(
                 '''
-                SELECT a.id, a.subject, a.type, a.owner, a.deal_id AS dealId,
+                SELECT a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId, a.deal_id AS dealId,
                        a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage
                 FROM activities a
+                LEFT JOIN team t ON a.owner_id = t.id
                 LEFT JOIN deals d ON d.id = a.deal_id
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE LOWER(TRIM(l.branch)) = %s
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ORDER BY
                     CASE
                         WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1
@@ -1033,12 +1040,13 @@ def get_activities():
             )
         else:
             cursor.execute(
-                """SELECT a.id, a.subject, a.type, a.owner, a.deal_id AS dealId,
+                """SELECT a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId, a.deal_id AS dealId,
                           a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage
                    FROM activities a
+                   LEFT JOIN team t ON a.owner_id = t.id
                    LEFT JOIN deals d ON d.id = a.deal_id
                    LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                   WHERE (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
+                   WHERE 1=1
                    ORDER BY
                        CASE
                            WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1
@@ -1067,13 +1075,13 @@ def create_activity():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO activities (id, subject, type, owner, deal_id, due_date, priority, status, notes, stage)
+            """INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes, stage)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 data['id'],
                 data['subject'],
                 data.get('type', 'Follow-up'),
-                data.get('owner'),
+                data.get('ownerId'),
                 data.get('dealId') or None,
                 data.get('dueDate') or None,
                 data.get('priority', 'Medium'),
@@ -1131,7 +1139,7 @@ def get_dashboard():
 
         # New leads this month
         new_leads_query = "SELECT COUNT(*) FROM leads WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"
-        new_leads_query += " AND (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')"
+        new_leads_query += ""
         if has_branch:
             new_leads_query += " AND LOWER(TRIM(branch)) = %s"
         cursor.execute(new_leads_query, branch_params)
@@ -1146,7 +1154,6 @@ def get_dashboard():
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
                   AND LOWER(TRIM(l.branch)) = %s
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ''',
                 branch_params,
             )
@@ -1157,7 +1164,6 @@ def get_dashboard():
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
                   AND l.branch IS NOT NULL
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
             """)
         active_deals = cursor.fetchone()[0]
 
@@ -1169,7 +1175,6 @@ def get_dashboard():
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE LOWER(TRIM(l.branch)) = %s
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 GROUP BY d.stage
                 ''',
                 branch_params,
@@ -1180,19 +1185,18 @@ def get_dashboard():
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE l.branch IS NOT NULL
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 GROUP BY d.stage
             """)
         deals_per_stage = rows_to_list(cursor)
 
         # Conversion rate
-        leads_query = "SELECT COUNT(*) FROM leads WHERE (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')"
+        leads_query = "SELECT COUNT(*) FROM leads WHERE 1=1"
         if has_branch:
             leads_query += " AND LOWER(TRIM(branch)) = %s"
         cursor.execute(leads_query, branch_params)
         total_leads = cursor.fetchone()[0]
         
-        converted_query = "SELECT COUNT(*) FROM leads WHERE status = 'Converted' AND (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')"
+        converted_query = "SELECT COUNT(*) FROM leads WHERE status = 'Converted'"
         if has_branch:
             converted_query += " AND LOWER(TRIM(branch)) = %s"
         cursor.execute(converted_query, branch_params)
@@ -1209,7 +1213,6 @@ def get_dashboard():
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
                   AND LOWER(TRIM(l.branch)) = %s
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
                 ''',
                 branch_params,
             )
@@ -1220,7 +1223,6 @@ def get_dashboard():
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
                   AND l.branch IS NOT NULL
-                  AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
             """)
         pipeline_value = float(cursor.fetchone()[0])
 
@@ -1323,7 +1325,7 @@ def admin_analytics():
         cursor.execute('''
             SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted 
             FROM leads 
-            WHERE (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')
+            WHERE 1=1
             GROUP BY branch ORDER BY branch
         ''')
         leads_per_branch = rows_to_list(cursor)
@@ -1336,7 +1338,6 @@ def admin_analytics():
             FROM deals d
             LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
             WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
-              AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
             GROUP BY l.branch
             ORDER BY l.branch
         ''')
@@ -1346,7 +1347,7 @@ def admin_analytics():
         cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters'")
         total_users = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COUNT(*) FROM leads WHERE (sr IS NULL OR LOWER(TRIM(sr)) != 'manila.tdtpowersteel')")
+        cursor.execute("SELECT COUNT(*) FROM leads WHERE 1=1")
         total_leads = cursor.fetchone()[0]
 
         cursor.execute('''
@@ -1354,7 +1355,6 @@ def admin_analytics():
             FROM deals d
             LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
             WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
-              AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
         ''')
         active_deals = cursor.fetchone()[0]
 
@@ -1363,7 +1363,6 @@ def admin_analytics():
             FROM deals d
             LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
             WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
-              AND (l.sr IS NULL OR LOWER(TRIM(l.sr)) != 'manila.tdtpowersteel')
         ''')
         pipeline_value = float(cursor.fetchone()[0])
 
@@ -1565,6 +1564,15 @@ def add_deal_contact(deal_id):
 def health_check():
     return jsonify({'status': 'healthy'}), 200
 
+
+from database.migrate_v2 import run_migration_v2
+
+# Run non-destructive migration on startup
+try:
+    print("Checking database schema...")
+    run_migration_v2()
+except Exception as e:
+    print(f"Warning: Startup migration failed: {e}")
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
