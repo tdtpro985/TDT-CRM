@@ -131,7 +131,7 @@ REGION_BRANCHES = {
 }
 
 
-def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))'):
+def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested_region=''):
     """
     Returns (where_parts, restrict_owner, params) for role-based data filtering.
     where_parts: SQL fragment list using `col` for branch matching.
@@ -159,6 +159,10 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))'):
     if role == 'Head of Sales':
         if has_branch_filter(requested_branch):
             return ([f'{col} = %s'], False, [normalize_branch(requested_branch)])
+        if requested_region and requested_region in REGION_BRANCHES:
+            region_branches = [normalize_branch(b) for b in REGION_BRANCHES[requested_region]]
+            ph = ', '.join(['%s'] * len(region_branches))
+            return ([f'{col} IN ({ph})'], False, region_branches)
         return ([], False, [])
 
     # Default: branch accounts ('Sales Rep') and any unrecognised role
@@ -300,7 +304,8 @@ def get_customers():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
-        
+        region = request.args.get('region', '')
+
         # Base query for customers with computed status and KPIs
         # Status logic: Negotiation > Prospect > Converted > New
         query = """
@@ -348,7 +353,7 @@ def get_customers():
         
         claims = get_jwt()
         user_id = get_jwt_identity()
-        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
         where_clauses = ["1=1"] + list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
@@ -542,9 +547,10 @@ def get_companies():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
+        region = request.args.get('region', '')
         claims = get_jwt()
         user_id = get_jwt_identity()
-        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
@@ -607,9 +613,10 @@ def get_contacts():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
+        region = request.args.get('region', '')
         claims = get_jwt()
         user_id = get_jwt_identity()
-        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
@@ -690,9 +697,10 @@ def get_leads():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
+        region = request.args.get('region', '')
         claims = get_jwt()
         user_id = get_jwt_identity()
-        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
@@ -883,9 +891,10 @@ def get_deals():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
+        region = request.args.get('region', '')
         claims = get_jwt()
         user_id = get_jwt_identity()
-        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
         where_parts = list(scope_parts) + ['l.branch IS NOT NULL']
         params = list(scope_params)
         if restrict_owner:
@@ -1094,9 +1103,10 @@ def get_activities():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
+        region = request.args.get('region', '')
         claims = get_jwt()
         user_id = get_jwt_identity()
-        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
@@ -1202,12 +1212,13 @@ def get_dashboard():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
+        region = request.args.get('region', '')
         claims = get_jwt()
         user_id = get_jwt_identity()
 
         # Branch scope for joined-leads queries (l alias) and direct leads queries
-        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
-        direct_parts, _, direct_params = build_scope(claims, branch, col='LOWER(TRIM(branch))')
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
+        direct_parts, _, direct_params = build_scope(claims, branch, col='LOWER(TRIM(branch))', requested_region=region)
 
         # Build WHERE fragments for joined (deals+leads) and direct (leads) queries
         deal_where = list(scope_parts) + ['l.branch IS NOT NULL']
