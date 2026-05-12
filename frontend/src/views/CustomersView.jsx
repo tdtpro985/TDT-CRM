@@ -3,7 +3,7 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import { formatDateLabel, formatCurrencyCompact, getToneClass } from '../utils'
+import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId } from '../utils'
 import LeadForm from '../components/forms/LeadForm'
 import { apiFetch } from '../api'
 
@@ -111,6 +111,15 @@ export default function CustomersView({
 
   const paginatedCustomers = getPaginatedData(filteredCustomers, page)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [companyContacts, setCompanyContacts] = useState([])
+
+  useEffect(() => {
+    if (customerDetail?.contacts) {
+      setCompanyContacts(customerDetail.contacts.map(c => ({ ...c, isEditing: false, isNew: false })))
+    } else {
+      setCompanyContacts([])
+    }
+  }, [customerDetail?.contacts])
 
   // KPI Calculations for the selected customer
   const winLossRatio = customerDetail?.customer?.winLossRatio ?? '—'
@@ -183,7 +192,6 @@ export default function CustomersView({
                           <strong>{customer.name}</strong>
                           <p>{customer.city || customer.region || '—'}</p>
                         </div>
-                        <p>Owner: {customer.owner || customer.sr || '—'}</p>
                         <div className="contact-card__meta">
                           <span>{customer.branch || 'No branch'}</span>
                         </div>
@@ -319,14 +327,193 @@ export default function CustomersView({
       >
         <div style={{ padding: '0 24px 24px' }}>
           <div className="detail-list">
+            <div><span>Region</span><strong>{selectedCustomer?.city || selectedCustomer?.region || '—'}</strong></div>
+            <div><span>Branch</span><strong>{selectedCustomer?.branch ?? '—'}</strong></div>
+            <div><span>Address</span><strong>{selectedCustomer?.address ?? '—'}</strong></div>
             <div><span>Industry</span><strong>{selectedCustomer?.industry ?? '—'}</strong></div>
             <div><span>Website</span><strong>{selectedCustomer?.website ?? '—'}</strong></div>
-            <div><span>Phone</span><strong>{selectedCustomer?.contactNum ?? '—'}</strong></div>
-            <div><span>Owner</span><strong>{selectedCustomer?.owner ?? selectedCustomer?.sr ?? '—'}</strong></div>
-            <div><span>Branch</span><strong>{selectedCustomer?.branch ?? '—'}</strong></div>
-            <div><span>City/Region</span><strong>{selectedCustomer?.city || selectedCustomer?.region || '—'}</strong></div>
-            <div><span>Address</span><strong>{selectedCustomer?.address ?? '—'}</strong></div>
           </div>
+
+          <div className="section-header" style={{ marginTop: '24px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Contacts</h4>
+            <button
+              type="button"
+              title="Add contact"
+              onClick={() => {
+                setCompanyContacts(prev => [{
+                  id: createRecordId('contact'),
+                  name: '',
+                  role: '',
+                  email: '',
+                  phone: '',
+                  isEditing: true,
+                  isNew: true,
+                }, ...prev])
+              }}
+              style={{
+                width: '28px', height: '28px', borderRadius: '50%',
+                border: '1px solid var(--accent)', background: 'transparent',
+                color: 'var(--accent)', fontSize: '16px', lineHeight: 1,
+                cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+                justifyContent: 'center', padding: 0,
+              }}
+            >+</button>
+          </div>
+
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Role</th>
+                  <th>Email</th>
+                  <th>Number</th>
+                  <th style={{ width: '60px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {companyContacts.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="admin-table__muted" style={{ textAlign: 'center', padding: '16px' }}>
+                      No contacts for this company.
+                    </td>
+                  </tr>
+                ) : (
+                  companyContacts.map((contact, idx) => (
+                    <tr key={contact.id}>
+                      {contact.isEditing ? (
+                        <>
+                          <td>
+                            <input
+                              value={contact.name}
+                              onChange={e => {
+                                const val = e.target.value
+                                setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, name: val } : c))
+                              }}
+                              placeholder="Name *"
+                              style={{ width: '100%', boxSizing: 'border-box' }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              value={contact.role}
+                              onChange={e => {
+                                const val = e.target.value
+                                setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, role: val } : c))
+                              }}
+                              placeholder="Role"
+                              style={{ width: '100%', boxSizing: 'border-box' }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              value={contact.email}
+                              onChange={e => {
+                                const val = e.target.value
+                                setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, email: val } : c))
+                              }}
+                              placeholder="Email"
+                              style={{ width: '100%', boxSizing: 'border-box' }}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              value={contact.phone}
+                              onChange={e => {
+                                const val = e.target.value
+                                setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c))
+                              }}
+                              placeholder="Number"
+                              style={{ width: '100%', boxSizing: 'border-box' }}
+                            />
+                          </td>
+                          <td style={{ whiteSpace: 'nowrap' }}>
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              style={{ fontSize: '11px', padding: '2px 6px', marginRight: '4px' }}
+                              onClick={async () => {
+                                const c = companyContacts[idx]
+                                if (!c.name) return
+                                if (!c.email && !c.phone) return
+
+                                const payload = {
+                                  ...(c.isNew ? {
+                                    id: c.id,
+                                    companyId: selectedCustomer?.id,
+                                    ownerId: currentUser?.id || null,
+                                    lastTouch: new Date().toISOString().split('T')[0],
+                                    status: 'Active',
+                                  } : {}),
+                                  name: c.name,
+                                  role: c.role,
+                                  email: c.email,
+                                  phone: c.phone,
+                                }
+
+                                try {
+                                  if (c.isNew) {
+                                    const res = await apiFetch('/api/contacts', {
+                                      method: 'POST',
+                                      body: JSON.stringify(payload),
+                                    })
+                                    if (!res.ok) return
+                                  } else {
+                                    await apiFetch(`/api/contacts/${c.id}`, {
+                                      method: 'PUT',
+                                      body: JSON.stringify({ name: c.name, role: c.role, email: c.email, phone: c.phone }),
+                                    })
+                                  }
+                                  setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false, isNew: false } : c2))
+                                } catch (e) {
+                                  console.error('Failed to save contact:', e)
+                                }
+                              }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              style={{ fontSize: '11px', padding: '2px 6px' }}
+                              onClick={() => {
+                                if (contact.isNew) {
+                                  setCompanyContacts(prev => prev.filter((_, i) => i !== idx))
+                                } else {
+                                  setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false } : c2))
+                                }
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="admin-table__name">{contact.name}</td>
+                          <td className="admin-table__muted">{contact.role || '—'}</td>
+                          <td className="admin-table__muted">{contact.email || '—'}</td>
+                          <td className="admin-table__muted">{contact.phone || '—'}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="ghost-button"
+                              title="Edit"
+                              style={{ fontSize: '11px', padding: '2px 6px' }}
+                              onClick={() => setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: true } : c2))}
+                            >
+                              Edit
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
           <div style={{ marginTop: '24px' }}>
             <button 
               type="button" 
