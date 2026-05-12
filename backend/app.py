@@ -415,11 +415,22 @@ def get_customer_detail(customer_id):
             """, tuple(deal_ids))
             audit_logs = rows_to_list(cursor)
             
+        # 5. Fetch contacts for this company
+        cursor.execute(
+            """SELECT id, name, role, email, phone
+               FROM contacts
+               WHERE company_id = %s
+               ORDER BY name""",
+            (customer_id,)
+        )
+        contacts = rows_to_list(cursor)
+
         return jsonify({
             'customer': customer_data,
             'deals': deals,
             'activities': activities,
-            'auditLogs': audit_logs
+            'auditLogs': audit_logs,
+            'contacts': contacts,
         })
     finally:
         close_connection(conn)
@@ -561,6 +572,8 @@ def create_contact():
     data = request.get_json()
     if not all(k in data for k in ['id', 'name']):
         return jsonify({'error': 'id and name are required'}), 400
+    if not data.get('email') and not data.get('phone'):
+        return jsonify({'error': 'email or phone is required'}), 400
 
     conn = get_db_connection()
     if not conn:
@@ -584,6 +597,61 @@ def create_contact():
         )
         conn.commit()
         return jsonify({'message': 'Contact created', 'id': data['id']}), 201
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/contacts/<contact_id>', methods=['PUT'])
+@jwt_required()
+def update_contact(contact_id):
+    data = request.get_json()
+    name = data.get('name')
+    role = data.get('role')
+    email = data.get('email')
+    phone = data.get('phone')
+
+    if not name:
+        return jsonify({'error': 'name is required'}), 400
+    if not email and not phone:
+        return jsonify({'error': 'email or phone is required'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT name, role, email, phone FROM contacts WHERE id = %s", (contact_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Contact not found'}), 404
+
+        old_name, old_role, old_email, old_phone = row
+
+        updates = []
+        params = []
+        if name != old_name:
+            updates.append('name = %s')
+            params.append(name)
+        if role != old_role:
+            updates.append('role = %s')
+            params.append(role)
+        if email != old_email:
+            updates.append('email = %s')
+            params.append(email)
+        if phone != old_phone:
+            updates.append('phone = %s')
+            params.append(phone)
+
+        if updates:
+            params.append(contact_id)
+            cursor.execute(f'UPDATE contacts SET {", ".join(updates)} WHERE id = %s', params)
+            log_audit(conn, 'contact', contact_id, 'update',
+                      str({'name': old_name, 'role': old_role, 'email': old_email, 'phone': old_phone}),
+                      str({'name': name, 'role': role, 'email': email, 'phone': phone}))
+            conn.commit()
+
+        return jsonify({'message': 'Contact updated', 'id': contact_id})
     finally:
         close_connection(conn)
 
