@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS deals (
     close_date  DATE,
     probability INT            DEFAULT 20,
     owner_id    INT,
+    branch      VARCHAR(100),
     created_at  DATE           DEFAULT (CURRENT_DATE),
     FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL,
     FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL,
@@ -100,6 +101,8 @@ CREATE TABLE IF NOT EXISTS activities (
     priority   VARCHAR(50)  DEFAULT 'Medium',
     status     VARCHAR(50)  DEFAULT 'Open',
     notes      TEXT,
+    stage      VARCHAR(100),
+    contact_name VARCHAR(255),
     created_at DATE         DEFAULT (CURRENT_DATE),
     FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL,
     FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE SET NULL

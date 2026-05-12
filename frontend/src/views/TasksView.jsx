@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
@@ -10,9 +11,12 @@ export default function TasksView({
   openTasks,
   dueToday,
   deals,
+  companies,
   companyMap,
   taskFilter,
   setTaskFilter,
+  taskCompanyFilter,
+  setTaskCompanyFilter,
   handleTaskStatusToggle,
   currentPage,
   setCurrentPage
@@ -35,6 +39,16 @@ export default function TasksView({
 
   const completedCount = tasks.filter((t) => t.status === 'Completed').length
   const highPriorityCount = openTasks.filter((t) => t.priority === 'High').length
+  
+  const uniqueCompanies = useMemo(() => {
+    const names = tasks.map(t => {
+      if (t.companyName) return t.companyName
+      const deal = deals.find(d => d.id === t.dealId)
+      if (deal) return companyMap[deal.companyId]?.name
+      return null
+    })
+    return Array.from(new Set(names)).filter(Boolean).sort()
+  }, [tasks, deals, companyMap])
 
   return (
     <>
@@ -67,6 +81,39 @@ export default function TasksView({
                   <option value="completed">Completed</option>
                 </select>
               </label>
+
+              <label className="filter-wrap">
+                <span>Company</span>
+                <div className="combobox-filter">
+                  <input
+                    type="text"
+                    value={taskCompanyFilter === 'all' ? '' : taskCompanyFilter}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setTaskCompanyFilter(val || 'all')
+                      setCurrentPage(1)
+                    }}
+                    placeholder="Search company..."
+                    list="company-filter-options"
+                    autoComplete="off"
+                    style={{
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--r-md)',
+                      color: 'var(--text-strong)',
+                      padding: '4px 12px',
+                      fontSize: '0.875rem',
+                      outline: 'none',
+                      width: '180px'
+                    }}
+                  />
+                  <datalist id="company-filter-options">
+                    {uniqueCompanies.map(company => (
+                      <option key={company} value={company} />
+                    ))}
+                  </datalist>
+                </div>
+              </label>
             </div>
           }
         >
@@ -83,6 +130,7 @@ export default function TasksView({
                         <div style={{ paddingRight: '110px' }}>
                           <strong style={{ display: 'block' }}>{task.title}</strong>
                           <p style={{ margin: '4px 0 0' }}>{task.type} | {task.owner}</p>
+                          {task.contact && <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Contact: {task.contact}</p>}
                         </div>
                         <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                           <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
@@ -98,9 +146,14 @@ export default function TasksView({
                         </div>
                       </div>
                       <p className="activity-notes" style={{ paddingRight: '110px' }}>
-                        Linked to {linkedDeal?.name ?? 'manual task'} for{' '}
-                        {linkedDeal ? companyMap[linkedDeal.companyId]?.name : 'general CRM work'}.
+                        Linked to {linkedDeal?.name ?? 'manual task'}
+                        {task.companyName && <> for <strong>{task.companyName}</strong></>}.
                       </p>
+                      {task.notes && (
+                        <p className="activity-notes" style={{ marginTop: '8px', fontSize: '0.875rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                          "{task.notes}"
+                        </p>
+                      )}
                       <div className="activity-card__footer">
                         <span>Due {formatDateLabel(task.dueDate)}</span>
                         <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id, task.status)}>
@@ -179,16 +232,18 @@ export default function TasksView({
                     <p style={{ margin: '4px 0 0' }}>{task.owner} | due {formatDateLabel(task.dueDate)}</p>
                   </div>
                   <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                    <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button 
+                        type="button" 
+                        className="ghost-button" 
+                        style={{ fontSize: '11px', padding: '0', textDecoration: 'underline' }}
+                        onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
+                      >
+                        View
+                      </button>
+                      <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
+                    </div>
                     <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
-                    <button 
-                      type="button" 
-                      className="ghost-button" 
-                      style={{ fontSize: '11px', padding: '2px 8px', marginTop: '4px', textDecoration: 'underline' }}
-                      onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
-                    >
-                      View
-                    </button>
                   </div>
                 </article>
               ))}

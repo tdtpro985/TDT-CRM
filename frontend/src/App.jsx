@@ -24,6 +24,12 @@ const LEAD_SOURCES   = ['Website', 'Referral', 'Outbound', 'Event', 'Email']
 
 const SHORT_STAGE_LABEL = { 'New Opportunity': 'New', 'Closed Won': 'Won', 'Closed Lost': 'Lost' }
 
+const REGION_BRANCHES = {
+  'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
+  'North Luzon': ['Ilocos', 'Isabela'],
+  'Vis&Min':     ['Gensan', 'Iloilo', 'Cebu', 'Davao', 'CDO'],
+}
+
 const NAV_CONFIG = [
   { id: 'dashboard', label: 'Dashboard',         description: '5 KPI overview' },
   { id: 'database',  label: 'Customer Database',  description: 'Customer records and registry' },
@@ -51,6 +57,7 @@ export default function App() {
   const [stageFilter, setStageFilter]       = useState('all')
   const [leadStatusFilter, setLeadStatusFilter] = useState('all')
   const [taskFilter, setTaskFilter]         = useState('open')
+  const [taskCompanyFilter, setTaskCompanyFilter] = useState('all')
 
   const [leadPage, setLeadPage]             = useState(1)
   const [pipelinePage, setPipelinePage]     = useState(1)
@@ -83,7 +90,8 @@ export default function App() {
   }
 
   const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
-  const { companies, customers, contacts, leads, deals, tasks, teamMembers, loading } = data
+  const { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch } = data
+  const { setActiveBranch, reassignLead } = actions
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
@@ -133,13 +141,21 @@ export default function App() {
   ), [deals, stageFilter, searchQuery, companyMap, contactMap])
 
   const filteredTasks = useMemo(() => tasks.filter(
-    (t) =>
-      (taskFilter === 'all' || 
-       (taskFilter === 'open' && t.status === 'Open') || 
-       (taskFilter === 'completed' && t.status === 'Completed') ||
-       (taskFilter === 'reopened' && t.status === 'Reopened')) &&
-      matchesSearch(searchQuery, [t.title, t.type, t.owner, deals.find((d) => d.id === t.dealId)?.name]),
-  ), [tasks, taskFilter, searchQuery, deals])
+    (t) => {
+      const deal = deals.find((d) => d.id === t.dealId)
+      const companyName = t.companyName || companyMap[deal?.companyId]?.name || ''
+      
+      return (
+        (taskFilter === 'all' || 
+         (taskFilter === 'open' && t.status === 'Open') || 
+         (taskFilter === 'completed' && t.status === 'Completed') ||
+         (taskFilter === 'reopened' && t.status === 'Reopened')) &&
+        (taskCompanyFilter === 'all' || taskCompanyFilter === '' || 
+         companyName.toLowerCase().includes(taskCompanyFilter.toLowerCase())) &&
+        matchesSearch(searchQuery, [t.title, t.type, t.owner, deal?.name, companyName])
+      )
+    }
+  ), [tasks, taskFilter, taskCompanyFilter, searchQuery, deals, companyMap])
 
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
 
@@ -248,6 +264,7 @@ export default function App() {
             statusFilter={leadStatusFilter}
             setStatusFilter={setLeadStatusFilter}
             onCreateCustomer={handleCreateLead}
+            onReassignLead={reassignLead}
             linkHealth={linkHealth}
             showCustomerForm={showLeadForm}
             setShowCustomerForm={setShowLeadForm}
@@ -292,6 +309,7 @@ export default function App() {
             openTasks={openTasks}
             dueToday={dueToday}
             deals={deals}
+            companies={companies}
             companyMap={companyMap}
             taskTypes={TASK_TYPES}
             taskPriorities={TASK_PRIORITIES}
@@ -299,6 +317,8 @@ export default function App() {
             teamMembers={teamMembers}
             taskFilter={taskFilter}
             setTaskFilter={setTaskFilter}
+            taskCompanyFilter={taskCompanyFilter}
+            setTaskCompanyFilter={setTaskCompanyFilter}
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
             showTaskForm={showTaskForm}
@@ -342,6 +362,9 @@ export default function App() {
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
           <p className="brand-name">Sales CRM</p>
           <div className="brand-branch-badge">{currentUser.branch}</div>
+          {currentUser.role && currentUser.role !== 'Sales Rep' && (
+            <div className="brand-branch-badge" style={{ marginTop: '4px', opacity: 0.75, fontSize: '0.7rem' }}>{currentUser.role}</div>
+          )}
         </div>
 
         <nav className="sidebar-nav" aria-label="Primary CRM navigation">
@@ -363,6 +386,49 @@ export default function App() {
           ))}
 
         </nav>
+
+        {/* Branch / Region filter — only for Head of Sales and Regional Sales Manager */}
+        {(currentUser.role === 'Head of Sales' || currentUser.role === 'Regional Sales Manager') && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+            <p className="nav-section-label" style={{ marginBottom: '8px' }}>Viewing Branch</p>
+
+            {currentUser.role === 'Head of Sales' && (
+              <>
+                <select
+                  style={{ width: '100%', marginBottom: '6px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.8rem' }}
+                  value={Object.keys(REGION_BRANCHES).find(r => REGION_BRANCHES[r].includes(activeBranch)) ?? ''}
+                  onChange={e => {
+                    const region = e.target.value
+                    if (region) setActiveBranch(REGION_BRANCHES[region][0])
+                    else setActiveBranch(currentUser.branch)
+                  }}
+                >
+                  <option value="">All Regions</option>
+                  {Object.keys(REGION_BRANCHES).map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <select
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.8rem' }}
+                  value={activeBranch}
+                  onChange={e => setActiveBranch(e.target.value)}
+                >
+                  {(Object.values(REGION_BRANCHES).flat()).map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </>
+            )}
+
+            {currentUser.role === 'Regional Sales Manager' && (
+              <select
+                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.8rem' }}
+                value={activeBranch}
+                onChange={e => setActiveBranch(e.target.value)}
+              >
+                {(REGION_BRANCHES[currentUser.region] ?? [currentUser.branch]).map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
 
         <div className="sidebar-footer">
           <p className="sidebar-label">Today's pulse</p>
@@ -448,6 +514,7 @@ export default function App() {
       >
         <TaskForm
           deals={deals}
+          companies={companies}
           teamMembers={teamMembers}
           taskTypes={TASK_TYPES}
           taskPriorities={TASK_PRIORITIES}
