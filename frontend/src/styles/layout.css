@@ -9,19 +9,41 @@
   background: #0a0e17;
 }
 
+.sidebar-hover-trigger {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 100vh;
+  z-index: 298;
+  background: transparent;
+}
+
+@media (max-width: 768px) {
+  .sidebar-hover-trigger {
+    display: none;
+  }
+}
+
 .sidebar {
-  width: 260px;
-  min-width: 220px;
-  max-width: 280px;
-  flex-shrink: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100vh;
+  z-index: 300;
+  border-radius: 0;
+  border-top: none;
+  border-left: none;
+  border-bottom: none;
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: var(--pad-panel);
-  border-radius: var(--r-lg);
-  height: 100%;
   overflow-y: auto;
   scrollbar-width: none;
+  transform: translateX(-100%);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   background:
     linear-gradient(160deg, rgba(255,255,255,0.03) 0%, transparent 60%),
     var(--bg-card);
@@ -30,6 +52,11 @@
 }
 
 .sidebar::-webkit-scrollbar { display: none; }
+
+.sidebar.is-open {
+  transform: translateX(0);
+  box-shadow: 4px 0 32px rgba(0,0,0,0.5);
+}
 
 /* ── 2. Sidebar & Brand ─────────────────────────────────────── */
 
@@ -312,11 +339,24 @@
 /* ── Mobile Sidebar Overlay ──────────────────────────────────── */
 
 .sidebar-overlay {
-  display: none;
+  display: block;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(2px);
+  z-index: 299;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.sidebar-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .hamburger-btn {
-  display: none;
+  display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 5px;
@@ -343,7 +383,7 @@
 .hamburger-btn.is-open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
 
 .mobile-brand {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 10px;
 }

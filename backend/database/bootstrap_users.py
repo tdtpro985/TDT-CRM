@@ -15,6 +15,7 @@ DEFAULT_USERS = [
         'email': 'manila@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Manila',
+        'region': 'Central',
     },
     {
         'username': 'batangas.tdtpowersteel',
@@ -22,6 +23,7 @@ DEFAULT_USERS = [
         'email': 'batangas@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Batangas',
+        'region': 'Central',
     },
     {
         'username': 'cavite.tdtpowersteel',
@@ -29,6 +31,7 @@ DEFAULT_USERS = [
         'email': 'cavite@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Cavite',
+        'region': 'Central',
     },
     {
         'username': 'cdo.tdtpowersteel',
@@ -36,6 +39,7 @@ DEFAULT_USERS = [
         'email': 'cdo@tdt.com',
         'role': 'Sales Rep',
         'branch': 'CDO',
+        'region': 'Vis&Min',
     },
     {
         'username': 'cebu.tdtpowersteel',
@@ -43,6 +47,7 @@ DEFAULT_USERS = [
         'email': 'cebu@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Cebu',
+        'region': 'Vis&Min',
     },
     {
         'username': 'davao.tdtpowersteel',
@@ -50,6 +55,7 @@ DEFAULT_USERS = [
         'email': 'davao@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Davao',
+        'region': 'Vis&Min',
     },
     {
         'username': 'isabela.tdtpowersteel',
@@ -57,6 +63,7 @@ DEFAULT_USERS = [
         'email': 'isabela@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Isabela',
+        'region': 'North Luzon',
     },
     {
         'username': 'iloilo.tdtpowersteel',
@@ -64,6 +71,7 @@ DEFAULT_USERS = [
         'email': 'iloilo@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Iloilo',
+        'region': 'Vis&Min',
     },
     {
         'username': 'ilocos.tdtpowersteel',
@@ -71,6 +79,7 @@ DEFAULT_USERS = [
         'email': 'ilocos@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Ilocos',
+        'region': 'North Luzon',
     },
     {
         'username': 'gensan.tdtpowersteel',
@@ -78,6 +87,7 @@ DEFAULT_USERS = [
         'email': 'gensan@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Gensan',
+        'region': 'Vis&Min',
     },
     {
         'username': 'legazpi.tdtpowersteel',
@@ -85,6 +95,7 @@ DEFAULT_USERS = [
         'email': 'legazpi@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Legazpi',
+        'region': 'Central',
     },
     {
         'username': 'palawan.tdtpowersteel',
@@ -92,6 +103,7 @@ DEFAULT_USERS = [
         'email': 'palawan@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Palawan',
+        'region': 'Vis&Min',
     },
     {
         'username': 'powerstore.tdtpowersteel',
@@ -99,6 +111,7 @@ DEFAULT_USERS = [
         'email': 'powerstore@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Powerstore',
+        'region': 'Central',
     },
     {
         'username': 'admin.tdtpowersteel',
@@ -106,6 +119,7 @@ DEFAULT_USERS = [
         'email': 'admin@tdt.com',
         'role': 'Admin',
         'branch': 'Headquarters',
+        'region': 'Central',
     },
 ]
 
@@ -138,8 +152,8 @@ def ensure_default_users(reset_passwords=False, branch_password=None, admin_pass
             if not existing:
                 cursor.execute(
                     '''
-                    INSERT INTO team (username, password, name, email, role, branch)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO team (username, password, name, email, role, branch, region)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ''',
                     (
                         user['username'],
@@ -148,6 +162,7 @@ def ensure_default_users(reset_passwords=False, branch_password=None, admin_pass
                         user['email'],
                         user['role'],
                         user['branch'],
+                        user['region'],
                     ),
                 )
                 created += 1
@@ -155,8 +170,8 @@ def ensure_default_users(reset_passwords=False, branch_password=None, admin_pass
 
             if reset_passwords:
                 cursor.execute(
-                    'UPDATE team SET password = %s WHERE username = %s',
-                    (hashed_password, user['username']),
+                    'UPDATE team SET password = %s, region = %s WHERE username = %s',
+                    (hashed_password, user['region'], user['username']),
                 )
                 passwords_reset += 1
 

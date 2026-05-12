@@ -52,6 +52,7 @@ Follow these steps to run the CRM locally on your machine.
    python -m database.sync_pipeline
    ```
    *Note: This script tops up your Kanban board to 20 active deals by pulling from your latest leads. Run this whenever you close deals and want the next batch to flow in.*
+   > **⚠️ Flagged**: Running this will convert "New" leads into deals and create associated follow-up tasks. On databases with many unprocessed leads, this can create hundreds of auto-generated entries. Only run if you intentionally want to populate the pipeline. Skip this step during initial setup if you want to keep lead data untouched.
 
 ### 2. Start the Backend Server (Flask)
 ```bash

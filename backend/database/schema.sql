@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS team (
     name     VARCHAR(255) NOT NULL,
     email    VARCHAR(255),
     role     VARCHAR(100) DEFAULT 'Sales Rep',
-    branch   VARCHAR(100) NOT NULL
+    branch   VARCHAR(100) NOT NULL,
+    region   ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'North Luzon'
 );
 
 -- ─── Companies ───────────────────────────────────────────────────────────────
@@ -23,9 +24,10 @@ CREATE TABLE IF NOT EXISTS companies (
     industry   VARCHAR(100),
     website    VARCHAR(255),
     city       VARCHAR(100),
-    owner      VARCHAR(255),
+    owner_id   INT,
     status     VARCHAR(50) DEFAULT 'Active',
-    created_at DATE        DEFAULT (CURRENT_DATE)
+    created_at DATE        DEFAULT (CURRENT_DATE),
+    FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL
 );
 
 -- ─── Contacts ─────────────────────────────────────────────────────────────────
@@ -34,13 +36,14 @@ CREATE TABLE IF NOT EXISTS contacts (
     name       VARCHAR(255) NOT NULL,
     company_id VARCHAR(100),
     role       VARCHAR(100),
-    owner      VARCHAR(255),
+    owner_id   INT,
     email      VARCHAR(255),
     phone      VARCHAR(50),
     last_touch DATE,
     status     VARCHAR(50) DEFAULT 'Active',
     created_at DATE        DEFAULT (CURRENT_DATE),
-    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL
+    FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL,
+    FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL
 );
 
 -- ─── Leads ────────────────────────────────────────────────────────────────────
@@ -50,10 +53,11 @@ CREATE TABLE IF NOT EXISTS leads (
     contact_num   VARCHAR(255),
     address       TEXT,
     region        VARCHAR(100),
-    sr            VARCHAR(255),
+    owner_id      INT,
     branch        VARCHAR(100),
     status        VARCHAR(50)  DEFAULT 'New',
-    created_at    DATE         DEFAULT (CURRENT_DATE)
+    created_at    DATE         DEFAULT (CURRENT_DATE),
+    FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL
 );
 
 -- ─── Deals ────────────────────────────────────────────────────────────────────
@@ -67,11 +71,23 @@ CREATE TABLE IF NOT EXISTS deals (
     value       DECIMAL(15, 2) DEFAULT 0,
     close_date  DATE,
     probability INT            DEFAULT 20,
-    owner       VARCHAR(255),
+    owner_id    INT,
+    branch      VARCHAR(100),
     created_at  DATE           DEFAULT (CURRENT_DATE),
     FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL,
-    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL
-    -- Removed foreign key to leads because leads table structure completely changed
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL,
+    FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL
+);
+
+-- ─── Contacts-Deals Join Table (Many-to-Many) ────────────────────────────────
+CREATE TABLE IF NOT EXISTS deal_contacts (
+    deal_id    VARCHAR(100) NOT NULL,
+    contact_id VARCHAR(100) NOT NULL,
+    role       VARCHAR(100) DEFAULT 'Primary',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (deal_id, contact_id),
+    FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE CASCADE,
+    FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
 );
 
 -- ─── Activities (Tasks) ───────────────────────────────────────────────────────
@@ -79,13 +95,16 @@ CREATE TABLE IF NOT EXISTS activities (
     id         VARCHAR(100) PRIMARY KEY,
     subject    VARCHAR(255) NOT NULL,
     type       VARCHAR(50)  DEFAULT 'Follow-up',
-    owner      VARCHAR(255),
+    owner_id   INT,
     deal_id    VARCHAR(100),
     due_date   DATE,
     priority   VARCHAR(50)  DEFAULT 'Medium',
     status     VARCHAR(50)  DEFAULT 'Open',
     notes      TEXT,
+    stage      VARCHAR(100),
+    contact_name VARCHAR(255),
     created_at DATE         DEFAULT (CURRENT_DATE),
+    FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL,
     FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE SET NULL
 );
 

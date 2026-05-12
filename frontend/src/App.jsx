@@ -1,24 +1,34 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import './App.css'
 import { formatCurrencyCompact, matchesSearch } from './utils'
 import { clearToken, getUser, saveUser } from './api'
 import DashboardView from './views/DashboardView'
-import DatabaseView  from './views/DatabaseView'
+import CustomersView from './views/CustomersView'
 import PipelineView  from './views/PipelineView'
 import TasksView     from './views/TasksView'
 import useCRMData    from './hooks/useCRMData'
 import LoginPage     from './components/LoginPage'
+import Modal         from './components/Modal'
+import LeadForm      from './components/forms/LeadForm'
+import TaskForm      from './components/forms/TaskForm'
 
 const CURRENT_DATE = new Date().toISOString().split('T')[0]
 
-const LEAD_STATUSES  = ['New', 'Working', 'Qualified', 'Converted']
+const LEAD_STATUSES  = ['New', 'Working', 'Qualified', 'Unqualified', 'Converted']
+const CUSTOMER_STATUSES = ['New', 'Prospect', 'Negotiation', 'Converted']
 const DEAL_STAGES    = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
 const TASK_TYPES     = ['Call', 'Follow-up', 'Meeting', 'Email']
 const TASK_PRIORITIES = ['Low', 'Medium', 'High']
 const LEAD_SOURCES   = ['Website', 'Referral', 'Outbound', 'Event', 'Email']
 
 const SHORT_STAGE_LABEL = { 'New Opportunity': 'New', 'Closed Won': 'Won', 'Closed Lost': 'Lost' }
+
+const REGION_BRANCHES = {
+  'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
+  'North Luzon': ['Ilocos', 'Isabela'],
+  'Vis&Min':     ['Gensan', 'Iloilo', 'Cebu', 'Davao', 'CDO'],
+}
 
 const NAV_CONFIG = [
   { id: 'dashboard', label: 'Dashboard',         description: '5 KPI overview' },
@@ -29,7 +39,7 @@ const NAV_CONFIG = [
 
 const VIEW_META = {
   dashboard: { eyebrow: 'In-house CRM prototype', title: 'Dashboard', description: '', searchPlaceholder: 'Search leads, deals, tasks, or companies' },
-  database:  { eyebrow: 'Clean data', title: 'Customer Database', description: '', searchPlaceholder: 'Search customer name, region, SR, or branch' },
+  database:  { eyebrow: 'Transaction history', title: 'Customer Database', description: '', searchPlaceholder: 'Search customer name, region, SR, or branch' },
   pipeline:  { eyebrow: 'Pipeline visibility', title: 'Pipeline', description: '', searchPlaceholder: 'Search deal, company, stage, or owner' },
   tasks:     { eyebrow: 'Activity tracking', title: 'Tasks', description: '', searchPlaceholder: 'Search tasks, deals, owners, or due dates' },
 }
@@ -45,13 +55,18 @@ export default function App() {
 
   const [searchQuery, setSearchQuery]       = useState('')
   const [stageFilter, setStageFilter]       = useState('all')
+  const [leadStatusFilter, setLeadStatusFilter] = useState('all')
   const [taskFilter, setTaskFilter]         = useState('open')
+  const [taskCompanyFilter, setTaskCompanyFilter] = useState('all')
+
+  const [leadPage, setLeadPage]             = useState(1)
+  const [pipelinePage, setPipelinePage]     = useState(1)
+  const [tasksPage, setTasksPage]           = useState(1)
 
   const [selectedLeadId,    setSelectedLeadId]    = useState(null)
 
   const [notice, setNotice] = useState('TDT Powersteel CRM is focused on clean data, pipeline visibility, activity tracking, and a 5 KPI dashboard.')
   const [showLeadForm, setShowLeadForm] = useState(false)
-  const [showDealForm, setShowDealForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(getUser())
@@ -75,28 +90,29 @@ export default function App() {
   }
 
   const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
-  const { companies, contacts, leads, deals, tasks, teamMembers, loading } = data
+  const { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch } = data
+  const { setActiveBranch, reassignLead } = actions
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
   const companyMap   = useMemo(() => Object.fromEntries(companies.map((c) => [c.id, c])), [companies])
   const contactMap   = useMemo(() => Object.fromEntries(contacts.map((c) => [c.id, c])), [contacts])
   const activeDeals  = deals.filter((d) => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost')
-  const pipelineValue = activeDeals.reduce((sum, d) => sum + d.value, 0)
+  const pipelineValue = activeDeals.reduce((sum, d) => sum + Number(d.value || 0), 0)
   const openTasks    = tasks.filter((t) => t.status !== 'Completed')
   const dueToday     = openTasks.filter((t) => t.dueDate === CURRENT_DATE)
 
   const currentMonth     = CURRENT_DATE.slice(0, 7)
   const newLeads         = leads.filter((l) => l.createdAt?.startsWith(currentMonth))
   const convertedLeads   = leads.filter((l) => l.status === 'Converted')
-  const conversionRate   = leads.length ? Math.round((convertedLeads.length / leads.length) * 100) : 0
+  const conversionRate   = leads.length ? Math.floor((convertedLeads.length / leads.length) * 100) : 0
   const linkedLeadCount  = leads.filter((l) => l.contactNum && l.region).length
   const linkHealth       = leads.length ? Math.round((linkedLeadCount / leads.length) * 100) : 100
-  const averageDealSize  = activeDeals.length ? Math.round(pipelineValue / activeDeals.length) : 0
+  const averageDealSize  = activeDeals.length ? Math.floor(pipelineValue / activeDeals.length) : 0
 
   const stageSummary = DEAL_STAGES.map((stage) => {
     const stageDeals = deals.filter((d) => d.stage === stage)
-    return { stage, count: stageDeals.length, value: stageDeals.reduce((sum, d) => sum + d.value, 0) }
+    return { stage, count: stageDeals.length, value: stageDeals.reduce((sum, d) => sum + Number(d.value || 0), 0) }
   })
 
   const stageBreakdown = stageSummary
@@ -113,9 +129,10 @@ export default function App() {
 
   // ─── Filtered lists ─────────────────────────────────────────────────────────
 
-  const filteredLeads = useMemo(() => leads.filter((l) =>
-    matchesSearch(searchQuery, [l.customerName, l.contactNum, l.address, l.region, l.sr, l.branch, l.status]),
-  ), [leads, searchQuery])
+  const filteredCustomers = useMemo(() => customers.filter((c) =>
+    (leadStatusFilter === 'all' || c.customerStatus === leadStatusFilter) &&
+    matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus]),
+  ), [customers, searchQuery, leadStatusFilter])
 
   const filteredDeals = useMemo(() => deals.filter(
     (d) =>
@@ -124,20 +141,27 @@ export default function App() {
   ), [deals, stageFilter, searchQuery, companyMap, contactMap])
 
   const filteredTasks = useMemo(() => tasks.filter(
-    (t) =>
-      (taskFilter === 'all' || (taskFilter === 'open' && t.status === 'Open') || (taskFilter === 'completed' && t.status === 'Completed')) &&
-      matchesSearch(searchQuery, [t.title, t.type, t.owner, deals.find((d) => d.id === t.dealId)?.name]),
-  ), [tasks, taskFilter, searchQuery, deals])
+    (t) => {
+      const deal = deals.find((d) => d.id === t.dealId)
+      const companyName = t.companyName || companyMap[deal?.companyId]?.name || ''
+      
+      return (
+        (taskFilter === 'all' || 
+         (taskFilter === 'open' && t.status === 'Open') || 
+         (taskFilter === 'completed' && t.status === 'Completed') ||
+         (taskFilter === 'reopened' && t.status === 'Reopened')) &&
+        (taskCompanyFilter === 'all' || taskCompanyFilter === '' || 
+         companyName.toLowerCase().includes(taskCompanyFilter.toLowerCase())) &&
+        matchesSearch(searchQuery, [t.title, t.type, t.owner, deal?.name, companyName])
+      )
+    }
+  ), [tasks, taskFilter, taskCompanyFilter, searchQuery, deals, companyMap])
 
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
 
   const handleCreateLead = async (form) => {
     const newLead = await actions.createLead(form);
     setSelectedLeadId(newLead.id)
-  }
-
-  const handleCreateDeal = async (form) => {
-    await actions.createDeal(form);
   }
 
   const handleCreateTask = async (form) => {
@@ -161,8 +185,10 @@ export default function App() {
   function handleViewChange(viewId) {
     navigate(`/${viewId}`)
     setSearchQuery('')
+    setLeadPage(1)
+    setPipelinePage(1)
+    setTasksPage(1)
     setShowLeadForm(false)
-    setShowDealForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId]?.title || viewId} is active.`)
     setSidebarOpen(false)
@@ -177,12 +203,9 @@ export default function App() {
       setShowLeadForm(true)
       return setNotice('New customer entry is ready.')
     }
-    if (activeView === 'pipeline') {
-      setShowDealForm(true)
-      return focusSection('pipeline', 'deal-form', 'Deal entry is ready.')
-    }
+    // Consolidated: Pipeline now uses Task flow for entry
     setShowTaskForm(true)
-    focusSection('tasks', 'task-form', 'Task entry is ready.')
+    focusSection(activeView === 'pipeline' ? 'pipeline' : 'tasks', 'task-form', 'Activity entry is ready.')
   }
 
   async function handleShareCurrentView() {
@@ -196,15 +219,15 @@ export default function App() {
   }
 
   const primaryActionLabel =
-    activeView === 'pipeline' ? 'New deal'
+    activeView === 'database' ? 'New customer'
+    : activeView === 'pipeline' ? 'Add task'
     : activeView === 'tasks' ? 'Add task'
-    : activeView === 'database' ? 'New customer'
     : 'New lead'
 
   const navItems = NAV_CONFIG.map((item) => ({
     ...item,
     badge: item.id === 'dashboard' ? '5'
-      : item.id === 'database'  ? `${leads.length}`
+      : item.id === 'database'  ? `${customers.length}`
       : item.id === 'pipeline'  ? `${activeDeals.length}`
       : `${openTasks.length}`,
   }))
@@ -230,26 +253,32 @@ export default function App() {
           />
         } />
         <Route path="/database" element={
-          <DatabaseView
+          <CustomersView
             setNotice={setNotice}
-            filteredLeads={filteredLeads}
-            leads={leads}
+            filteredCustomers={filteredCustomers}
+            customers={customers}
             teamMembers={teamMembers}
-            selectedLeadId={selectedLeadId}
-            setSelectedLeadId={setSelectedLeadId}
-            leadStatuses={LEAD_STATUSES}
-            onCreateLead={handleCreateLead}
-            handleLeadStatusChange={actions.updateLeadStatus}
+            selectedCustomerId={selectedLeadId}
+            setSelectedCustomerId={setSelectedLeadId}
+            customerStatuses={CUSTOMER_STATUSES}
+            statusFilter={leadStatusFilter}
+            setStatusFilter={setLeadStatusFilter}
+            onCreateCustomer={handleCreateLead}
+            onReassignLead={reassignLead}
             linkHealth={linkHealth}
-            showLeadForm={showLeadForm}
-            setShowLeadForm={setShowLeadForm}
+            showCustomerForm={showLeadForm}
+            setShowCustomerForm={setShowLeadForm}
             currentUser={currentUser}
+            searchQuery={searchQuery}
+            page={leadPage}
+            setPage={setLeadPage}
           />
         } />
         <Route path="/pipeline" element={
           <PipelineView
             filteredDeals={filteredDeals}
             deals={deals}
+            tasks={tasks}
             leads={leads}
             contacts={contacts}
             companies={companies}
@@ -262,10 +291,15 @@ export default function App() {
             setStageFilter={setStageFilter}
             setNotice={setNotice}
             companyMap={companyMap}
-            onCreateDeal={handleCreateDeal}
             handleDealStageChange={actions.updateDealStage}
-            showDealForm={showDealForm}
-            setShowDealForm={setShowDealForm}
+            handleTaskStatusToggle={actions.toggleTaskStatus}
+            currentPage={pipelinePage}
+            setCurrentPage={setPipelinePage}
+            onViewTasks={(filter) => {
+              setTaskFilter(filter)
+              setTasksPage(1)
+              navigate('/tasks')
+            }}
           />
         } />
         <Route path="/tasks" element={
@@ -275,16 +309,22 @@ export default function App() {
             openTasks={openTasks}
             dueToday={dueToday}
             deals={deals}
+            companies={companies}
             companyMap={companyMap}
             taskTypes={TASK_TYPES}
             taskPriorities={TASK_PRIORITIES}
+            dealStages={DEAL_STAGES}
             teamMembers={teamMembers}
             taskFilter={taskFilter}
             setTaskFilter={setTaskFilter}
+            taskCompanyFilter={taskCompanyFilter}
+            setTaskCompanyFilter={setTaskCompanyFilter}
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
             showTaskForm={showTaskForm}
             setShowTaskForm={setShowTaskForm}
+            currentPage={tasksPage}
+            setCurrentPage={setTasksPage}
           />
         } />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -301,6 +341,12 @@ export default function App() {
 
   return (
     <div className="crm-shell">
+      {/* Invisible hover trigger zone for sidebar */}
+      <div 
+        className="sidebar-hover-trigger" 
+        onMouseEnter={() => setSidebarOpen(true)}
+      />
+
       {/* Mobile sidebar overlay */}
       <div
         className={`sidebar-overlay ${sidebarOpen ? 'is-open' : ''}`}
@@ -308,11 +354,17 @@ export default function App() {
         aria-hidden="true"
       />
 
-      <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
+      <aside 
+        className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}
+        onMouseLeave={() => setSidebarOpen(false)}
+      >
         <div className="brand-block">
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
           <p className="brand-name">Sales CRM</p>
           <div className="brand-branch-badge">{currentUser.branch}</div>
+          {currentUser.role && currentUser.role !== 'Sales Rep' && (
+            <div className="brand-branch-badge" style={{ marginTop: '4px', opacity: 0.75, fontSize: '0.7rem' }}>{currentUser.role}</div>
+          )}
         </div>
 
         <nav className="sidebar-nav" aria-label="Primary CRM navigation">
@@ -335,6 +387,49 @@ export default function App() {
 
         </nav>
 
+        {/* Branch / Region filter — only for Head of Sales and Regional Sales Manager */}
+        {(currentUser.role === 'Head of Sales' || currentUser.role === 'Regional Sales Manager') && (
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+            <p className="nav-section-label" style={{ marginBottom: '8px' }}>Viewing Branch</p>
+
+            {currentUser.role === 'Head of Sales' && (
+              <>
+                <select
+                  style={{ width: '100%', marginBottom: '6px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.8rem' }}
+                  value={Object.keys(REGION_BRANCHES).find(r => REGION_BRANCHES[r].includes(activeBranch)) ?? ''}
+                  onChange={e => {
+                    const region = e.target.value
+                    if (region) setActiveBranch(REGION_BRANCHES[region][0])
+                    else setActiveBranch(currentUser.branch)
+                  }}
+                >
+                  <option value="">All Regions</option>
+                  {Object.keys(REGION_BRANCHES).map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <select
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.8rem' }}
+                  value={activeBranch}
+                  onChange={e => setActiveBranch(e.target.value)}
+                >
+                  {(Object.values(REGION_BRANCHES).flat()).map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </>
+            )}
+
+            {currentUser.role === 'Regional Sales Manager' && (
+              <select
+                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.8rem' }}
+                value={activeBranch}
+                onChange={e => setActiveBranch(e.target.value)}
+              >
+                {(REGION_BRANCHES[currentUser.region] ?? [currentUser.branch]).map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
         <div className="sidebar-footer">
           <p className="sidebar-label">Today's pulse</p>
           <div className="sidebar-stat">
@@ -346,7 +441,6 @@ export default function App() {
             <span>Open tasks still waiting on follow-through</span>
           </div>
           <div className="sidebar-user">
-            <span className="sidebar-user__name">{currentUser.name}</span>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
         </div>
@@ -362,10 +456,7 @@ export default function App() {
           >
             <span /><span /><span />
           </button>
-          <div className="mobile-brand">
-            <img src="/tdt-powersteel-logo.png" alt="TDT" />
-            <span>Sales CRM</span>
-          </div>
+
           <div className="top-bar-title">
             <p className="eyebrow">{currentMeta.eyebrow}</p>
             <h2 className="page-title">{currentMeta.title}</h2>
@@ -377,13 +468,20 @@ export default function App() {
               <input
                 type="search"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setLeadPage(1)
+                  setPipelinePage(1)
+                  setTasksPage(1)
+                }}
                 placeholder={currentMeta.searchPlaceholder}
                 aria-label={currentMeta.searchPlaceholder}
               />
             </label>
             <button type="button" className="secondary-button" onClick={handleShareCurrentView}>Share view</button>
-            <button type="button" className="primary-button" onClick={handlePrimaryAction}>{primaryActionLabel}</button>
+            {activeView !== 'pipeline' && (
+              <button type="button" className="primary-button" onClick={handlePrimaryAction}>{primaryActionLabel}</button>
+            )}
           </div>
         </header>
 
@@ -407,6 +505,45 @@ export default function App() {
           <span>{toast}</span>
         </div>
       )}
+
+      <Modal
+        isOpen={showTaskForm}
+        onClose={() => setShowTaskForm(false)}
+        title="Log a task & Update deal"
+        kicker="Activity entry"
+      >
+        <TaskForm
+          deals={deals}
+          companies={companies}
+          teamMembers={teamMembers}
+          taskTypes={TASK_TYPES}
+          taskPriorities={TASK_PRIORITIES}
+          dealStages={DEAL_STAGES}
+          currentUser={currentUser}
+          onCancel={() => setShowTaskForm(false)}
+          onSubmit={(form) => {
+            handleCreateTask(form)
+            setShowTaskForm(false)
+          }}
+        />
+      </Modal>
+
+      <Modal
+        isOpen={showLeadForm}
+        onClose={() => setShowLeadForm(false)}
+        title="Add a new customer"
+        kicker="Fast entry"
+      >
+        <LeadForm
+          teamMembers={teamMembers}
+          branch={currentUser?.branch}
+          onCancel={() => setShowLeadForm(false)}
+          onSubmit={(form) => {
+            handleCreateLead(form)
+            setShowLeadForm(false)
+          }}
+        />
+      </Modal>
     </div>
   )
 }

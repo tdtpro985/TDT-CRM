@@ -57,7 +57,14 @@ export default function AdminAnalyticsView() {
   })
   const branchRows = Object.values(branchMap).sort((a, b) => a.branch?.localeCompare(b.branch))
   const totalPages = Math.ceil(branchRows.length / PAGE_SIZE)
-  const pagedRows  = branchRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const getPaginatedData = (data, currentPage, limit) => {
+    const pageNum = currentPage === '' || isNaN(currentPage) ? 1 : parseInt(currentPage, 10)
+    const start = (pageNum - 1) * limit
+    return data.slice(start, start + limit)
+  }
+
+  const pagedRows = getPaginatedData(branchRows, page, PAGE_SIZE)
 
   const maxLeads = Math.max(...branchRows.map((r) => r.leads), 1)
 
@@ -86,7 +93,7 @@ export default function AdminAnalyticsView() {
                   <th>Leads</th>
                   <th>Converted</th>
                   <th>Conv. Rate</th>
-                  <th>Deals</th>
+                  <th>Active Deals</th>
                   <th>Pipeline</th>
                   <th style={{ minWidth: '120px' }}>Lead volume</th>
                 </tr>
@@ -130,9 +137,35 @@ export default function AdminAnalyticsView() {
               >
                 ← Prev
               </button>
-              <span className="analytics-pagination__label">
-                Page {page} of {totalPages}
-              </span>
+              <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={page}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    const num = parseInt(val, 10);
+                    if (val === '') {
+                      setPage('');
+                    } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
+                      setPage(num);
+                    }
+                  }}
+                  style={{ 
+                    width: '40px', 
+                    textAlign: 'center', 
+                    padding: '4px 0',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)',
+                    color: 'var(--text-strong)',
+                    fontWeight: 700,
+                    outline: 'none'
+                  }}
+                />
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
+              </div>
               <button
                 type="button"
                 className="secondary-button"

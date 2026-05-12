@@ -1,6 +1,8 @@
+import { useRef, useEffect, useState } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, getToneClass } from '../utils'
+import { ITEMS_PER_PAGE } from '../constants'
 
 export default function DashboardView({
   topKpis,
@@ -13,10 +15,28 @@ export default function DashboardView({
   linkHealth,
 }) {
   const today = new Date().toISOString().split('T')[0]
+  const stageListRef = useRef(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const el = stageListRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.2 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
   const focusTasks = [...openTasks]
     .sort((a, b) => {
       const statusScore = (task) => {
-        if (task.status !== 'Open') return 5
+        if (!['Open', 'Reopened'].includes(task.status)) return 5
         if (!task.dueDate) return 4
         if (task.dueDate < today) return 1
         if (task.priority === 'High') return 2
@@ -119,8 +139,8 @@ export default function DashboardView({
           title="Deals by stage with expected revenue"
           detail="This keeps opportunity movement visible without leaving the dashboard."
         >
-          <div className="stage-list">
-            {stageSummary.map((stage) => (
+          <div ref={stageListRef} className="stage-list">
+            {stageSummary.map((stage, i) => (
               <div key={stage.stage} className="stage-row">
                 <div className="stage-meta">
                   <div>
@@ -129,19 +149,19 @@ export default function DashboardView({
                   </div>
                   <span>{formatCurrencyCompact(stage.value)}</span>
                 </div>
-                <div className="stage-track">
-                  <div
-                    className="stage-fill"
-                    style={{
-                      width: `${Math.max(
-                        stage.value
-                          ? Math.round((stage.value / Math.max(pipelineValue, 1)) * 100)
-                          : stage.count * 12,
-                        10,
-                      )}%`,
-                    }}
-                  />
-                </div>
+                {stage.stage !== 'Closed Won' && stage.stage !== 'Closed Lost' && (
+                  <div className="stage-track">
+                    <div
+                      className={`stage-fill${visible ? ' visible' : ''}`}
+                      style={{
+                        width: `${stage.count > 0
+                          ? Math.min(Math.round((stage.count / ITEMS_PER_PAGE) * 100), 100)
+                          : 0}%`,
+                        animationDelay: visible ? `${i * 0.1}s` : undefined,
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -186,14 +206,15 @@ export default function DashboardView({
         >
           <div className="simple-list">
             {focusTasks.map((task) => (
-              <article key={task.id} className="simple-list__item">
-                <div>
-                  <strong>{task.title}</strong>
-                  <p>{task.owner} | due {formatDateLabel(task.dueDate)}</p>
+              <article key={task.id} className="simple-list__item" style={{ position: 'relative' }}>
+                <div style={{ paddingRight: '110px' }}>
+                  <strong style={{ display: 'block' }}>{task.title}</strong>
+                  <p style={{ margin: '4px 0 0' }}>{task.owner} | due {formatDateLabel(task.dueDate)}</p>
                 </div>
-                <span className={`tone-pill ${getToneClass(task.priority)}`}>
-                  {task.priority}
-                </span>
+                <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                  <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
+                  <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
+                </div>
               </article>
             ))}
           </div>

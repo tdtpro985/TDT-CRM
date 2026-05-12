@@ -72,6 +72,11 @@ def sync_from_sheets():
                 
                 if not customer_name: continue
                 
+                # Find owner_id from team table
+                cursor.execute("SELECT id FROM team WHERE name = %s OR username = %s", (sr, sr))
+                team_member = cursor.fetchone()
+                owner_id = team_member[0] if team_member else None
+
                 # Check if lead already exists (by name and contact to be safe)
                 cursor.execute(
                     "SELECT id FROM leads WHERE customer_name = %s AND contact_num = %s",
@@ -80,35 +85,39 @@ def sync_from_sheets():
                 if cursor.fetchone():
                     continue  # Lead already exists
                 
-                # Insert new lead
+                # 1. Insert new lead
                 lead_id = str(uuid.uuid4())
                 created_at = datetime.now()
                 
                 cursor.execute(
-                    """INSERT INTO leads (id, customer_name, contact_num, address, region, sr, branch, status, created_at)
+                    """INSERT INTO leads (id, customer_name, contact_num, address, region, owner_id, branch, status, created_at)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (lead_id, customer_name, contact_num, address, region, sr, branch, 'New', created_at)
+                    (lead_id, customer_name, contact_num, address, region, owner_id, branch, 'New', created_at)
                 )
                 
-                # Automatically create a Company record
+                # 2. Automatically create a Company record
                 cursor.execute(
-                    """INSERT INTO companies (id, name, city, owner, status)
+                    """INSERT INTO companies (id, name, city, owner_id, status)
                        VALUES (%s, %s, %s, %s, %s)
-                       ON DUPLICATE KEY UPDATE name = VALUES(name)""",
-                    (lead_id, customer_name, region, sr, 'Active')
+                       ON DUPLICATE KEY UPDATE name = VALUES(name), owner_id = VALUES(owner_id)""",
+                    (lead_id, customer_name, region, owner_id, 'Active')
                 )
                 
-                # Automatically create a Contact record
+                # 3. Automatically create a Contact record
                 contact_id = str(uuid.uuid4())
                 cursor.execute(
-                    """INSERT INTO contacts (id, name, company_id, owner, phone, status)
+                    """INSERT INTO contacts (id, name, company_id, owner_id, phone, status)
                        VALUES (%s, %s, %s, %s, %s, %s)""",
-                    (contact_id, customer_name, lead_id, sr, contact_num, 'Active')
+                    (contact_id, customer_name, lead_id, owner_id, contact_num, 'Active')
                 )
                 
+                if total_synced % 100 == 0:
+                    conn.commit()
+                
                 total_synced += 1
+            
+            conn.commit()
         
-        conn.commit()
         return {"success": True, "synced_count": total_synced}
         
     finally:
@@ -125,6 +134,21 @@ def sync_to_sheets(lead_data):
     # Identify which tab to use based on branch
     target_branch = lead_data.get('branch', 'General')
     
+    # 0. Resolve owner name from ownerId if sr is missing
+    sr_name = lead_data.get('sr', '')
+    owner_id = lead_data.get('ownerId')
+    if not sr_name and owner_id:
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM team WHERE id = %s", (owner_id,))
+                row = cursor.fetchone()
+                if row:
+                    sr_name = row[0]
+            finally:
+                close_connection(conn)
+
     # Try to find a sheet name that contains the branch name
     sheet_metadata = service.spreadsheets().get(spreadsheetId=SPREADSHEET_ID).execute()
     sheets = sheet_metadata.get('sheets', [])
@@ -147,7 +171,7 @@ def sync_to_sheets(lead_data):
         lead_data.get('contactNum', ''),
         lead_data.get('address', ''),
         lead_data.get('region', ''),
-        lead_data.get('sr', ''),
+        sr_name,
         lead_data.get('branch', '')
     ]]
     
@@ -164,3 +188,11 @@ def sync_to_sheets(lead_data):
     ).execute()
     
     return result
+
+if __name__ == "__main__":
+    print("Starting Google Sheets Sync...")
+    result = sync_from_sheets()
+    if "error" in result:
+        print(f"Error: {result['error']}")
+    else:
+        print(f"Success! Synced {result.get('synced_count', 0)} records.")

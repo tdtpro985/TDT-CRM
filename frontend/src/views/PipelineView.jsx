@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
-import { formatCurrencyCompact, formatDateLabel, formatRelativeDays } from '../utils'
-import DealForm from '../components/forms/DealForm'
+import { formatCurrencyCompact, formatDateLabel, formatRelativeDays, getToneClass } from '../utils'
+import { ITEMS_PER_PAGE } from '../constants'
+import { apiFetch } from '../api'
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
 
@@ -22,23 +24,12 @@ function getStageTone(stage) {
   return STAGE_TONES[stage] ?? 'is-neutral'
 }
 
-function getStagePipState(stage, selectedStage) {
-  if (stage === selectedStage) return 'is-active'
-  if (selectedStage === 'Closed Lost') {
-    return stage === 'Closed Won' ? '' : DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
-  }
-  if (selectedStage === 'Closed Won') {
-    return DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
-  }
-  return DEAL_STAGE_ORDER.indexOf(stage) < DEAL_STAGE_ORDER.indexOf(selectedStage) ? 'is-done' : ''
-}
-
 export default function PipelineView({
   filteredDeals,
   deals,
+  tasks,
   leads,
   contacts,
-  teamMembers,
   activeDeals,
   pipelineValue,
   averageDealSize,
@@ -47,20 +38,66 @@ export default function PipelineView({
   setStageFilter,
   setNotice,
   companyMap,
-  onCreateDeal,
   handleDealStageChange,
-  showDealForm,
-  setShowDealForm
+  handleTaskStatusToggle,
+  currentPage,
+  setCurrentPage,
+  onViewTasks
 }) {
   const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
   const [selectedDeal, setSelectedDeal] = useState(null)
-  const [currentPage, setCurrentPage] = useState(1)
+  const [dealContacts, setDealContacts] = useState([])
+  const location = useLocation()
+  const navigate = useNavigate()
 
-  const ITEMS_PER_PAGE = 10
+  useEffect(() => {
+    if (location.state?.openDealId) {
+      const deal = deals.find(d => d.id === location.state.openDealId)
+      if (deal) {
+        // Clear state so it doesn't reopen on every navigation
+        navigate(location.pathname, { replace: true, state: {} })
+        
+        // Use a slight delay to avoid cascading render issue and ensure state updates correctly
+        setTimeout(() => {
+          setSelectedDeal(deal)
+          // Scroll to task history after modal opens
+          const section = document.getElementById('task-history-section')
+          if (section) {
+            section.scrollIntoView({ behavior: 'smooth' })
+          }
+        }, 100)
+      }
+    }
+  }, [location.state, deals, navigate, location.pathname])
+
   const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-  const paginatedDeals = filteredDeals.slice(startIndex, startIndex + ITEMS_PER_PAGE)
+
+  useEffect(() => {
+    let active = true
+    if (selectedDeal) {
+      apiFetch(`/api/deals/${selectedDeal.id}/contacts`)
+        .then(res => res.json())
+        .then(data => {
+          if (active) setDealContacts(data)
+        })
+        .catch(err => {
+          console.error('Failed to fetch deal contacts:', err)
+        })
+    } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDealContacts([])
+    }
+    return () => { active = false }
+  }, [selectedDeal])
+
+  const getPaginatedData = (data, page, limit) => {
+    const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 10)
+    const start = (pageNum - 1) * limit
+    return data.slice(start, start + limit)
+  }
+
+  const paginatedDeals = getPaginatedData(filteredDeals, currentPage, ITEMS_PER_PAGE)
 
   const closingThisMonth = activeDeals.filter((d) => d.expectedClose?.startsWith(CURRENT_MONTH)).length
 
@@ -83,7 +120,13 @@ export default function PipelineView({
         <Panel
           kicker="Deal pipeline visualization"
           title="Track every opportunity by stage"
-          detail="This board is designed for quick visibility, simple updates, and a cleaner handoff to a future backend."
+          detail={
+            <div className="priority-legend">
+              <span><span className="priority-dot is-overdue" /> Overdue</span>
+              <span><span className="priority-dot is-high" /> High Priority</span>
+              <span><span className="priority-dot is-today" /> Due Today</span>
+            </div>
+          }
           action={
             <div className="panel-inline-controls">
               <label className="filter-wrap">
@@ -92,6 +135,7 @@ export default function PipelineView({
                   value={stageFilter}
                   onChange={(e) => {
                     setStageFilter(e.target.value)
+                    setCurrentPage(1)
                     setNotice('Pipeline filter updated for the current opportunity view.')
                   }}
                 >
@@ -131,33 +175,21 @@ export default function PipelineView({
                         </div>
                       ) : (
                         stageDeals.map((deal) => (
-                          <article key={deal.id} className={`pipeline-card ${getStageTone(deal.stage)}`}>
+                          <article key={deal.id} className={`pipeline-card ${getStageTone(deal.stage)}${deal.urgencyLabel === 'Overdue' ? ' is-urgent-overdue' : ''}${deal.urgencyLabel === 'High Priority' ? ' is-urgent-high' : ''}${deal.urgencyLabel === 'Due Today' ? ' is-urgent-today' : ''}`}>
                             <div className="pipeline-card__top">
                               <strong>{deal.name}</strong>
                               <span className="tone-pill is-warning">{deal.probability}%</span>
                             </div>
-                            <div className="pipeline-card__badges">
-                              {deal.isAgos ? <span className="tone-pill is-neutral">Agos</span> : null}
-                              {deal.urgencyLabel === 'Overdue' ? (
-                                <span className="tone-pill is-alert">Overdue</span>
-                              ) : null}
-                              {deal.urgencyLabel === 'High Priority' ? (
-                                <span className="tone-pill is-warning">High</span>
-                              ) : null}
-                              {deal.urgencyLabel === 'Due Today' ? (
-                                <span className="tone-pill is-warning">Today</span>
-                              ) : null}
+                            <div className="pipeline-card__value">
+                              <span className="tone-pill is-warning">{formatCurrencyCompact(deal.value)}</span>
                             </div>
                             <p>{companyMap[deal.companyId]?.name ?? deal.companyId}</p>
                             <p className="pipeline-card__owner">{deal.owner}</p>
-                            <div className="pipeline-card__meta">
-                              <span>{formatCurrencyCompact(deal.value)}</span>
-                              <span>{formatDateLabel(deal.expectedClose)}</span>
-                            </div>
+                            <p className="pipeline-card__close-date">{formatDateLabel(deal.expectedClose)}</p>
                             <p className="pipeline-card__touch">
                               Last touch {formatRelativeDays(deal.lastTouch) || '—'}
                             </p>
-                            <div className="field--compact" style={{ textAlign: 'center', marginTop: '8px' }}>
+                            <div className="field--compact pipeline-card__btn-wrap" style={{ textAlign: 'center', marginTop: '8px' }}>
                               <button type="button" className="secondary-button pipeline-card__details-btn" onClick={() => setSelectedDeal(deal)}>View details</button>
                             </div>
                           </article>
@@ -181,9 +213,36 @@ export default function PipelineView({
               >
                 Previous
               </button>
-              <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                Page {currentPage} of {totalPages}
-              </span>
+              <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={currentPage}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    const num = parseInt(val, 10);
+                    if (val === '') {
+                      // Allow empty input while typing
+                      setCurrentPage('');
+                    } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
+                      setCurrentPage(num);
+                    }
+                  }}
+                  style={{ 
+                    width: '40px', 
+                    textAlign: 'center', 
+                    padding: '4px 0',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)',
+                    color: 'var(--text-strong)',
+                    fontWeight: 700,
+                    outline: 'none'
+                  }}
+                />
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
+              </div>
               <button
                 type="button"
                 className="secondary-button"
@@ -219,25 +278,6 @@ export default function PipelineView({
         </Panel>
       </section>
 
-      <Modal
-        isOpen={showDealForm}
-        onClose={() => setShowDealForm(false)}
-        title="Add a new opportunity"
-        kicker="Fast entry"
-      >
-        <DealForm
-          companies={Object.values(companyMap)}
-          contacts={[]}
-          teamMembers={teamMembers}
-          dealStages={dealStages}
-          onCancel={() => setShowDealForm(false)}
-          onSubmit={(form) => {
-            onCreateDeal(form)
-            setShowDealForm(false)
-          }}
-        />
-      </Modal>
-
       {selectedDeal && (
         <div className="deal-modal-overlay" onClick={() => setSelectedDeal(null)}>
           <div className="deal-modal" onClick={(e) => e.stopPropagation()}>
@@ -251,21 +291,8 @@ export default function PipelineView({
               <button type="button" className="deal-modal__close" aria-label="Close" onClick={() => setSelectedDeal(null)}>✕</button>
             </div>
 
-            {/* ── Body ── */}
+            {/* Body */}
             <div className="modal-body-scroll">
-
-              {/* Stage progress bar */}
-              <div className="deal-modal__stage-track">
-                {dealStages.map((s) => (
-                  <div
-                    key={s}
-                    data-stage={s}
-                    className={`deal-modal__stage-pip ${getStagePipState(s, selectedDeal.stage)}`}
-                  >
-                    <span>{s}</span>
-                  </div>
-                ))}
-              </div>
 
               {/* Detail grid */}
               <div className="deal-modal__grid">
@@ -297,8 +324,20 @@ export default function PipelineView({
                 </div>
                 {selectedDeal.contactId && (
                   <div className="deal-modal__field">
-                    <span className="deal-modal__label">Contact</span>
+                    <span className="deal-modal__label">Primary Contact</span>
                     <strong className="deal-modal__value">{contactMap[selectedDeal.contactId]?.name ?? selectedDeal.contactId}</strong>
+                  </div>
+                )}
+                {dealContacts.length > 0 && (
+                  <div className="deal-modal__field" style={{ gridColumn: 'span 2' }}>
+                    <span className="deal-modal__label">All Associated Contacts</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                      {dealContacts.map(c => (
+                        <span key={c.id} className="tone-pill is-neutral" style={{ padding: '4px 12px' }}>
+                          {c.name} {c.deal_role !== 'Primary' ? `(${c.deal_role})` : ''}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {selectedDeal.leadId && (
@@ -307,6 +346,61 @@ export default function PipelineView({
                     <strong className="deal-modal__value">{leadMap[selectedDeal.leadId]?.customerName ?? selectedDeal.leadId}</strong>
                   </div>
                 )}
+              </div>
+
+              {/* Task History */}
+              <div className="deal-modal__history" id="task-history-section">
+                <h3 className="deal-modal__subheading">Task History</h3>
+                <div className="deal-modal__task-list">
+                  {(tasks ?? []).filter(t => t.dealId === selectedDeal.id).length === 0 ? (
+                    <div className="deal-modal__empty-history">
+                      No tasks found for this deal.
+                    </div>
+                  ) : (
+                    (tasks ?? [])
+                      .filter(t => t.dealId === selectedDeal.id)
+                      .sort((a, b) => new Date(b.dueDate || 0) - new Date(a.dueDate || 0))
+                      .map(task => (
+                        <div key={task.id} className="deal-modal__history-item">
+                          <div className="deal-modal__history-info">
+                            <strong>{task.title}</strong>
+                            <span className="deal-modal__history-meta">{task.type} • {formatDateLabel(task.dueDate)}</span>
+                            {task.notes && (
+                              <p className="deal-modal__history-notes">{task.notes}</p>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                            <span 
+                              className={`tone-pill ${getToneClass(task.status)}`}
+                              style={{ cursor: 'pointer' }}
+                              title={`View all ${task.status.toLowerCase()} tasks`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onViewTasks(task.status.toLowerCase());
+                                setSelectedDeal(null);
+                              }}
+                            >
+                              {task.status}
+                            </span>
+                            <button 
+                              type="button" 
+                              className="ghost-button" 
+                              style={{ fontSize: '10px', padding: '4px 8px' }}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                const nextStatus = task.status === 'Completed' ? 'reopened' : 'completed';
+                                await handleTaskStatusToggle(task.id, task.status);
+                                onViewTasks(nextStatus);
+                                setSelectedDeal(null);
+                              }}
+                            >
+                              {task.status === 'Completed' ? 'Reopen' : 'Complete'}
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                  )}
+                </div>
               </div>
             </div>
 

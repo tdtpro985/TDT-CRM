@@ -47,7 +47,6 @@ export default function AdminView({ currentUser, showToast }) {
   }, [users])
 
   const filteredUsers = useMemo(() => {
-    setPage(1)
     return users.filter((u) => {
       const matchBranch = branchFilter === 'all' || u.branch === branchFilter
       const q = search.toLowerCase()
@@ -57,7 +56,14 @@ export default function AdminView({ currentUser, showToast }) {
   }, [users, branchFilter, search])
 
   const totalPages = Math.ceil(filteredUsers.length / PAGE_SIZE)
-  const pagedUsers = filteredUsers.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+  const getPaginatedData = (data, currentPage, limit) => {
+    const pageNum = currentPage === '' || isNaN(currentPage) ? 1 : parseInt(currentPage, 10)
+    const start = (pageNum - 1) * limit
+    return data.slice(start, start + limit)
+  }
+
+  const pagedUsers = getPaginatedData(filteredUsers, page, PAGE_SIZE)
 
   function openCreate() {
     setEditingId(null)
@@ -190,7 +196,10 @@ export default function AdminView({ currentUser, showToast }) {
           {/* Toolbar */}
           <div className="admin-toolbar">
             <div className="admin-toolbar__filters">
-              <select className="admin-select" value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
+              <select className="admin-select" value={branchFilter} onChange={(e) => {
+                setBranchFilter(e.target.value)
+                setPage(1)
+              }}>
                 <option value="all">All branches ({users.length})</option>
                 {BRANCHES.map((b) => branchCounts[b] ? (
                   <option key={b} value={b}>{b} ({branchCounts[b]})</option>
@@ -201,7 +210,10 @@ export default function AdminView({ currentUser, showToast }) {
                 type="search"
                 placeholder="Search name, username, role…"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value)
+                  setPage(1)
+                }}
               />
             </div>
             <button type="button" className="primary-button" onClick={openCreate}>+ New Account</button>
@@ -264,28 +276,54 @@ export default function AdminView({ currentUser, showToast }) {
           )}
 
           {totalPages > 1 && (
-            <div className = "analytics-pagination">
+            <div className="analytics-pagination">
               <button
-                type = "button"
-                className = "secondary-button"
-                disabled = {page === 1}
-                onClick = {() => setPage((p) => p -1)}
-                >
-                  Prev
-                </button>
-                <span classname = "analytics-pagination_label">
-                  Page {page} of {totalPages} . {filteredUsers.length} accounts
-                </span>
-                <button
-                  type = "button"
-                  classname = "secondary-button"
-                  disabled = {page === totalPages}
-                  onClick = {() => setPage((p) => p + 1)}
-                >
-                  Next
-                </button>
+                type="button"
+                className="secondary-button"
+                disabled={page === 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Prev
+              </button>
+              <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={page}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    const num = parseInt(val, 10);
+                    if (val === '') {
+                      setPage('');
+                    } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
+                      setPage(num);
+                    }
+                  }}
+                  style={{ 
+                    width: '40px', 
+                    textAlign: 'center', 
+                    padding: '4px 0',
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--r-md)',
+                    color: 'var(--text-strong)',
+                    fontWeight: 700,
+                    outline: 'none'
+                  }}
+                />
+                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
+              </div>
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={page === totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </button>
             </div>
-          )}
+           )}
         </Panel>
 
         {/* Branch breakdown sidebar */}
@@ -296,7 +334,10 @@ export default function AdminView({ currentUser, showToast }) {
                 key={b}
                 type="button"
                 className={`admin-branch-row ${branchFilter === b ? 'is-active' : ''}`}
-                onClick={() => setBranchFilter(branchFilter === b ? 'all' : b)}
+                onClick={() => {
+                  setBranchFilter(branchFilter === b ? 'all' : b)
+                  setPage(1)
+                }}
               >
                 <span className="admin-branch-row__name">{b}</span>
                 <span className="admin-branch-row__count">{branchCounts[b]}</span>
