@@ -12,7 +12,7 @@ from flask_limiter.util import get_remote_address
 from database.database import get_db_connection, close_connection
 from database.sync_pipeline import fill_pipeline
 from gsheets_sync import sync_from_sheets, sync_to_sheets
-from datetime import timedelta
+from datetime import timedelta, date
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -761,7 +761,7 @@ def create_lead():
                 owner_id,
                 branch,
                 data.get('status', 'New'),
-                data.get('createdAt') or CURRENT_DATE,
+                data.get('createdAt') or date.today(),
             ),
         )
         
