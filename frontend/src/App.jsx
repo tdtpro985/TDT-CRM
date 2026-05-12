@@ -51,6 +51,7 @@ export default function App() {
   const [stageFilter, setStageFilter]       = useState('all')
   const [leadStatusFilter, setLeadStatusFilter] = useState('all')
   const [taskFilter, setTaskFilter]         = useState('open')
+  const [taskCompanyFilter, setTaskCompanyFilter] = useState('all')
 
   const [leadPage, setLeadPage]             = useState(1)
   const [pipelinePage, setPipelinePage]     = useState(1)
@@ -133,13 +134,21 @@ export default function App() {
   ), [deals, stageFilter, searchQuery, companyMap, contactMap])
 
   const filteredTasks = useMemo(() => tasks.filter(
-    (t) =>
-      (taskFilter === 'all' || 
-       (taskFilter === 'open' && t.status === 'Open') || 
-       (taskFilter === 'completed' && t.status === 'Completed') ||
-       (taskFilter === 'reopened' && t.status === 'Reopened')) &&
-      matchesSearch(searchQuery, [t.title, t.type, t.owner, deals.find((d) => d.id === t.dealId)?.name]),
-  ), [tasks, taskFilter, searchQuery, deals])
+    (t) => {
+      const deal = deals.find((d) => d.id === t.dealId)
+      const companyName = t.companyName || companyMap[deal?.companyId]?.name || ''
+      
+      return (
+        (taskFilter === 'all' || 
+         (taskFilter === 'open' && t.status === 'Open') || 
+         (taskFilter === 'completed' && t.status === 'Completed') ||
+         (taskFilter === 'reopened' && t.status === 'Reopened')) &&
+        (taskCompanyFilter === 'all' || taskCompanyFilter === '' || 
+         companyName.toLowerCase().includes(taskCompanyFilter.toLowerCase())) &&
+        matchesSearch(searchQuery, [t.title, t.type, t.owner, deal?.name, companyName])
+      )
+    }
+  ), [tasks, taskFilter, taskCompanyFilter, searchQuery, deals, companyMap])
 
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
 
@@ -292,6 +301,7 @@ export default function App() {
             openTasks={openTasks}
             dueToday={dueToday}
             deals={deals}
+            companies={companies}
             companyMap={companyMap}
             taskTypes={TASK_TYPES}
             taskPriorities={TASK_PRIORITIES}
@@ -299,6 +309,8 @@ export default function App() {
             teamMembers={teamMembers}
             taskFilter={taskFilter}
             setTaskFilter={setTaskFilter}
+            taskCompanyFilter={taskCompanyFilter}
+            setTaskCompanyFilter={setTaskCompanyFilter}
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
             showTaskForm={showTaskForm}
@@ -448,6 +460,7 @@ export default function App() {
       >
         <TaskForm
           deals={deals}
+          companies={companies}
           teamMembers={teamMembers}
           taskTypes={TASK_TYPES}
           taskPriorities={TASK_PRIORITIES}
