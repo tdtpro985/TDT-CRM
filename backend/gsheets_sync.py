@@ -111,9 +111,13 @@ def sync_from_sheets():
                     (contact_id, customer_name, lead_id, owner_id, contact_num, 'Active')
                 )
                 
+                if total_synced % 100 == 0:
+                    conn.commit()
+                
                 total_synced += 1
+            
+            conn.commit()
         
-        conn.commit()
         return {"success": True, "synced_count": total_synced}
         
     finally:
@@ -184,3 +188,11 @@ def sync_to_sheets(lead_data):
     ).execute()
     
     return result
+
+if __name__ == "__main__":
+    print("Starting Google Sheets Sync...")
+    result = sync_from_sheets()
+    if "error" in result:
+        print(f"Error: {result['error']}")
+    else:
+        print(f"Success! Synced {result.get('synced_count', 0)} records.")
