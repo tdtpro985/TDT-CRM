@@ -25,12 +25,16 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   const [loading, setLoading] = useState(true)
 
   const branch = currentUser?.branch ?? ''
+  const [activeBranch, setActiveBranch] = useState(branch)
+
+  // Reset activeBranch whenever the logged-in user changes (login/logout)
+  useEffect(() => { setActiveBranch(currentUser?.branch ?? '') }, [currentUser])
 
   useEffect(() => {
     if (!currentUser) return
     async function loadAll() {
       try {
-        const branchParam = branch ? `?branch=${encodeURIComponent(branch)}` : ''
+        const branchParam = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : ''
         const responses = await Promise.all([
           apiFetch(`/api/companies${branchParam}`),
           apiFetch(`/api/customers${branchParam}`),
@@ -77,6 +81,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
             title: a.subject ?? a.title ?? '',
             priority: a.priority ?? 'Medium',
             status: ['Completed', 'Open', 'Reopened'].includes(a.status) ? a.status : 'Open',
+            companyName: a.companyName ?? '',
+            contact: a.contact_name ?? '',
           })),
         )
         setTeamMembers(await teamRes.json())
@@ -87,7 +93,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       }
     }
     loadAll()
-  }, [currentUser, branch, setNotice])
+  }, [currentUser, activeBranch, setNotice])
 
   async function createLead(leadForm) {
     const rsm = teamMembers.find(m => m.name === leadForm.sr || m.id === leadForm.ownerId)
@@ -98,7 +104,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       address: leadForm.address,
       region: leadForm.region,
       ownerId: rsm?.id || leadForm.ownerId || null,
-      branch: branch,
+      branch: activeBranch,
       status: 'New',
       createdAt: CURRENT_DATE,
     }
@@ -230,16 +236,33 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   async function createTask(taskForm, DEAL_STAGES) {
     let dealIdToUse = taskForm.dealId
-    const isExistingId = deals.some((d) => d.id === taskForm.dealId)
-    const existingDeal = deals.find((d) => d.id === taskForm.dealId || d.name === taskForm.dealId)
+    let companyIdToUse = taskForm.companyId
 
-    if (!isExistingId && taskForm.dealId && !existingDeal) {
-      // Create new deal if it doesn't exist
+    // 1. Resolve Company
+    let matchedCompany = companies.find((c) => c.id === taskForm.companyId || c.name === taskForm.companyId)
+    
+    if (!matchedCompany && taskForm.companyId) {
+      // Create new company if it doesn't exist
+      companyIdToUse = createRecordId('company')
+      const newCompany = { id: companyIdToUse, name: taskForm.companyId.trim(), status: 'Active' }
+      setCompanies((c) => [newCompany, ...c])
+      await apiFetch(`/api/companies`, { method: 'POST', body: JSON.stringify(newCompany) }).catch(() => {})
+      matchedCompany = newCompany
+    } else if (matchedCompany) {
+      companyIdToUse = matchedCompany.id
+    }
+
+    // 2. Resolve or Create Deal
+    const existingDeal = deals.find((d) => d.id === taskForm.dealId)
+
+    if (!existingDeal && companyIdToUse) {
+      // Create new deal for this company
       const rsm = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
       dealIdToUse = createRecordId('deal')
       const newDeal = {
         id: dealIdToUse,
-        name: taskForm.dealId.trim(),
+        companyId: companyIdToUse,
+        name: `Deal - ${matchedCompany?.name || taskForm.companyId}`,
         stage: taskForm.dealStage || DEAL_STAGES[0],
         probability: getProbabilityForStage(taskForm.dealStage || DEAL_STAGES[0]),
         value: Number(taskForm.dealValue) || 0,
@@ -276,8 +299,6 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           ownerId: updatedDeal.ownerId
         })
       }).catch(() => {})
-    } else if (!taskForm.dealId) {
-      dealIdToUse = null
     }
 
     const rsmForTask = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
@@ -285,10 +306,11 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       id: createRecordId('task'), 
       ...taskForm, 
       dealId: dealIdToUse, 
+      companyName: matchedCompany?.name || taskForm.companyId,
       title: taskForm.title.trim(), 
       status: 'Open',
       ownerId: rsmForTask?.id || taskForm.ownerId || currentUser?.id || null,
-      stage: taskForm.dealStage // Record the stage context in the activity
+      stage: taskForm.dealStage
     }
 
     setTasks((current) => [newTask, ...current])
@@ -364,7 +386,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       if (!res.ok) throw new Error(result.error || 'Sync failed')
       
       // Refresh leads after sync
-      const branchParam = branch ? `?branch=${encodeURIComponent(branch)}` : ''
+      const branchParam = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : ''
       const leadsRes = await apiFetch(`/api/leads${branchParam}`)
       if (leadsRes.ok) {
         setLeads(await leadsRes.json())
@@ -380,18 +402,38 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
+  async function reassignLead(leadId, newOwnerId) {
+    const newOwner = teamMembers.find(m => m.id === newOwnerId)
+    setLeads(current => current.map(l =>
+      l.id === leadId ? { ...l, ownerId: newOwnerId, sr: newOwner?.name ?? '' } : l
+    ))
+    try {
+      const res = await apiFetch(`/api/leads/${leadId}/reassign`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newOwnerId }),
+      })
+      if (!res.ok) throw new Error('Reassign failed')
+      setNotice('Lead reassigned successfully.')
+      showToast('Lead reassigned!')
+    } catch {
+      setNotice('Lead reassign updated locally — backend not reachable.')
+    }
+  }
+
   return {
-    data: { companies, customers, contacts, leads, deals, tasks, teamMembers, loading },
-    actions: { 
-      createLead, 
-      createContact, 
-      createCompany, 
-      createDeal, 
-      createTask, 
-      updateLeadStatus, 
-      updateDealStage, 
+    data: { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch },
+    actions: {
+      createLead,
+      createContact,
+      createCompany,
+      createDeal,
+      createTask,
+      updateLeadStatus,
+      updateDealStage,
       toggleTaskStatus,
-      syncGSheets 
+      syncGSheets,
+      reassignLead,
+      setActiveBranch,
     }
   }
 }

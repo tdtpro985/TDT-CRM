@@ -124,6 +124,49 @@ def has_branch_filter(branch):
     return bool(normalized and normalized != 'headquarters')
 
 
+REGION_BRANCHES = {
+    'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
+    'North Luzon': ['Ilocos', 'Isabela'],
+    'Vis&Min':     ['Gensan', 'Iloilo', 'Cebu', 'Davao', 'CDO'],
+}
+
+
+def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))'):
+    """
+    Returns (where_parts, restrict_owner, params) for role-based data filtering.
+    where_parts: SQL fragment list using `col` for branch matching.
+    restrict_owner: True only for Sales Representative — callers add own-alias owner_id filter.
+    params: positional values for where_parts.
+    """
+    role        = claims.get('role', 'Sales Rep')
+    user_region = claims.get('region', '')
+    user_branch = claims.get('branch', '')
+
+    if role == 'Sales Representative':
+        return ([f'{col} = %s'], True, [normalize_branch(user_branch)])
+
+    if role == 'Regional Sales Manager':
+        region_branches = REGION_BRANCHES.get(user_region, [])
+        allowed = [normalize_branch(b) for b in region_branches]
+        req = normalize_branch(requested_branch)
+        if req and req in allowed:
+            return ([f'{col} = %s'], False, [req])
+        if allowed:
+            ph = ', '.join(['%s'] * len(allowed))
+            return ([f'{col} IN ({ph})'], False, allowed)
+        return (['1=0'], False, [])
+
+    if role == 'Head of Sales':
+        if has_branch_filter(requested_branch):
+            return ([f'{col} = %s'], False, [normalize_branch(requested_branch)])
+        return ([], False, [])
+
+    # Default: branch accounts ('Sales Rep') and any unrecognised role
+    if has_branch_filter(requested_branch):
+        return ([f'{col} = %s'], False, [normalize_branch(requested_branch)])
+    return ([], False, [])
+
+
 def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=None):
     cursor = conn.cursor()
     cursor.execute(
@@ -303,16 +346,18 @@ def get_customers():
             ) deal_stats ON c.id = deal_stats.company_id
         """
         
-        where_clauses = ["1=1"]
-        params = []
-        
-        if has_branch_filter(branch):
-            where_clauses.append("LOWER(TRIM(l.branch)) = %s")
-            params.append(normalize_branch(branch))
-            
+        claims = get_jwt()
+        user_id = get_jwt_identity()
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        where_clauses = ["1=1"] + list(scope_parts)
+        params = list(scope_params)
+        if restrict_owner:
+            where_clauses.append("l.owner_id = %s")
+            params.append(user_id)
+
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
-            
+
         query += " ORDER BY c.name"
         
         cursor.execute(query, tuple(params))
@@ -446,11 +491,52 @@ def get_team():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        branch = request.args.get('branch')
-        if branch and branch != 'Headquarters':
-            cursor.execute('SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name', (branch,))
+        branch = request.args.get('branch', '')
+        claims = get_jwt()
+        role = claims.get('role', 'Sales Rep')
+        user_region = claims.get('region', '')
+        user_branch = claims.get('branch', '')
+
+        if role == 'Sales Representative':
+            cursor.execute(
+                'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
+                (user_branch,),
+            )
+        elif role == 'Regional Sales Manager':
+            region_branches = REGION_BRANCHES.get(user_region, [])
+            req = normalize_branch(branch)
+            allowed_normalized = [normalize_branch(b) for b in region_branches]
+            if req and req in allowed_normalized:
+                match = next((b for b in region_branches if normalize_branch(b) == req), None)
+                cursor.execute(
+                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
+                    (match,),
+                )
+            elif region_branches:
+                ph = ', '.join(['%s'] * len(region_branches))
+                cursor.execute(
+                    f'SELECT id, name, role, branch, region FROM team WHERE branch IN ({ph}) ORDER BY name',
+                    tuple(region_branches),
+                )
+            else:
+                cursor.execute('SELECT id, name, role, branch, region FROM team WHERE 1=0')
+        elif role == 'Head of Sales':
+            if branch and branch != 'Headquarters':
+                cursor.execute(
+                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
+                    (branch,),
+                )
+            else:
+                cursor.execute('SELECT id, name, role, branch, region FROM team ORDER BY name')
         else:
-            cursor.execute('SELECT id, name, role, branch, region FROM team ORDER BY name')
+            if branch and branch != 'Headquarters':
+                cursor.execute(
+                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
+                    (branch,),
+                )
+            else:
+                cursor.execute('SELECT id, name, role, branch, region FROM team ORDER BY name')
+
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -467,29 +553,23 @@ def get_companies():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
-        if has_branch_filter(branch):
-            cursor.execute(
-                '''
-                SELECT c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, c.status, c.created_at
-                FROM companies c
-                LEFT JOIN team t ON c.owner_id = t.id
-                INNER JOIN leads l ON l.id = c.id
-                WHERE LOWER(TRIM(l.branch)) = %s
-                ORDER BY c.name
-                ''',
-                (normalize_branch(branch),),
-            )
-        else:
-            cursor.execute(
-                '''
-                SELECT c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, c.status, c.created_at 
-                FROM companies c
-                LEFT JOIN team t ON c.owner_id = t.id
-                LEFT JOIN leads l ON l.id = c.id
-                WHERE 1=1
-                ORDER BY c.name
-                '''
-            )
+        claims = get_jwt()
+        user_id = get_jwt_identity()
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        where_parts = list(scope_parts)
+        params = list(scope_params)
+        if restrict_owner:
+            where_parts.append('c.owner_id = %s')
+            params.append(user_id)
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+        cursor.execute(f'''
+            SELECT c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, c.status, c.created_at
+            FROM companies c
+            LEFT JOIN team t ON c.owner_id = t.id
+            LEFT JOIN leads l ON l.id = c.id
+            {where_sql}
+            ORDER BY c.name
+        ''', tuple(params))
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -538,29 +618,24 @@ def get_contacts():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
-        if has_branch_filter(branch):
-            cursor.execute(
-                '''
-                SELECT c.id, c.name, c.company_id AS companyId, c.role, t.name AS owner, c.owner_id AS ownerId,
-                       c.email, c.phone, c.last_touch AS lastTouch, c.status, c.created_at
-                FROM contacts c
-                LEFT JOIN team t ON c.owner_id = t.id
-                INNER JOIN leads l ON l.id = c.company_id
-                WHERE LOWER(TRIM(l.branch)) = %s
-                ORDER BY c.name
-                ''',
-                (normalize_branch(branch),),
-            )
-        else:
-            cursor.execute(
-                """SELECT c.id, c.name, c.company_id AS companyId, c.role, t.name AS owner, c.owner_id AS ownerId,
-                          c.email, c.phone, c.last_touch AS lastTouch, c.status, c.created_at
-                   FROM contacts c
-                   LEFT JOIN team t ON c.owner_id = t.id
-                   LEFT JOIN leads l ON l.id = c.company_id
-                   WHERE 1=1
-                   ORDER BY c.name"""
-            )
+        claims = get_jwt()
+        user_id = get_jwt_identity()
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        where_parts = list(scope_parts)
+        params = list(scope_params)
+        if restrict_owner:
+            where_parts.append('c.owner_id = %s')
+            params.append(user_id)
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+        cursor.execute(f'''
+            SELECT c.id, c.name, c.company_id AS companyId, c.role, t.name AS owner, c.owner_id AS ownerId,
+                   c.email, c.phone, c.last_touch AS lastTouch, c.status, c.created_at
+            FROM contacts c
+            LEFT JOIN team t ON c.owner_id = t.id
+            LEFT JOIN leads l ON l.id = c.company_id
+            {where_sql}
+            ORDER BY c.name
+        ''', tuple(params))
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -683,25 +758,23 @@ def get_leads():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
-        if has_branch_filter(branch):
-            cursor.execute(
-                """SELECT l.id, l.customer_name AS customerName, l.contact_num AS contactNum,
-                          l.address, l.region, t.name AS sr, l.owner_id AS ownerId, l.branch, l.status, l.created_at AS createdAt
-                   FROM leads l
-                   LEFT JOIN team t ON l.owner_id = t.id
-                   WHERE LOWER(TRIM(l.branch)) = %s
-                   ORDER BY l.created_at DESC""",
-                (normalize_branch(branch),)
-            )
-        else:
-            cursor.execute(
-                """SELECT l.id, l.customer_name AS customerName, l.contact_num AS contactNum,
-                          l.address, l.region, t.name AS sr, l.owner_id AS ownerId, l.branch, l.status, l.created_at AS createdAt
-                   FROM leads l
-                   LEFT JOIN team t ON l.owner_id = t.id
-                   WHERE 1=1
-                   ORDER BY l.created_at DESC"""
-            )
+        claims = get_jwt()
+        user_id = get_jwt_identity()
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        where_parts = list(scope_parts)
+        params = list(scope_params)
+        if restrict_owner:
+            where_parts.append('l.owner_id = %s')
+            params.append(user_id)
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+        cursor.execute(f'''
+            SELECT l.id, l.customer_name AS customerName, l.contact_num AS contactNum,
+                   l.address, l.region, t.name AS sr, l.owner_id AS ownerId, l.branch, l.status, l.created_at AS createdAt
+            FROM leads l
+            LEFT JOIN team t ON l.owner_id = t.id
+            {where_sql}
+            ORDER BY l.created_at DESC
+        ''', tuple(params))
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -732,10 +805,15 @@ def create_lead():
             if not team_row:
                 return jsonify({'error': 'Assigned owner not found in team'}), 400
             
-            # Allow Admins to bypass branch check, but Sales Reps must match
             token_claims = get_jwt()
-            if token_claims.get('role') != 'Admin':
-                if normalize_branch(team_row[0]) != normalize_branch(branch):
+            token_role = token_claims.get('role', '')
+            if token_role not in ('Admin', 'Head of Sales'):
+                if token_role == 'Regional Sales Manager':
+                    rsm_region = token_claims.get('region', '')
+                    allowed = [normalize_branch(b) for b in REGION_BRANCHES.get(rsm_region, [])]
+                    if normalize_branch(branch) not in allowed:
+                        return jsonify({'error': f'Branch ({branch}) is outside your region scope'}), 403
+                elif normalize_branch(team_row[0]) != normalize_branch(branch):
                     return jsonify({'error': f'Owner branch ({team_row[0]}) mismatch with lead branch ({branch})'}), 400
         
         # 1. Insert into leads (Master record matching GSheets)
@@ -816,6 +894,52 @@ def update_lead_status(lead_id):
         close_connection(conn)
 
 
+@app.route('/api/leads/<lead_id>/reassign', methods=['PATCH'])
+@jwt_required()
+def reassign_lead(lead_id):
+    claims = get_jwt()
+    role = claims.get('role', '')
+    if role not in ('Head of Sales', 'Regional Sales Manager'):
+        return jsonify({'error': 'Insufficient permissions to reassign leads'}), 403
+
+    data = request.get_json()
+    new_owner_id = data.get('newOwnerId')
+    if not new_owner_id:
+        return jsonify({'error': 'newOwnerId is required'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT owner_id, branch FROM leads WHERE id = %s', (lead_id,))
+        lead_row = cursor.fetchone()
+        if not lead_row:
+            return jsonify({'error': 'Lead not found'}), 404
+        old_owner_id, lead_branch = lead_row
+
+        cursor.execute('SELECT branch, region FROM team WHERE id = %s', (new_owner_id,))
+        new_owner_row = cursor.fetchone()
+        if not new_owner_row:
+            return jsonify({'error': 'New owner not found in team'}), 400
+        new_owner_branch, new_owner_region = new_owner_row
+
+        # RSM can only reassign within their region
+        if role == 'Regional Sales Manager':
+            user_region = claims.get('region', '')
+            allowed = [normalize_branch(b) for b in REGION_BRANCHES.get(user_region, [])]
+            if normalize_branch(new_owner_branch) not in allowed:
+                return jsonify({'error': f'New owner branch ({new_owner_branch}) is outside your region'}), 403
+
+        cursor.execute('UPDATE leads SET owner_id = %s WHERE id = %s', (new_owner_id, lead_id))
+        cursor.execute('UPDATE companies SET owner_id = %s WHERE id = %s', (new_owner_id, lead_id))
+        log_audit(conn, 'lead', lead_id, 'reassign', str(old_owner_id), str(new_owner_id))
+        conn.commit()
+        return jsonify({'message': 'Lead reassigned successfully'})
+    finally:
+        close_connection(conn)
+
+
 # ─── Deals ────────────────────────────────────────────────────────────────────
 
 @app.route('/api/deals', methods=['GET'])
@@ -827,124 +951,71 @@ def get_deals():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
-        if has_branch_filter(branch):
-            cursor.execute(
-                '''
-                SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
-                       d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
-                       d.probability, t.name AS owner, d.owner_id AS ownerId, d.created_at,
-                       COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
-                       CASE
-                           WHEN urgency.hasOverdue = 1 THEN 'Overdue'
-                           WHEN urgency.hasHigh = 1 THEN 'High Priority'
-                           WHEN urgency.hasToday = 1 THEN 'Due Today'
-                           ELSE NULL
-                       END AS urgencyLabel,
-                       urgency.nextDueDate,
-                       GREATEST(
-                           IFNULL(activity_touch.lastActivityDate, DATE('1000-01-01')),
-                           IFNULL(DATE(audit_touch.lastAuditDate), DATE('1000-01-01')),
-                           IFNULL(d.created_at, DATE('1000-01-01'))
-                       ) AS lastTouch,
-                       CASE WHEN agos.agosCount > 0 THEN 1 ELSE 0 END AS isAgos
-                FROM deals d
-                LEFT JOIN team t ON d.owner_id = t.id
-                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                LEFT JOIN (
-                    SELECT a.deal_id,
-                               MAX(CASE
-                                   WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 3
-                                   WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 2
-                                   WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 1
-                                   ELSE 0
-                               END) AS urgencyScore,
-                               MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1 ELSE 0 END) AS hasOverdue,
-                               MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 1 ELSE 0 END) AS hasHigh,
-                               MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 1 ELSE 0 END) AS hasToday,
-                               MIN(CASE WHEN a.status IN ('Open', 'Reopened') THEN a.due_date END) AS nextDueDate
-                    FROM activities a
-                    GROUP BY a.deal_id
-                ) urgency ON urgency.deal_id = d.id
-                LEFT JOIN (
-                    SELECT a.deal_id, MAX(a.created_at) AS lastActivityDate
-                    FROM activities a
-                    GROUP BY a.deal_id
-                ) activity_touch ON activity_touch.deal_id = d.id
-                LEFT JOIN (
-                    SELECT al.entity_id AS deal_id, MAX(al.changed_at) AS lastAuditDate
-                    FROM audit_log al
-                    WHERE al.entity_type = 'deal'
-                    GROUP BY al.entity_id
-                ) audit_touch ON audit_touch.deal_id = d.id
-                LEFT JOIN (
-                    SELECT a.deal_id,
-                           SUM(CASE WHEN a.notes LIKE '%Automatic task generated%' THEN 1 ELSE 0 END) AS agosCount
-                    FROM activities a
-                    GROUP BY a.deal_id
-                ) agos ON agos.deal_id = d.id
-                WHERE LOWER(TRIM(l.branch)) = %s
-                ORDER BY urgencyScore DESC, d.created_at DESC
-                ''',
-                (normalize_branch(branch),),
-            )
-        else:
-            cursor.execute(
-                """SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
-                          d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
-                          d.probability, t.name AS owner, d.owner_id AS ownerId, d.created_at,
-                          COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
-                          CASE
-                              WHEN urgency.hasOverdue = 1 THEN 'Overdue'
-                              WHEN urgency.hasHigh = 1 THEN 'High Priority'
-                              WHEN urgency.hasToday = 1 THEN 'Due Today'
-                              ELSE NULL
-                          END AS urgencyLabel,
-                          urgency.nextDueDate,
-                          GREATEST(
-                              IFNULL(activity_touch.lastActivityDate, DATE('1000-01-01')),
-                              IFNULL(DATE(audit_touch.lastAuditDate), DATE('1000-01-01')),
-                              IFNULL(d.created_at, DATE('1000-01-01'))
-                          ) AS lastTouch,
-                          CASE WHEN agos.agosCount > 0 THEN 1 ELSE 0 END AS isAgos
-                   FROM deals d
-                   LEFT JOIN team t ON d.owner_id = t.id
-                   LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                   LEFT JOIN (
-                       SELECT a.deal_id,
-                              MAX(CASE
-                                  WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 3
-                                  WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 2
-                                  WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 1
-                                  ELSE 0
-                              END) AS urgencyScore,
-                              MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1 ELSE 0 END) AS hasOverdue,
-                              MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 1 ELSE 0 END) AS hasHigh,
-                              MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 1 ELSE 0 END) AS hasToday,
-                              MIN(CASE WHEN a.status IN ('Open', 'Reopened') THEN a.due_date END) AS nextDueDate
-                       FROM activities a
-                       GROUP BY a.deal_id
-                   ) urgency ON urgency.deal_id = d.id
-                   LEFT JOIN (
-                       SELECT a.deal_id, MAX(a.created_at) AS lastActivityDate
-                       FROM activities a
-                       GROUP BY a.deal_id
-                   ) activity_touch ON activity_touch.deal_id = d.id
-                   LEFT JOIN (
-                       SELECT al.entity_id AS deal_id, MAX(al.changed_at) AS lastAuditDate
-                       FROM audit_log al
-                       WHERE al.entity_type = 'deal'
-                       GROUP BY al.entity_id
-                   ) audit_touch ON audit_touch.deal_id = d.id
-                   LEFT JOIN (
-                       SELECT a.deal_id,
-                              SUM(CASE WHEN a.notes LIKE '%Automatic task generated%' THEN 1 ELSE 0 END) AS agosCount
-                       FROM activities a
-                       GROUP BY a.deal_id
-                   ) agos ON agos.deal_id = d.id
-                   WHERE 1=1
-                     AND l.branch IS NOT NULL
-                   ORDER BY urgencyScore DESC, d.created_at DESC"""
-            )
+        claims = get_jwt()
+        user_id = get_jwt_identity()
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        where_parts = list(scope_parts) + ['l.branch IS NOT NULL']
+        params = list(scope_params)
+        if restrict_owner:
+            where_parts.append('d.owner_id = %s')
+            params.append(user_id)
+        where_sql = 'WHERE ' + ' AND '.join(where_parts)
+        cursor.execute(f'''
+            SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
+                   d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
+                   d.probability, t.name AS owner, d.owner_id AS ownerId, d.created_at,
+                   COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
+                   CASE
+                       WHEN urgency.hasOverdue = 1 THEN 'Overdue'
+                       WHEN urgency.hasHigh = 1 THEN 'High Priority'
+                       WHEN urgency.hasToday = 1 THEN 'Due Today'
+                       ELSE NULL
+                   END AS urgencyLabel,
+                   urgency.nextDueDate,
+                   GREATEST(
+                       IFNULL(activity_touch.lastActivityDate, DATE('1000-01-01')),
+                       IFNULL(DATE(audit_touch.lastAuditDate), DATE('1000-01-01')),
+                       IFNULL(d.created_at, DATE('1000-01-01'))
+                   ) AS lastTouch,
+                   CASE WHEN agos.agosCount > 0 THEN 1 ELSE 0 END AS isAgos
+            FROM deals d
+            LEFT JOIN team t ON d.owner_id = t.id
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            LEFT JOIN (
+                SELECT a.deal_id,
+                       MAX(CASE
+                           WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 3
+                           WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 2
+                           WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 1
+                           ELSE 0
+                       END) AS urgencyScore,
+                       MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1 ELSE 0 END) AS hasOverdue,
+                       MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 1 ELSE 0 END) AS hasHigh,
+                       MAX(CASE WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 1 ELSE 0 END) AS hasToday,
+                       MIN(CASE WHEN a.status IN ('Open', 'Reopened') THEN a.due_date END) AS nextDueDate
+                FROM activities a
+                GROUP BY a.deal_id
+            ) urgency ON urgency.deal_id = d.id
+            LEFT JOIN (
+                SELECT a.deal_id, MAX(a.created_at) AS lastActivityDate
+                FROM activities a
+                GROUP BY a.deal_id
+            ) activity_touch ON activity_touch.deal_id = d.id
+            LEFT JOIN (
+                SELECT al.entity_id AS deal_id, MAX(al.changed_at) AS lastAuditDate
+                FROM audit_log al
+                WHERE al.entity_type = 'deal'
+                GROUP BY al.entity_id
+            ) audit_touch ON audit_touch.deal_id = d.id
+            LEFT JOIN (
+                SELECT a.deal_id,
+                       SUM(CASE WHEN a.notes LIKE '%Automatic task generated%' THEN 1 ELSE 0 END) AS agosCount
+                FROM activities a
+                GROUP BY a.deal_id
+            ) agos ON agos.deal_id = d.id
+            {where_sql}
+            ORDER BY urgencyScore DESC, d.created_at DESC
+        ''', tuple(params))
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -982,8 +1053,15 @@ def create_deal():
                 if lead_row:
                     if team_row[0] != lead_row[0]:
                         token_claims = get_jwt()
-                        if token_claims.get('role') != 'Admin':
-                            return jsonify({'error': f'Owner branch ({team_row[0]}) mismatch with lead/deal branch ({lead_row[0]})'}), 400
+                        token_role = token_claims.get('role', '')
+                        if token_role not in ('Admin', 'Head of Sales'):
+                            if token_role == 'Regional Sales Manager':
+                                rsm_region = token_claims.get('region', '')
+                                allowed = [normalize_branch(b) for b in REGION_BRANCHES.get(rsm_region, [])]
+                                if normalize_branch(lead_row[0]) not in allowed:
+                                    return jsonify({'error': f'Lead branch ({lead_row[0]}) is outside your region scope'}), 403
+                            else:
+                                return jsonify({'error': f'Owner branch ({team_row[0]}) mismatch with lead/deal branch ({lead_row[0]})'}), 400
 
         cursor.execute(
             """INSERT INTO deals (id, name, company_id, contact_id, lead_id, stage, value, close_date, probability, owner_id)
@@ -1021,12 +1099,12 @@ def update_deal_stage(deal_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT stage, value, close_date, owner, lead_id FROM deals WHERE id = %s', (deal_id,))
+        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id FROM deals WHERE id = %s', (deal_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'error': 'Deal not found'}), 404
 
-        old_stage, old_value, old_close, old_owner, lead_id = row
+        old_stage, old_value, old_close, old_owner_id, lead_id = row
         
         updates = []
         params = []
@@ -1084,47 +1162,36 @@ def get_activities():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
-        if has_branch_filter(branch):
-            cursor.execute(
-                '''
-                SELECT a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId, a.deal_id AS dealId,
-                       a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage
-                FROM activities a
-                LEFT JOIN team t ON a.owner_id = t.id
-                LEFT JOIN deals d ON d.id = a.deal_id
-                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE LOWER(TRIM(l.branch)) = %s
-                ORDER BY
-                    CASE
-                        WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1
-                        WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 2
-                        WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 3
-                        WHEN a.status IN ('Open', 'Reopened') THEN 4
-                        ELSE 5
-                    END,
-                    a.due_date ASC
-                ''',
-                (normalize_branch(branch),),
-            )
-        else:
-            cursor.execute(
-                """SELECT a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId, a.deal_id AS dealId,
-                          a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage
-                   FROM activities a
-                   LEFT JOIN team t ON a.owner_id = t.id
-                   LEFT JOIN deals d ON d.id = a.deal_id
-                   LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                   WHERE 1=1
-                   ORDER BY
-                       CASE
-                           WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1
-                           WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 2
-                           WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 3
-                           WHEN a.status IN ('Open', 'Reopened') THEN 4
-                           ELSE 5
-                       END,
-                       a.due_date ASC"""
-            )
+        claims = get_jwt()
+        user_id = get_jwt_identity()
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        where_parts = list(scope_parts)
+        params = list(scope_params)
+        if restrict_owner:
+            where_parts.append('a.owner_id = %s')
+            params.append(user_id)
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else 'WHERE 1=1'
+        cursor.execute(f'''
+            SELECT a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId, a.deal_id AS dealId,
+                   a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage,
+                   a.contact_name, d.name AS dealName,
+                   COALESCE(c.name, l.customer_name, '') AS companyName
+            FROM activities a
+            LEFT JOIN team t ON a.owner_id = t.id
+            LEFT JOIN deals d ON d.id = a.deal_id
+            LEFT JOIN companies c ON d.company_id = c.id
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            {where_sql}
+            ORDER BY
+                CASE
+                    WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1
+                    WHEN a.status IN ('Open', 'Reopened') AND a.priority = 'High' THEN 2
+                    WHEN a.status IN ('Open', 'Reopened') AND a.due_date = CURDATE() THEN 3
+                    WHEN a.status IN ('Open', 'Reopened') THEN 4
+                    ELSE 5
+                END,
+                a.due_date ASC
+        ''', tuple(params))
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -1143,8 +1210,8 @@ def create_activity():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes, stage)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes, stage, contact_name)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 data['id'],
                 data['subject'],
@@ -1156,6 +1223,7 @@ def create_activity():
                 data.get('status', 'Open'),
                 data.get('notes'),
                 data.get('stage'),
+                data.get('contact'),
             ),
         )
         conn.commit()
@@ -1202,104 +1270,81 @@ def get_dashboard():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
-        has_branch = has_branch_filter(branch)
-        branch_params = (normalize_branch(branch),) if has_branch else ()
+        claims = get_jwt()
+        user_id = get_jwt_identity()
 
-        # New leads this month
-        new_leads_query = "SELECT COUNT(*) FROM leads WHERE DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"
-        new_leads_query += ""
-        if has_branch:
-            new_leads_query += " AND LOWER(TRIM(branch)) = %s"
-        cursor.execute(new_leads_query, branch_params)
+        # Branch scope for joined-leads queries (l alias) and direct leads queries
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch)
+        direct_parts, _, direct_params = build_scope(claims, branch, col='LOWER(TRIM(branch))')
+
+        # Build WHERE fragments for joined (deals+leads) and direct (leads) queries
+        deal_where = list(scope_parts) + ['l.branch IS NOT NULL']
+        deal_params = list(scope_params)
+        if restrict_owner:
+            deal_where.append('d.owner_id = %s')
+            deal_params.append(user_id)
+        deal_where_sql = 'WHERE ' + ' AND '.join(deal_where)
+
+        lead_where = ["DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"] + list(direct_parts)
+        lead_params = list(direct_params)
+        if restrict_owner:
+            lead_where.append('owner_id = %s')
+            lead_params.append(user_id)
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM leads WHERE " + " AND ".join(lead_where),
+            tuple(lead_params),
+        )
         new_leads = cursor.fetchone()[0]
 
-        # Active deals (not Closed Won or Closed Lost)
-        if has_branch:
-            cursor.execute(
-                '''
-                SELECT COUNT(*)
-                FROM deals d
-                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
-                  AND LOWER(TRIM(l.branch)) = %s
-                ''',
-                branch_params,
-            )
-        else:
-            cursor.execute("""
-                SELECT COUNT(*) 
-                FROM deals d
-                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
-                  AND l.branch IS NOT NULL
-            """)
+        cursor.execute(f'''
+            SELECT COUNT(*) FROM deals d
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            {deal_where_sql} AND d.stage NOT IN ('Closed Won', 'Closed Lost')
+        ''', tuple(deal_params))
         active_deals = cursor.fetchone()[0]
 
-        # Deals per stage
-        if has_branch:
-            cursor.execute(
-                '''
-                SELECT d.stage, COUNT(*) AS count, SUM(d.value) AS value
-                FROM deals d
-                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE LOWER(TRIM(l.branch)) = %s
-                GROUP BY d.stage
-                ''',
-                branch_params,
-            )
-        else:
-            cursor.execute("""
-                SELECT d.stage, COUNT(*) AS count, SUM(d.value) AS value 
-                FROM deals d
-                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE l.branch IS NOT NULL
-                GROUP BY d.stage
-            """)
+        cursor.execute(f'''
+            SELECT d.stage, COUNT(*) AS count, SUM(d.value) AS value
+            FROM deals d
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            {deal_where_sql}
+            GROUP BY d.stage
+        ''', tuple(deal_params))
         deals_per_stage = rows_to_list(cursor)
 
-        # Conversion rate
-        leads_query = "SELECT COUNT(*) FROM leads WHERE 1=1"
-        if has_branch:
-            leads_query += " AND LOWER(TRIM(branch)) = %s"
-        cursor.execute(leads_query, branch_params)
+        total_leads_where = ['1=1'] + list(direct_parts)
+        total_leads_params = list(direct_params)
+        if restrict_owner:
+            total_leads_where.append('owner_id = %s')
+            total_leads_params.append(user_id)
+
+        cursor.execute(
+            'SELECT COUNT(*) FROM leads WHERE ' + ' AND '.join(total_leads_where),
+            tuple(total_leads_params),
+        )
         total_leads = cursor.fetchone()[0]
-        
-        converted_query = "SELECT COUNT(*) FROM leads WHERE status = 'Converted'"
-        if has_branch:
-            converted_query += " AND LOWER(TRIM(branch)) = %s"
-        cursor.execute(converted_query, branch_params)
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM leads WHERE status = 'Converted' AND " + ' AND '.join(total_leads_where),
+            tuple(total_leads_params),
+        )
         converted = cursor.fetchone()[0]
-        
         conversion_rate = round((converted / total_leads * 100), 1) if total_leads else 0
 
-        # Pipeline value
-        if has_branch:
-            cursor.execute(
-                '''
-                SELECT COALESCE(SUM(d.value), 0)
-                FROM deals d
-                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
-                  AND LOWER(TRIM(l.branch)) = %s
-                ''',
-                branch_params,
-            )
-        else:
-            cursor.execute("""
-                SELECT COALESCE(SUM(d.value), 0) 
-                FROM deals d
-                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') 
-                  AND l.branch IS NOT NULL
-            """)
+        cursor.execute(f'''
+            SELECT COALESCE(SUM(d.value), 0) FROM deals d
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            {deal_where_sql} AND d.stage NOT IN ('Closed Won', 'Closed Lost')
+        ''', tuple(deal_params))
         pipeline_value = float(cursor.fetchone()[0])
 
         return jsonify({
-            'newLeads':      new_leads,
-            'activeDeals':   active_deals,
-            'dealsPerStage': deals_per_stage,
+            'newLeads':       new_leads,
+            'activeDeals':    active_deals,
+            'dealsPerStage':  deals_per_stage,
             'conversionRate': conversion_rate,
-            'pipelineValue': pipeline_value,
+            'pipelineValue':  pipeline_value,
         })
     finally:
         close_connection(conn)

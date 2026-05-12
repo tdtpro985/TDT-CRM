@@ -3,41 +3,44 @@ import { useState } from 'react'
 const TASK_TYPES = ['Call', 'Follow-up', 'Meeting', 'Email']
 const TASK_PRIORITIES = ['Low', 'Medium', 'High']
 
-function DealCombobox({ deals, dealId, onChange }) {
-  const displayValue = deals.find((d) => d.id === dealId)?.name ?? dealId
+function CompanyCombobox({ companies, companyId, onChange }) {
+  const displayValue = companies.find((c) => c.id === companyId)?.name ?? companyId
 
   function hChange(e) {
     const typed = e.target.value
-    const match = deals.find((d) => d.name.toLowerCase() === typed.toLowerCase())
-    onChange({ target: { name: 'dealId', value: match ? match.id : typed } })
+    const match = companies.find((c) => c.name.toLowerCase() === typed.toLowerCase())
+    onChange({ target: { name: 'companyId', value: match ? match.id : typed } })
   }
 
   return (
     <>
       <input
-        name="dealId"
+        name="companyId"
         value={displayValue}
         onChange={hChange}
-        placeholder="Type deal name..."
-        list="deal-options-task"
+        placeholder="Search company..."
+        list="company-options-task"
         autoComplete="off"
+        required
       />
-      <datalist id="deal-options-task">
-        {deals?.map((d) => <option key={d.id} value={d.name} />)}
+      <datalist id="company-options-task">
+        {companies?.map((c) => <option key={c.id} value={c.name} />)}
       </datalist>
     </>
   )
 }
 
-export default function TaskForm({ onSubmit, onCancel, deals, currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES, dealStages = [] }) {
+export default function TaskForm({ onSubmit, onCancel, deals, companies, currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES, dealStages = [] }) {
   const [taskForm, setTaskForm] = useState({
     title: '',
     type: taskTypes[1],
     owner: currentUser?.branch || '',
-    dealId: deals[0]?.id ?? '',
+    companyId: '',
+    contact: '',
+    dealId: '',
     dueDate: '',
     priority: 'Medium',
-    // New fields transferred from DealForm
+    notes: '',
     dealStage: dealStages[0] ?? 'New Opportunity',
     dealValue: '',
     expectedClose: '',
@@ -48,13 +51,29 @@ export default function TaskForm({ onSubmit, onCancel, deals, currentUser, taskT
     setTaskForm((current) => {
       const next = { ...current, [name]: value }
       
-      // Auto-fill logic when selecting an existing deal
-      if (name === 'dealId' && value) {
-        const existingDeal = deals.find(d => d.id === value || d.name === value)
-        if (existingDeal) {
-          next.dealStage = existingDeal.stage
-          next.dealValue = existingDeal.value
-          next.expectedClose = existingDeal.expectedClose
+      // Auto-fill logic when selecting a company
+      if (name === 'companyId' && value) {
+        const selectedCompany = companies.find(c => c.id === value || c.name === value)
+        if (selectedCompany) {
+          // Find the most recent active deal for this company
+          const companyDeal = deals.find(d => 
+            (d.companyId === selectedCompany.id || d.companyId === selectedCompany.name) && 
+            d.stage !== 'Closed Won' && 
+            d.stage !== 'Closed Lost'
+          )
+          
+          if (companyDeal) {
+            next.dealId = companyDeal.id
+            next.dealStage = companyDeal.stage
+            next.dealValue = companyDeal.value
+            next.expectedClose = companyDeal.expectedClose
+          } else {
+            // No active deal, prep for new deal creation
+            next.dealId = ''
+            next.dealStage = dealStages[0]
+            next.dealValue = ''
+            next.expectedClose = ''
+          }
         }
       }
       return next
@@ -68,7 +87,7 @@ export default function TaskForm({ onSubmit, onCancel, deals, currentUser, taskT
 
   return (
     <form className="form-grid" style={{ padding: '0 24px 24px' }} onSubmit={handleSubmit}>
-      <label className="field field--span-2">
+      <label className="field">
         <span>Task title</span>
         <input name="title" value={taskForm.title} onChange={handleChange} placeholder="Enter task title" required autoFocus />
       </label>
@@ -91,9 +110,14 @@ export default function TaskForm({ onSubmit, onCancel, deals, currentUser, taskT
         />
       </label>
 
-      <label className="field field--span-2">
-        <span>Linked deal</span>
-        <DealCombobox deals={deals} dealId={taskForm.dealId} onChange={handleChange} />
+      <label className="field">
+        <span>Company</span>
+        <CompanyCombobox companies={companies} companyId={taskForm.companyId} onChange={handleChange} />
+      </label>
+
+      <label className="field">
+        <span>Contact</span>
+        <input name="contact" value={taskForm.contact} onChange={handleChange} placeholder="Enter contact person" />
       </label>
 
       {/* Transferred Deal Fields */}
@@ -119,11 +143,23 @@ export default function TaskForm({ onSubmit, onCancel, deals, currentUser, taskT
         <input name="dueDate" type="date" value={taskForm.dueDate} onChange={handleChange} required />
       </label>
 
-      <label className="field field--span-2">
+      <label className="field">
         <span>Priority</span>
         <select name="priority" value={taskForm.priority} onChange={handleChange}>
           {taskPriorities.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
+      </label>
+
+      <label className="field field--span-2">
+        <span>Description</span>
+        <textarea 
+          name="notes" 
+          value={taskForm.notes} 
+          onChange={handleChange} 
+          placeholder="Enter task details..." 
+          required 
+          style={{ minHeight: '80px' }}
+        />
       </label>
 
       <div className="form-actions field--span-2">

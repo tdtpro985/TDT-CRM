@@ -19,6 +19,7 @@ export default function CustomersView({
   showCustomerForm,
   setShowCustomerForm,
   onCreateCustomer,
+  onReassignLead,
   currentUser,
   page,
   setPage
@@ -26,6 +27,18 @@ export default function CustomersView({
   const ITEMS_PER_PAGE = 5
   const [customerDetail, setCustomerDetail] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
+  const [reassignTarget, setReassignTarget] = useState(null)
+  const [reassignOwnerId, setReassignOwnerId] = useState('')
+
+  const canReassign = currentUser?.role === 'Head of Sales' || currentUser?.role === 'Regional Sales Manager'
+
+  function handleReassignConfirm() {
+    if (reassignTarget && reassignOwnerId && onReassignLead) {
+      onReassignLead(reassignTarget.id, Number(reassignOwnerId))
+      setReassignTarget(null)
+      setReassignOwnerId('')
+    }
+  }
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) ?? customers[0] ?? null
 
@@ -194,6 +207,20 @@ export default function CustomersView({
                         </div>
                         <div className="contact-card__meta">
                           <span>{customer.branch || 'No branch'}</span>
+                          {canReassign && (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              style={{ marginLeft: 'auto', padding: '2px 8px', fontSize: '0.75rem' }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setReassignTarget(customer)
+                                setReassignOwnerId(customer.ownerId ?? '')
+                              }}
+                            >
+                              Reassign
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -526,6 +553,43 @@ export default function CustomersView({
           </div>
         </div>
       </Modal>
+
+      {reassignTarget && (
+        <Modal title={`Reassign: ${reassignTarget.name}`} onClose={() => setReassignTarget(null)}>
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+              Currently owned by: <strong>{reassignTarget.owner || reassignTarget.sr || '—'}</strong>
+            </p>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.875rem' }}>
+              <span>Assign to</span>
+              <select
+                value={reassignOwnerId}
+                onChange={e => setReassignOwnerId(e.target.value)}
+                style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
+              >
+                <option value="">Select a team member</option>
+                {teamMembers
+                  .filter(m => m.role === 'Sales Representative')
+                  .map(m => (
+                    <option key={m.id} value={m.id}>{m.name} ({m.branch})</option>
+                  ))
+                }
+              </select>
+            </label>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button type="button" className="secondary-button" onClick={() => setReassignTarget(null)}>Cancel</button>
+              <button
+                type="button"
+                className="primary-button"
+                disabled={!reassignOwnerId}
+                onClick={handleReassignConfirm}
+              >
+                Confirm Reassign
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }
