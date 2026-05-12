@@ -103,7 +103,7 @@ DEFAULT_USERS = [
         'email': 'palawan@tdt.com',
         'role': 'Sales Rep',
         'branch': 'Palawan',
-        'region': 'Vis&Min',
+        'region': 'Central',
     },
     {
         'username': 'powerstore.tdtpowersteel',
