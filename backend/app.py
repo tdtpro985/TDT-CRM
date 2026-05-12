@@ -462,11 +462,11 @@ def get_companies():
                 SELECT c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, c.status, c.created_at
                 FROM companies c
                 LEFT JOIN team t ON c.owner_id = t.id
-                INNER JOIN leads l ON l.id = c.id
-                WHERE LOWER(TRIM(l.branch)) = %s
+                LEFT JOIN leads l ON l.id = c.id
+                WHERE (LOWER(TRIM(l.branch)) = %s OR LOWER(TRIM(t.branch)) = %s)
                 ORDER BY c.name
                 ''',
-                (normalize_branch(branch),),
+                (normalize_branch(branch), normalize_branch(branch)),
             )
         else:
             cursor.execute(
@@ -814,10 +814,10 @@ def get_deals():
                     FROM activities a
                     GROUP BY a.deal_id
                 ) agos ON agos.deal_id = d.id
-                WHERE LOWER(TRIM(l.branch)) = %s
+                WHERE (LOWER(TRIM(l.branch)) = %s OR LOWER(TRIM(t.branch)) = %s)
                 ORDER BY urgencyScore DESC, d.created_at DESC
                 ''',
-                (normalize_branch(branch),),
+                (normalize_branch(branch), normalize_branch(branch)),
             )
         else:
             cursor.execute(
@@ -874,7 +874,7 @@ def get_deals():
                        GROUP BY a.deal_id
                    ) agos ON agos.deal_id = d.id
                    WHERE 1=1
-                     AND l.branch IS NOT NULL
+                     AND (l.branch IS NOT NULL OR t.branch IS NOT NULL)
                    ORDER BY urgencyScore DESC, d.created_at DESC"""
             )
         return jsonify(rows_to_list(cursor))
@@ -953,12 +953,12 @@ def update_deal_stage(deal_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT stage, value, close_date, owner, lead_id FROM deals WHERE id = %s', (deal_id,))
+        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id FROM deals WHERE id = %s', (deal_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'error': 'Deal not found'}), 404
 
-        old_stage, old_value, old_close, old_owner, lead_id = row
+        old_stage, old_value, old_close, old_owner_id, lead_id = row
         
         updates = []
         params = []
@@ -1019,13 +1019,17 @@ def get_activities():
         if has_branch_filter(branch):
             cursor.execute(
                 '''
-                SELECT a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId, a.deal_id AS dealId,
-                       a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage
+                SELECT 
+                    a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId, a.deal_id AS dealId,
+                    a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage, a.contact_name,
+                    d.name AS dealName,
+                    COALESCE(c.name, l.customer_name, '') AS companyName
                 FROM activities a
                 LEFT JOIN team t ON a.owner_id = t.id
                 LEFT JOIN deals d ON d.id = a.deal_id
+                LEFT JOIN companies c ON d.company_id = c.id
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE LOWER(TRIM(l.branch)) = %s
+                WHERE (LOWER(TRIM(l.branch)) = %s OR LOWER(TRIM(t.branch)) = %s)
                 ORDER BY
                     CASE
                         WHEN a.status IN ('Open', 'Reopened') AND a.due_date < CURDATE() THEN 1
@@ -1036,15 +1040,19 @@ def get_activities():
                     END,
                     a.due_date ASC
                 ''',
-                (normalize_branch(branch),),
+                (normalize_branch(branch), normalize_branch(branch)),
             )
         else:
             cursor.execute(
-                """SELECT a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId, a.deal_id AS dealId,
-                          a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage
+                """SELECT 
+                    a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId, a.deal_id AS dealId,
+                    a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at, a.stage, a.contact_name,
+                    d.name AS dealName,
+                    COALESCE(c.name, l.customer_name, '') AS companyName
                    FROM activities a
                    LEFT JOIN team t ON a.owner_id = t.id
                    LEFT JOIN deals d ON d.id = a.deal_id
+                   LEFT JOIN companies c ON d.company_id = c.id
                    LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                    WHERE 1=1
                    ORDER BY
@@ -1075,8 +1083,8 @@ def create_activity():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes, stage)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes, stage, contact_name)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 data['id'],
                 data['subject'],
@@ -1088,6 +1096,7 @@ def create_activity():
                 data.get('status', 'Open'),
                 data.get('notes'),
                 data.get('stage'),
+                data.get('contact'),
             ),
         )
         conn.commit()
