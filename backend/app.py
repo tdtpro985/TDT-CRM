@@ -12,7 +12,7 @@ from flask_limiter.util import get_remote_address
 from database.database import get_db_connection, close_connection
 from database.sync_pipeline import fill_pipeline
 from gsheets_sync import sync_from_sheets, sync_to_sheets
-from datetime import timedelta, date
+from datetime import timedelta, date, datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -1040,12 +1040,17 @@ def update_deal_stage(deal_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id FROM deals WHERE id = %s', (deal_id,))
+        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability FROM deals WHERE id = %s', (deal_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'error': 'Deal not found'}), 404
 
-        old_stage, old_value, old_close, old_owner_id, lead_id = row
+        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability = row
+
+        claims = get_jwt()
+        user_id = get_jwt_identity()
+        if claims.get('role') != 'Admin' and str(old_owner_id) != str(user_id):
+            return jsonify({'error': 'Only the assigned SR can update this deal'}), 403
         
         updates = []
         params = []
@@ -1066,10 +1071,16 @@ def update_deal_stage(deal_id):
             params.append(new_close)
             log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close))
             
+        probability = data.get('probability')
+        if probability is not None and not new_stage:
+            updates.append('probability = %s')
+            params.append(probability)
+            log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability))
+
         if data.get('ownerId'):
             updates.append('owner_id = %s')
             params.append(data.get('ownerId'))
-            log_audit(conn, 'deal', deal_id, 'owner_id_change', str(row[3]), str(data.get('ownerId')))
+            log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(data.get('ownerId')))
 
         if not updates:
             return jsonify({'message': 'No updates provided'}), 400
@@ -1077,6 +1088,50 @@ def update_deal_stage(deal_id):
         params.append(deal_id)
         cursor.execute(f'UPDATE deals SET {", ".join(updates)} WHERE id = %s', params)
         conn.commit()
+
+        # Log activity for edit-detail changes (value, closeDate, probability)
+        editor_name = 'Unknown'
+        cursor.execute('SELECT name FROM team WHERE id = %s', (user_id,))
+        user_row = cursor.fetchone()
+        if user_row:
+            editor_name = user_row[0]
+
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        change_desc = []
+        if new_value is not None and float(new_value) != float(old_value):
+            change_desc.append(f'value to {new_value}')
+        if new_close and str(new_close) != str(old_close):
+            change_desc.append(f'close date to {new_close}')
+        if probability is not None and probability != old_probability:
+            change_desc.append(f'probability to {probability}%')
+
+        new_activity = None
+        if change_desc:
+            activity_id = f'update-{deal_id}-{int(datetime.now().timestamp())}'
+            if len(change_desc) == 1:
+                subject = f'{editor_name} updated deal {change_desc[0]}'
+            else:
+                subject = f'{editor_name} updated: {", ".join(change_desc)}'
+            cursor.execute(
+                """INSERT INTO activities (id, subject, type, deal_id, status, created_at)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (activity_id, subject, 'Update', deal_id, 'Completed', today_str),
+            )
+            conn.commit()
+            new_activity = {
+                'id': activity_id,
+                'subject': subject,
+                'title': subject,
+                'type': 'Update',
+                'dealId': deal_id,
+                'status': 'Completed',
+                'dueDate': None,
+                'priority': 'Medium',
+                'companyName': '',
+                'contact': '',
+                'notes': None,
+                'created_at': today_str,
+            }
 
         if new_stage:
             is_closed = new_stage in ('Closed Won', 'Closed Lost')
@@ -1087,7 +1142,10 @@ def update_deal_stage(deal_id):
                     fill_pipeline(conn, branch=lead_row[0])
                     conn.commit()
 
-        return jsonify({'message': 'Deal updated successfully'})
+        result = {'message': 'Deal updated successfully'}
+        if new_activity:
+            result['activity'] = new_activity
+        return jsonify(result)
     finally:
         close_connection(conn)
 

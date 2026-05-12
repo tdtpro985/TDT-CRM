@@ -283,6 +283,7 @@ export default function App() {
             contacts={contacts}
             companies={companies}
             teamMembers={teamMembers}
+            currentUser={currentUser}
             activeDeals={activeDeals}
             pipelineValue={pipelineValue}
             averageDealSize={averageDealSize}
@@ -292,6 +293,7 @@ export default function App() {
             setNotice={setNotice}
             companyMap={companyMap}
             handleDealStageChange={actions.updateDealStage}
+            handleDealUpdate={actions.updateDeal}
             handleTaskStatusToggle={actions.toggleTaskStatus}
             currentPage={pipelinePage}
             setCurrentPage={setPipelinePage}

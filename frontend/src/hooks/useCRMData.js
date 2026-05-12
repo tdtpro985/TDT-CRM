@@ -371,6 +371,30 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
+  async function updateDeal(dealId, fields) {
+    setDeals((current) =>
+      current.map((d) => (d.id === dealId ? { ...d, ...fields } : d)),
+    )
+    try {
+      const body = {}
+      if (fields.value !== undefined) body.value = Number(fields.value)
+      if (fields.expectedClose) body.closeDate = fields.expectedClose
+      if (fields.probability !== undefined) body.probability = Number(fields.probability)
+      const res = await apiFetch(`/api/deals/${dealId}/stage`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error('Network error')
+      const result = await res.json()
+      if (result.activity) {
+        setTasks((current) => [result.activity, ...current])
+      }
+      setNotice('Deal updated successfully.')
+    } catch {
+      setNotice('Deal updated locally — backend not reachable.')
+    }
+  }
+
   async function toggleTaskStatus(taskId, currentStatus) {
     const nextStatus = currentStatus === 'Completed' ? 'Reopened' : 'Completed'
     setTasks((current) => current.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t)))
@@ -438,6 +462,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       createTask,
       updateLeadStatus,
       updateDealStage,
+      updateDeal,
       toggleTaskStatus,
       syncGSheets,
       reassignLead,
