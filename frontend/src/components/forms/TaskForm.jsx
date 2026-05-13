@@ -30,12 +30,12 @@ function CompanyCombobox({ companies, companyId, onChange }) {
   )
 }
 
-export default function TaskForm({ onSubmit, onCancel, deals, companies, currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES, dealStages = [] }) {
+export default function TaskForm({ onSubmit, onCancel, deals, companies, currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES, dealStages = [], prefilledCompanyId = '' }) {
   const [taskForm, setTaskForm] = useState({
     title: '',
     type: taskTypes[1],
-    owner: currentUser?.branch || '',
-    companyId: '',
+    owner: currentUser?.name || '',
+    companyId: prefilledCompanyId,
     contact: '',
     dealId: '',
     dueDate: '',

@@ -61,14 +61,68 @@
 /* ── 2. Sidebar & Brand ─────────────────────────────────────── */
 
 .brand-block {
-  padding: 16px 0;
+  padding: 20px 0;
   border-bottom: 1px solid var(--border);
   margin-bottom: 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   text-align: center;
+}
+
+.brand-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand-user-name {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: var(--fs-md);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.brand-user-role {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  opacity: 0.9;
+  letter-spacing: 0.02em;
+}
+
+.brand-branch-badge.is-region {
+  background: rgba(0, 150, 255, 0.1);
+  border-color: rgba(0, 150, 255, 0.2);
+  color: #4dabf7;
+}
+
+.brand-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.brand-branch-badge {
+  padding: 4px 10px;
+  background: rgba(255, 152, 0, 0.1);
+  border: 1px solid rgba(255, 152, 0, 0.2);
+  color: var(--accent-strong);
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: var(--r-full);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.brand-branch-badge.is-role {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
 }
 
 .brand-logo {

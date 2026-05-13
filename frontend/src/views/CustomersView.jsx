@@ -5,11 +5,14 @@ import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
 import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId } from '../utils'
 import LeadForm from '../components/forms/LeadForm'
+import TaskForm from '../components/forms/TaskForm'
 import { apiFetch } from '../api'
 
 export default function CustomersView({
   filteredCustomers,
   customers,
+  deals,
+  companies,
   teamMembers,
   selectedCustomerId,
   setSelectedCustomerId,
@@ -19,7 +22,7 @@ export default function CustomersView({
   showCustomerForm,
   setShowCustomerForm,
   onCreateCustomer,
-  onReassignLead,
+  onCreateTask,
   currentUser,
   page,
   setPage
@@ -27,18 +30,7 @@ export default function CustomersView({
   const ITEMS_PER_PAGE = 5
   const [customerDetail, setCustomerDetail] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
-  const [reassignTarget, setReassignTarget] = useState(null)
-  const [reassignOwnerId, setReassignOwnerId] = useState('')
-
-  const canReassign = currentUser?.role === 'Head of Sales' || currentUser?.role === 'Regional Sales Manager'
-
-  function handleReassignConfirm() {
-    if (reassignTarget && reassignOwnerId && onReassignLead) {
-      onReassignLead(reassignTarget.id, Number(reassignOwnerId))
-      setReassignTarget(null)
-      setReassignOwnerId('')
-    }
-  }
+  const [showQuickTaskForm, setShowQuickTaskForm] = useState(false)
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) ?? customers[0] ?? null
 
@@ -126,6 +118,32 @@ export default function CustomersView({
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [companyContacts, setCompanyContacts] = useState([])
 
+  // Recency mapping for dot indicator
+  const companyLastTouch = useMemo(() => {
+    const map = {}
+    for (const d of (deals || [])) {
+      if (d.companyId && d.lastTouch) {
+        const t = new Date(d.lastTouch)
+        if (!map[d.companyId] || t > map[d.companyId]) {
+          map[d.companyId] = t
+        }
+      }
+    }
+    return map
+  }, [deals])
+
+  function getRecencyColor(customer) {
+    const touch = companyLastTouch[customer.id]
+    if (!touch || Number(customer.totalDealCount || 0) === 0) return 'var(--text-muted)'
+    
+    const now = new Date()
+    const diffDays = (now - touch) / (1000 * 60 * 60 * 24)
+    
+    if (diffDays > 30) return 'var(--alert)'   // Red: Stale (> 30 days)
+    if (diffDays > 7) return 'var(--warning)' // Yellow: Aging (8-30 days)
+    return 'var(--positive)'                  // Green: Recent (<= 7 days)
+  }
+
   useEffect(() => {
     if (customerDetail?.contacts) {
       setCompanyContacts(customerDetail.contacts.map(c => ({ ...c, isEditing: false, isNew: false })))
@@ -134,31 +152,48 @@ export default function CustomersView({
     }
   }, [customerDetail?.contacts])
 
-  // KPI Calculations for the selected customer
+  // KPI Calculations for the summary cards
+  const activeDealSum = useMemo(() =>
+    (customers || []).reduce((sum, c) => sum + Number(c.activeDealCount || 0), 0)
+  , [customers])
+
+  const coldCompanyCount = useMemo(() => {
+    const deadline = new Date()
+    deadline.setDate(deadline.getDate() - 30)
+    // companyId -> newest lastTouch date
+    const touchMap = {}
+    for (const d of (deals || [])) {
+      if (d.companyId && d.lastTouch) {
+        const t = new Date(d.lastTouch)
+        if (!touchMap[d.companyId] || t > touchMap[d.companyId]) {
+          touchMap[d.companyId] = t
+        }
+      }
+    }
+    return (customers || []).filter(c =>
+      Number(c.totalDealCount || 0) === 0 ||
+      !touchMap[c.id] ||
+      touchMap[c.id] < deadline
+    ).length
+  }, [customers, deals])
+
   const winLossRatio = customerDetail?.customer?.winLossRatio ?? '—'
   const closedWonValue = customerDetail?.customer?.closedWonValue ?? 0
   const closedLostValue = customerDetail?.customer?.closedLostValue ?? 0
-  
-  const globalWinLossRatio = useMemo(() => {
-    const won = (customers || []).reduce((sum, c) => Number(sum) + Number(c.closedWonCount || 0), 0)
-    const lost = (customers || []).reduce((sum, c) => Number(sum) + Number(c.closedLostCount || 0), 0)
-    if (lost === 0) return won > 0 ? 'Win Only' : '—'
-    return (won / lost).toFixed(2)
-  }, [customers])
 
-  const totalClosedWon = (customers || []).reduce((sum, c) => Number(sum) + Number(c.closedWonCount || 0), 0)
-  const totalClosedLost = (customers || []).reduce((sum, c) => Number(sum) + Number(c.closedLostCount || 0), 0)
+  const hasHistory = (customerDetail?.deals?.length > 0) || 
+                     (customerDetail?.activities?.length > 0) || 
+                     (customerDetail?.auditLogs?.length > 0)
 
   return (
     <>
-      <section className="metrics-grid metrics-grid--compact">
-        <MetricCard label="Total Customers" value={customers.length.toLocaleString()} meta="Total records in database" accent="accent" />
-        <MetricCard label="Win/Loss Ratio" value={globalWinLossRatio} meta="Overall sales performance" accent="surface" />
-        <MetricCard label="Closed Won" value={totalClosedWon.toLocaleString()} meta="Total successful deals" accent="alt" />
-        <MetricCard label="Closed Lost" value={totalClosedLost.toLocaleString()} meta="Total unsuccessful deals" accent="surface" />
+      <section className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+        <MetricCard label="Total Customers" value={customers.length.toLocaleString()} meta="Total records" accent="accent" />
+        <MetricCard label="Active Deals" value={activeDealSum.toLocaleString()} meta="Currently in pipeline" accent="alt" />
+        <MetricCard label="Cold Companies" value={coldCompanyCount.toLocaleString()} meta="No recent deal activity" accent="surface" />
       </section>
 
-      <section className="content-grid content-grid--primary">
+      <section className="content-grid content-grid--primary" style={{ gridTemplateColumns: '45fr 55fr' }}>
         <Panel
           kicker="Customer Registry"
           title="Companies"
@@ -195,31 +230,43 @@ export default function CustomersView({
                         onClick={() => setSelectedCustomerId(customer.id)}
                         onDoubleClick={() => setDetailModalOpen(true)}
                       >
-                        <span 
-                          className={`tone-pill ${getToneClass(customer.customerStatus)}`}
-                          style={{ position: 'absolute', top: '12px', right: '12px' }}
-                        >
-                          {customer.customerStatus}
-                        </span>
-                        <div style={{ paddingRight: '100px' }}>
-                          <strong>{customer.name}</strong>
-                          <p>{customer.city || customer.region || '—'}</p>
+                        <div
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            position: 'absolute',
+                            top: '18px',
+                            right: '18px',
+                            background: getRecencyColor(customer),
+                            boxShadow: `0 0 8px ${getRecencyColor(customer)}`,
+                            opacity: 0.8
+                          }}
+                          title={companyLastTouch[customer.id] ? `Last activity: ${formatDateLabel(companyLastTouch[customer.id])}` : 'No recorded activity'}
+                        />
+                        <div style={{ paddingRight: '34px' }}>
+                          <strong style={{ fontSize: 'var(--fs-md)', color: 'var(--text-strong)', display: 'block' }}>
+                            {customer.name}
+                          </strong>
+                          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                            {customer.city || customer.region || '—'}
+                          </p>
                         </div>
-                        <div className="contact-card__meta">
+                        <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span>{customer.branch || 'No branch'}</span>
-                          {canReassign && (
-                            <button
-                              type="button"
-                              className="secondary-button"
-                              style={{ marginLeft: 'auto', padding: '2px 8px', fontSize: '0.75rem' }}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setReassignTarget(customer)
-                                setReassignOwnerId(customer.ownerId ?? '')
-                              }}
-                            >
-                              Reassign
-                            </button>
+                          {customer.industry && (
+                            <>
+                              <span style={{ opacity: 0.5 }}>•</span>
+                              <span>{customer.industry}</span>
+                            </>
+                          )}
+                          {Number(customer.activeDealCount) > 0 && (
+                            <>
+                              <span style={{ opacity: 0.5 }}>•</span>
+                              <span style={{ color: 'var(--accent-strong)', fontWeight: 600 }}>
+                                {customer.activeDealCount} active
+                              </span>
+                            </>
                           )}
                         </div>
                       </div>
@@ -240,86 +287,100 @@ export default function CustomersView({
           >
             {selectedCustomer ? (
               <div className="customer-detail-view">
-                <div className="section-header" style={{ marginBottom: '12px' }}>
-                  <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Deal History</h4>
-                </div>
-
-                <div className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '24px' }}>
-                  <MetricCard label="W/L Ratio" value={Number(winLossRatio) ? Number(winLossRatio).toFixed(2) : winLossRatio} meta="Performance" accent="accent" />
-                  <MetricCard label="Won Value" value={formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
-                  <MetricCard label="Lost Value" value={formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
-                </div>
-
                 {loadingDetail ? (
-                  <p>Loading transactions...</p>
-                ) : !customerDetail?.deals?.length ? (
-                  <EmptyState title="No transactions yet" copy="This company has no deals recorded." />
-                ) : (
-                  <div className="admin-table-wrap" style={{ marginBottom: '24px' }}>
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>Deal</th>
-                          <th>Stage</th>
-                          <th>Value</th>
-                          <th>Owner</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {customerDetail.deals.map(deal => (
-                          <tr key={deal.id}>
-                            <td className="admin-table__name">{deal.name}</td>
-                            <td><span className={`tone-pill ${getToneClass(deal.stage)}`}>{deal.stage}</span></td>
-                            <td>{formatCurrencyCompact(deal.value)}</td>
-                            <td className="admin-table__muted">{deal.owner}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <p style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading records...</p>
+                ) : !hasHistory ? (
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    padding: '64px 24px',
+                    textAlign: 'center' 
+                  }}>
+                    <h4 style={{ margin: '0 0 8px', color: 'var(--text-strong)' }}>No history found</h4>
+                    <p style={{ margin: '0 0 24px', fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', maxWidth: '240px' }}>
+                      Start by logging a task or update for {selectedCustomer.name}.
+                    </p>
+                    <button 
+                      type="button" 
+                      className="primary-button"
+                      onClick={() => setShowQuickTaskForm(true)}
+                    >
+                      Add Task
+                    </button>
                   </div>
-                )}
-
-                <div className="section-header" style={{ marginBottom: '12px' }}>
-                  <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Activity Log</h4>
-                </div>
-
-                {loadingDetail ? (
-                  <p>Loading activities...</p>
                 ) : (
-                  <div className="timeline">
-                    {[
-                      ...(customerDetail?.activities || []).map(a => ({ ...a, timelineType: 'activity' })),
-                      ...(customerDetail?.auditLogs || []).map(l => ({ ...l, timelineType: 'audit', createdAt: l.changedAt }))
-                    ]
-                    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                    .map((item, idx) => (
-                      <div key={idx} className="timeline-item">
-                        <div className="timeline-dot"></div>
-                        <div className="timeline-content">
-                          <div className="timeline-header">
-                            <span className="timeline-time">{formatDateLabel(item.createdAt)}</span>
-                            <span className={`timeline-badge ${item.timelineType === 'audit' ? 'is-audit' : 'is-activity'}`}>
-                              {item.timelineType === 'audit' ? 'Change' : item.type}
-                            </span>
-                          </div>
-                          <div className="timeline-body">
-                            {item.timelineType === 'audit' ? (
-                              <p>
-                                <strong>{item.action.replace('_', ' ')}</strong>: 
-                                <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
-                              </p>
-                            ) : (
-                              <p><strong>{item.subject}</strong> - {item.owner}</p>
-                            )}
-                            {item.notes && <p className="timeline-notes">{item.notes}</p>}
+                  <>
+                    <div className="section-header" style={{ marginBottom: '12px' }}>
+                      <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Deal History</h4>
+                    </div>
+
+                    <div className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '24px' }}>
+                      <MetricCard label="W/L Ratio" value={Number(winLossRatio) ? Number(winLossRatio).toFixed(2) : winLossRatio} meta="Performance" accent="accent" />
+                      <MetricCard label="Won Value" value={formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
+                      <MetricCard label="Lost Value" value={formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
+                    </div>
+
+                    <div className="admin-table-wrap" style={{ marginBottom: '24px' }}>
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>Deal</th>
+                            <th>Stage</th>
+                            <th>Value</th>
+                            <th>Owner</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {customerDetail.deals.map(deal => (
+                            <tr key={deal.id}>
+                              <td className="admin-table__name">{deal.name}</td>
+                              <td><span className={`tone-pill ${getToneClass(deal.stage)}`}>{deal.stage}</span></td>
+                              <td>{formatCurrencyCompact(deal.value)}</td>
+                              <td className="admin-table__muted">{deal.owner}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="section-header" style={{ marginBottom: '12px' }}>
+                      <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Activity Log</h4>
+                    </div>
+
+                    <div className="timeline">
+                      {[
+                        ...(customerDetail?.activities || []).map(a => ({ ...a, timelineType: 'activity' })),
+                        ...(customerDetail?.auditLogs || []).map(l => ({ ...l, timelineType: 'audit', createdAt: l.changedAt }))
+                      ]
+                      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                      .map((item, idx) => (
+                        <div key={idx} className="timeline-item">
+                          <div className="timeline-dot"></div>
+                          <div className="timeline-content">
+                            <div className="timeline-header">
+                              <span className="timeline-time">{formatDateLabel(item.createdAt)}</span>
+                              <span className={`timeline-badge ${item.timelineType === 'audit' ? 'is-audit' : 'is-activity'}`}>
+                                {item.timelineType === 'audit' ? 'Change' : item.type}
+                              </span>
+                            </div>
+                            <div className="timeline-body">
+                              {item.timelineType === 'audit' ? (
+                                <p>
+                                  <strong>{item.action.replace('_', ' ')}</strong>: 
+                                  <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
+                                </p>
+                              ) : (
+                                <p><strong>{item.subject}</strong> - {item.owner}</p>
+                              )}
+                              {item.notes && <p className="timeline-notes">{item.notes}</p>}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
-                    {!customerDetail?.activities?.length && !customerDetail?.auditLogs?.length && (
-                      <p className="admin-table__muted" style={{ padding: '0 10px' }}>No activity history found.</p>
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
             ) : (
@@ -328,6 +389,29 @@ export default function CustomersView({
           </Panel>
         </div>
       </section>
+
+      <Modal
+        isOpen={showQuickTaskForm}
+        onClose={() => setShowQuickTaskForm(false)}
+        title="Log a task & Update deal"
+        kicker="Activity entry"
+      >
+        <TaskForm
+          deals={deals}
+          companies={companies}
+          teamMembers={teamMembers}
+          currentUser={currentUser}
+          prefilledCompanyId={selectedCustomer?.id}
+          onCancel={() => setShowQuickTaskForm(false)}
+          onSubmit={async (form) => {
+            await onCreateTask(form)
+            setShowQuickTaskForm(false)
+            if (selectedCustomer?.id) {
+              fetchDetail(selectedCustomer.id)
+            }
+          }}
+        />
+      </Modal>
 
       <Modal
         isOpen={showCustomerForm}
@@ -553,43 +637,6 @@ export default function CustomersView({
           </div>
         </div>
       </Modal>
-
-      {reassignTarget && (
-        <Modal title={`Reassign: ${reassignTarget.name}`} onClose={() => setReassignTarget(null)}>
-          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-              Currently owned by: <strong>{reassignTarget.owner || reassignTarget.sr || '—'}</strong>
-            </p>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '0.875rem' }}>
-              <span>Assign to</span>
-              <select
-                value={reassignOwnerId}
-                onChange={e => setReassignOwnerId(e.target.value)}
-                style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)' }}
-              >
-                <option value="">Select a team member</option>
-                {teamMembers
-                  .filter(m => m.role === 'Sales Representative')
-                  .map(m => (
-                    <option key={m.id} value={m.id}>{m.name} ({m.branch})</option>
-                  ))
-                }
-              </select>
-            </label>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button type="button" className="secondary-button" onClick={() => setReassignTarget(null)}>Cancel</button>
-              <button
-                type="button"
-                className="primary-button"
-                disabled={!reassignOwnerId}
-                onClick={handleReassignConfirm}
-              >
-                Confirm Reassign
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </>
   )
 }
