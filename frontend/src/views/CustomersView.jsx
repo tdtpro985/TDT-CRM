@@ -27,10 +27,11 @@ export default function CustomersView({
   page,
   setPage
 }) {
-  const ITEMS_PER_PAGE = 5
+  const ITEMS_PER_PAGE = 7
   const [customerDetail, setCustomerDetail] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [showQuickTaskForm, setShowQuickTaskForm] = useState(false)
+  const [recencyFilter, setRecencyFilter] = useState(null)
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) ?? customers[0] ?? null
 
@@ -114,10 +115,6 @@ export default function CustomersView({
     )
   }
 
-  const paginatedCustomers = getPaginatedData(filteredCustomers, page)
-  const [detailModalOpen, setDetailModalOpen] = useState(false)
-  const [companyContacts, setCompanyContacts] = useState([])
-
   // Recency mapping for dot indicator
   const companyLastTouch = useMemo(() => {
     const map = {}
@@ -132,17 +129,34 @@ export default function CustomersView({
     return map
   }, [deals])
 
-  function getRecencyColor(customer) {
+  function getRecencyKey(customer) {
     const touch = companyLastTouch[customer.id]
-    if (!touch || Number(customer.totalDealCount || 0) === 0) return 'var(--text-muted)'
+    if (!touch || Number(customer.totalDealCount || 0) === 0) return 'inactive'
     
     const now = new Date()
     const diffDays = (now - touch) / (1000 * 60 * 60 * 24)
     
-    if (diffDays > 30) return 'var(--alert)'   // Red: Stale (> 30 days)
-    if (diffDays > 7) return 'var(--warning)' // Yellow: Aging (8-30 days)
-    return 'var(--positive)'                  // Green: Recent (<= 7 days)
+    if (diffDays > 30) return 'stale'
+    if (diffDays > 7) return 'aging'
+    return 'recent'
   }
+
+  function getRecencyColor(customer) {
+    const key = getRecencyKey(customer)
+    if (key === 'inactive') return 'var(--text-muted)'
+    if (key === 'stale') return 'var(--alert)'
+    if (key === 'aging') return 'var(--warning)'
+    return 'var(--positive)'
+  }
+
+  const recencyFilteredCustomers = useMemo(() => {
+    if (!recencyFilter) return filteredCustomers
+    return filteredCustomers.filter(c => getRecencyKey(c) === recencyFilter)
+  }, [filteredCustomers, recencyFilter, companyLastTouch])
+
+  const paginatedCustomers = getPaginatedData(recencyFilteredCustomers, page)
+  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [companyContacts, setCompanyContacts] = useState([])
 
   useEffect(() => {
     if (customerDetail?.contacts) {
@@ -199,13 +213,53 @@ export default function CustomersView({
           title="Companies"
           detail="Derived from leads and direct company entries."
           action={
-            <div className="panel-inline-controls">
+            <div className="panel-inline-controls" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div className="status-legend" style={{ display: 'flex', gap: '12px', marginRight: '8px' }}>
+                {[
+                  { key: 'recent', label: 'Recent', color: 'var(--positive)' },
+                  { key: 'aging', label: 'Aging', color: 'var(--warning)' },
+                  { key: 'stale', label: 'Stale', color: 'var(--alert)' },
+                  { key: 'inactive', label: 'Inactive', color: 'var(--text-muted)' }
+                ].map(item => (
+                  <div
+                    key={item.key}
+                    onClick={() => {
+                      setRecencyFilter(prev => prev === item.key ? null : item.key)
+                      setPage(1)
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: 'var(--fs-xs)',
+                      color: recencyFilter === item.key ? 'var(--text-strong)' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      background: recencyFilter === item.key ? 'rgba(255,255,255,0.05)' : 'transparent',
+                      transition: 'all 0.2s ease',
+                      border: recencyFilter === item.key ? '1px solid var(--border-light)' : '1px solid transparent'
+                    }}
+                  >
+                    <div style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      background: item.color,
+                      boxShadow: `0 0 4px ${item.color}`,
+                      opacity: recencyFilter && recencyFilter !== item.key ? 0.4 : 1
+                    }} />
+                    <span style={{ fontWeight: recencyFilter === item.key ? 600 : 400 }}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
               <label className="filter-wrap">
                 <span>Status</span>
                 <select 
                   value={statusFilter} 
                   onChange={(e) => {
                     setStatusFilter(e.target.value)
+                    setRecencyFilter(null)
                     setPage(1)
                   }}
                 >
@@ -217,8 +271,8 @@ export default function CustomersView({
           }
         >
           <div style={{ minHeight: '600px', display: 'flex', flexDirection: 'column' }}>
-            {filteredCustomers.length === 0
-              ? <EmptyState title="No customers match this search" copy="Clear the search box to see the full registry." />
+            {recencyFilteredCustomers.length === 0
+              ? <EmptyState title="No customers match this filter" copy="Try adjusting your recency or status filters." />
               : (
                 <>
                   <div className="contact-list" style={{ flex: 1, alignContent: 'start' }}>
@@ -248,31 +302,22 @@ export default function CustomersView({
                           <strong style={{ fontSize: 'var(--fs-md)', color: 'var(--text-strong)', display: 'block' }}>
                             {customer.name}
                           </strong>
-                          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-                            {customer.city || customer.region || '—'}
-                          </p>
-                        </div>
-                        <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span>{customer.branch || 'No branch'}</span>
-                          {customer.industry && (
-                            <>
-                              <span style={{ opacity: 0.5 }}>•</span>
-                              <span>{customer.industry}</span>
-                            </>
-                          )}
-                          {Number(customer.activeDealCount) > 0 && (
-                            <>
-                              <span style={{ opacity: 0.5 }}>•</span>
-                              <span style={{ color: 'var(--accent-strong)', fontWeight: 600 }}>
-                                {customer.activeDealCount} active
-                              </span>
-                            </>
-                          )}
+                          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span>{Number(customer.totalDealCount || 0)} total</span>
+                            {Number(customer.activeDealCount) > 0 && (
+                              <>
+                                <span style={{ opacity: 0.5 }}>•</span>
+                                <span style={{ color: 'var(--accent-strong)', fontWeight: 600 }}>
+                                  {customer.activeDealCount} active
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                  {renderPagination(filteredCustomers.length, page, setPage)}
+                  {renderPagination(recencyFilteredCustomers.length, page, setPage)}
                 </>
               )
             }
@@ -496,6 +541,7 @@ export default function CustomersView({
                         <>
                           <td>
                             <input
+                              name="name"
                               value={contact.name}
                               onChange={e => {
                                 const val = e.target.value
@@ -507,6 +553,7 @@ export default function CustomersView({
                           </td>
                           <td>
                             <input
+                              name="role"
                               value={contact.role}
                               onChange={e => {
                                 const val = e.target.value
@@ -518,6 +565,7 @@ export default function CustomersView({
                           </td>
                           <td>
                             <input
+                              name="email"
                               value={contact.email}
                               onChange={e => {
                                 const val = e.target.value
@@ -529,6 +577,7 @@ export default function CustomersView({
                           </td>
                           <td>
                             <input
+                              name="phone"
                               value={contact.phone}
                               onChange={e => {
                                 const val = e.target.value

@@ -517,9 +517,11 @@ export default function App() {
             <p className="page-description">{currentMeta.description}</p>
           </div>
           <div className="top-bar-actions">
-            <label className="search-field">
+            <label className="search-field" htmlFor="global-search-input">
               <span className="search-icon" aria-hidden="true">Search</span>
               <input
+                id="global-search-input"
+                name="searchQuery"
                 type="search"
                 value={searchQuery}
                 onChange={(e) => {
