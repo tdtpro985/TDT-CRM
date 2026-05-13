@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import './App.css'
 import { formatCurrencyCompact, matchesSearch } from './utils'
-import { clearToken, getUser, saveUser } from './api'
+import { clearToken, getUser, saveUser, apiFetch } from './api'
 import DashboardView from './views/DashboardView'
 import CustomersView from './views/CustomersView'
 import PipelineView  from './views/PipelineView'
@@ -17,12 +17,21 @@ const CURRENT_DATE = new Date().toISOString().split('T')[0]
 
 const LEAD_STATUSES  = ['New', 'Working', 'Qualified', 'Unqualified', 'Converted']
 const CUSTOMER_STATUSES = ['New', 'Prospect', 'Negotiation', 'Converted']
-const DEAL_STAGES    = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
 const TASK_TYPES     = ['Call', 'Follow-up', 'Meeting', 'Email']
 const TASK_PRIORITIES = ['Low', 'Medium', 'High']
 const LEAD_SOURCES   = ['Website', 'Referral', 'Outbound', 'Event', 'Email']
 
-const SHORT_STAGE_LABEL = { 'New Opportunity': 'New', 'Closed Won': 'Won', 'Closed Lost': 'Lost' }
+const STAGE_WORKFLOW = {
+  'Qualified':       { probability: 20, activityType: null,      hint: 'Verify company exists in the customer database.' },
+  'New Opportunity': { probability: 40, activityType: 'Call',    hint: 'Client has requested a quotation. Gather scope requirements.' },
+  'Proposal':        { probability: 60, activityType: 'Meeting', hint: 'Formalize and present the proposal document.' },
+  'Negotiation':     { probability: 80, activityType: 'Meeting', hint: 'Adjust terms. Resolve to Closed Won or Closed Lost.' },
+  'Closed Won':      { probability: 100, activityType: null,     hint: 'Deal signed and closed.' },
+  'Closed Lost':     { probability: 0,   activityType: null,     hint: 'Deal lost. Capture reason before closing.' },
+}
+const DEAL_STAGES = Object.keys(STAGE_WORKFLOW)
+
+const SHORT_STAGE_LABEL = { 'New Opportunity': 'New Opp', 'Closed Won': 'Won', 'Closed Lost': 'Lost' }
 
 const REGION_BRANCHES = {
   'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
@@ -188,6 +197,16 @@ export default function App() {
     await actions.createTask(form, DEAL_STAGES);
   }
 
+  async function fetchDealContacts(dealId) {
+    try {
+      const res = await apiFetch(`/api/deals/${dealId}/contacts`)
+      if (res.ok) return res.json()
+      return []
+    } catch {
+      return []
+    }
+  }
+
   // ─── Navigation helpers ─────────────────────────────────────────────────────
 
   function focusSection(viewId, sectionId, message) {
@@ -310,6 +329,7 @@ export default function App() {
             pipelineValue={pipelineValue}
             averageDealSize={averageDealSize}
             dealStages={DEAL_STAGES}
+            stageWorkflow={STAGE_WORKFLOW}
             stageFilter={stageFilter}
             setStageFilter={setStageFilter}
             setNotice={setNotice}
@@ -554,6 +574,7 @@ export default function App() {
           taskPriorities={TASK_PRIORITIES}
           dealStages={DEAL_STAGES}
           currentUser={currentUser}
+          fetchDealContacts={fetchDealContacts}
           onCancel={() => setShowTaskForm(false)}
           onSubmit={(form) => {
             handleCreateTask(form)
