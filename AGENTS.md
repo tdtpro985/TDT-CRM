@@ -33,3 +33,4 @@
 - Always close DB connections in `finally` with `close_connection(conn)`.
 - Use parameterized SQL only.
 - Keep `@jwt_required` and `@admin_required` in place on protected routes.
+- Strictly avoid touching or modifying data inside the database (seeding, deleting, or updating records) unless the user explicitly requests it in their prompt.

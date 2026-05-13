@@ -128,14 +128,14 @@
 .primary-button:hover,
 .secondary-button:hover,
 .ghost-button:hover {
-  opacity: 1.88;
+  opacity: 0.85;
   transform: translateY(-1px);
 }
 
 .primary-button {
-  background: linear-gradient(135deg, var(--accent) 0%, #ffb547 100%);
+  background: var(--accent);
   color: #10131f;
-  box-shadow: 0 4px 16px rgba(255,152,0,0.24);
+  box-shadow: none;
 }
 
 .secondary-button {
