@@ -90,8 +90,8 @@ export default function App() {
   }
 
   const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
-  const { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch } = data
-  const { setActiveBranch, reassignLead } = actions
+  const { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch, activeRegion } = data
+  const { setActiveBranch, setActiveRegion, reassignLead } = actions
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
@@ -283,6 +283,7 @@ export default function App() {
             contacts={contacts}
             companies={companies}
             teamMembers={teamMembers}
+            currentUser={currentUser}
             activeDeals={activeDeals}
             pipelineValue={pipelineValue}
             averageDealSize={averageDealSize}
@@ -292,6 +293,7 @@ export default function App() {
             setNotice={setNotice}
             companyMap={companyMap}
             handleDealStageChange={actions.updateDealStage}
+            handleDealUpdate={actions.updateDeal}
             handleTaskStatusToggle={actions.toggleTaskStatus}
             currentPage={pipelinePage}
             setCurrentPage={setPipelinePage}
@@ -396,11 +398,10 @@ export default function App() {
               <>
                 <select
                   style={{ width: '100%', marginBottom: '6px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.8rem' }}
-                  value={Object.keys(REGION_BRANCHES).find(r => REGION_BRANCHES[r].includes(activeBranch)) ?? ''}
+                  value={activeRegion}
                   onChange={e => {
-                    const region = e.target.value
-                    if (region) setActiveBranch(REGION_BRANCHES[region][0])
-                    else setActiveBranch(currentUser.branch)
+                    setActiveRegion(e.target.value)
+                    setActiveBranch('')
                   }}
                 >
                   <option value="">All Regions</option>
@@ -411,7 +412,9 @@ export default function App() {
                   value={activeBranch}
                   onChange={e => setActiveBranch(e.target.value)}
                 >
-                  {(Object.values(REGION_BRANCHES).flat()).map(b => <option key={b} value={b}>{b}</option>)}
+                  <option value="">All Branches</option>
+                  {(activeRegion ? REGION_BRANCHES[activeRegion] : Object.values(REGION_BRANCHES).flat())
+                    .map(b => <option key={b} value={b}>{b}</option>)}
                 </select>
               </>
             )}
@@ -422,6 +425,7 @@ export default function App() {
                 value={activeBranch}
                 onChange={e => setActiveBranch(e.target.value)}
               >
+                <option value="">All {currentUser.region}</option>
                 {(REGION_BRANCHES[currentUser.region] ?? [currentUser.branch]).map(b => (
                   <option key={b} value={b}>{b}</option>
                 ))}
