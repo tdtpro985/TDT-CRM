@@ -76,6 +76,9 @@ export default function PipelineView({
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef(null)
 
+  // Audit logs
+  const [auditLogs, setAuditLogs] = useState([])
+
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -83,6 +86,31 @@ export default function PipelineView({
     currentUser?.role === 'Admin' ||
     String(currentUser?.id) === String(selectedDeal.ownerId)
   )
+
+  const auditActionLabels = {
+    stage_change: 'Stage changed',
+    value_change: 'Deal value changed',
+    close_date_change: 'Close date changed',
+    owner_id_change: 'Owner changed',
+    lost_reason: 'Deal lost',
+    probability_change: 'Probability changed',
+    status_change: 'Status changed',
+  }
+
+  function formatAuditEntry(log) {
+    const label = auditActionLabels[log.action] || log.action
+    if (!log.oldValue || !log.newValue || log.oldValue === log.newValue) return label
+    switch (log.action) {
+      case 'stage_change':
+        return <>{label}: {log.oldValue} → <span className="tone-pill is-warning" style={{ fontSize: '10px', padding: '1px 6px' }}>{log.newValue}</span></>
+      case 'value_change':
+        return <>{label}: {formatCurrencyCompact(Number(log.oldValue))} → {formatCurrencyCompact(Number(log.newValue))}</>
+      case 'close_date_change':
+        return <>{label}: {formatDateLabel(log.oldValue)} → {formatDateLabel(log.newValue)}</>
+      default:
+        return <>{label}: {log.oldValue} → {log.newValue}</>
+    }
+  }
 
   const visibleStages = showClosed
     ? dealStages
@@ -112,6 +140,20 @@ export default function PipelineView({
         .catch(() => {})
     } else {
       setDealContacts([])
+    }
+    return () => { active = false }
+  }, [selectedDeal])
+
+  // Fetch audit logs when a deal is selected
+  useEffect(() => {
+    let active = true
+    if (selectedDeal) {
+      apiFetch(`/api/deals/${selectedDeal.id}/audit`)
+        .then(res => res.json())
+        .then(data => { if (active) setAuditLogs(data) })
+        .catch(() => {})
+    } else {
+      setAuditLogs([])
     }
     return () => { active = false }
   }, [selectedDeal])
@@ -436,7 +478,7 @@ export default function PipelineView({
                       type="number"
                       className="deal-modal__edit-input"
                       value={editValue}
-                      onChange={(e) => setEditValue(Number(e.target.value))}
+                      onChange={(e) => setEditValue(e.target.value === '' ? '' : Number(e.target.value))}
                     />
                   ) : (
                     <strong className="deal-modal__value" style={{ color: 'var(--accent-strong)' }}>{formatCurrencyCompact(selectedDeal.value)}</strong>
@@ -446,15 +488,15 @@ export default function PipelineView({
                   <span className="deal-modal__label">Probability</span>
                   {isEditing ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        className="deal-modal__edit-input"
-                        style={{ maxWidth: '80px' }}
-                        value={editProbability}
-                        onChange={(e) => setEditProbability(Number(e.target.value))}
-                      />
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          className="deal-modal__edit-input"
+                          style={{ maxWidth: '80px' }}
+                          value={editProbability}
+                          onChange={(e) => setEditProbability(e.target.value === '' ? '' : Number(e.target.value))}
+                        />
                       <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>%</span>
                     </div>
                   ) : (
@@ -622,6 +664,25 @@ export default function PipelineView({
                           </div>
                         </div>
                       ))
+                  )}
+                </div>
+              </div>
+
+              {/* Activity Logs */}
+              <div className="deal-modal__history">
+                <h3 className="deal-modal__subheading">Activity Logs</h3>
+                <div className="deal-modal__task-list">
+                  {auditLogs.length === 0 ? (
+                    <div className="deal-modal__empty-history">No activity logs found for this deal.</div>
+                  ) : (
+                    auditLogs.map(log => (
+                      <div key={log.id} className="deal-modal__history-item deal-modal__activity-item">
+                        <div className="deal-modal__history-info">
+                          <strong>{formatAuditEntry(log)}</strong>
+                          <span className="deal-modal__history-meta">{formatDateLabel(log.changedAt)}</span>
+                        </div>
+                      </div>
+                    ))
                   )}
                 </div>
               </div>
