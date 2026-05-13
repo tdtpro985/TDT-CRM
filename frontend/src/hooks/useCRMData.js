@@ -24,17 +24,25 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   const [teamMembers, setTeamMembers] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const branch = currentUser?.branch ?? ''
-  const [activeBranch, setActiveBranch] = useState(branch)
+  const initialBranch = currentUser?.role === 'Head of Sales' ? '' : (currentUser?.branch ?? '')
+  const [activeBranch, setActiveBranch] = useState(initialBranch)
+  const [activeRegion, setActiveRegion] = useState('')
 
-  // Reset activeBranch whenever the logged-in user changes (login/logout)
-  useEffect(() => { setActiveBranch(currentUser?.branch ?? '') }, [currentUser])
+  // Reset activeBranch/activeRegion whenever the logged-in user changes (login/logout)
+  useEffect(() => {
+    setActiveBranch(currentUser?.role === 'Head of Sales' ? '' : (currentUser?.branch ?? ''))
+    setActiveRegion('')
+  }, [currentUser])
 
   useEffect(() => {
     if (!currentUser) return
     async function loadAll() {
       try {
-        const branchParam = activeBranch ? `?branch=${encodeURIComponent(activeBranch)}` : ''
+        const branchParam = activeBranch
+          ? `?branch=${encodeURIComponent(activeBranch)}`
+          : activeRegion
+            ? `?region=${encodeURIComponent(activeRegion)}`
+            : ''
         const responses = await Promise.all([
           apiFetch(`/api/companies${branchParam}`),
           apiFetch(`/api/customers${branchParam}`),
@@ -93,7 +101,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       }
     }
     loadAll()
-  }, [currentUser, activeBranch, setNotice])
+  }, [currentUser, activeBranch, activeRegion, setNotice])
 
   async function createLead(leadForm) {
     const rsm = teamMembers.find(m => m.name === leadForm.sr || m.id === leadForm.ownerId)
@@ -363,6 +371,30 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
+  async function updateDeal(dealId, fields) {
+    setDeals((current) =>
+      current.map((d) => (d.id === dealId ? { ...d, ...fields } : d)),
+    )
+    try {
+      const body = {}
+      if (fields.value !== undefined) body.value = Number(fields.value)
+      if (fields.expectedClose) body.closeDate = fields.expectedClose
+      if (fields.probability !== undefined) body.probability = Number(fields.probability)
+      const res = await apiFetch(`/api/deals/${dealId}/stage`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error('Network error')
+      const result = await res.json()
+      if (result.activity) {
+        setTasks((current) => [result.activity, ...current])
+      }
+      setNotice('Deal updated successfully.')
+    } catch {
+      setNotice('Deal updated locally — backend not reachable.')
+    }
+  }
+
   async function toggleTaskStatus(taskId, currentStatus) {
     const nextStatus = currentStatus === 'Completed' ? 'Reopened' : 'Completed'
     setTasks((current) => current.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t)))
@@ -421,7 +453,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   return {
-    data: { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch },
+    data: { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch, activeRegion },
     actions: {
       createLead,
       createContact,
@@ -430,10 +462,12 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       createTask,
       updateLeadStatus,
       updateDealStage,
+      updateDeal,
       toggleTaskStatus,
       syncGSheets,
       reassignLead,
       setActiveBranch,
+      setActiveRegion,
     }
   }
 }

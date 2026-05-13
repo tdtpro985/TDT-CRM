@@ -30,6 +30,7 @@ export default function PipelineView({
   tasks,
   leads,
   contacts,
+  teamMembers,
   activeDeals,
   pipelineValue,
   averageDealSize,
@@ -39,16 +40,27 @@ export default function PipelineView({
   setNotice,
   companyMap,
   handleDealStageChange,
+  handleDealUpdate,
   handleTaskStatusToggle,
   currentPage,
   setCurrentPage,
-  onViewTasks
+  onViewTasks,
+  currentUser,
 }) {
   const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
   const [selectedDeal, setSelectedDeal] = useState(null)
   const [dealContacts, setDealContacts] = useState([])
+  const [isEditing, setIsEditing] = useState(false)
+  const [editValue, setEditValue] = useState('')
+  const [editCloseDate, setEditCloseDate] = useState('')
+  const [editProbability, setEditProbability] = useState(0)
   const location = useLocation()
+
+  const canEdit = selectedDeal && (
+    currentUser?.role === 'Admin' ||
+    String(currentUser?.id) === String(selectedDeal.ownerId)
+  )
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -279,7 +291,7 @@ export default function PipelineView({
       </section>
 
       {selectedDeal && (
-        <div className="deal-modal-overlay" onClick={() => setSelectedDeal(null)}>
+        <div className="deal-modal-overlay" onClick={() => { setSelectedDeal(null); setIsEditing(false) }}>
           <div className="deal-modal" onClick={(e) => e.stopPropagation()}>
 
             {/* ── Header ── */}
@@ -288,7 +300,17 @@ export default function PipelineView({
                 <span className="deal-modal__kicker">Deal Details</span>
                 <h2>{selectedDeal.name}</h2>
               </div>
-              <button type="button" className="deal-modal__close" aria-label="Close" onClick={() => setSelectedDeal(null)}>✕</button>
+              <div className="deal-modal__header-actions">
+                <button type="button" className="deal-modal__close" aria-label="Close" onClick={() => { setSelectedDeal(null); setIsEditing(false) }}>✕</button>
+                {canEdit && !isEditing && (
+                  <button type="button" className="secondary-button" style={{ fontSize: '11px', padding: '6px 12px' }} onClick={() => {
+                    setEditValue(selectedDeal.value)
+                    setEditCloseDate(selectedDeal.expectedClose || '')
+                    setEditProbability(selectedDeal.probability)
+                    setIsEditing(true)
+                  }}>Edit Details</button>
+                )}
+              </div>
             </div>
 
             {/* Body */}
@@ -306,17 +328,50 @@ export default function PipelineView({
                 </div>
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Deal Value</span>
-                  <strong className="deal-modal__value deal-modal__value--accent">{formatCurrencyCompact(selectedDeal.value)}</strong>
+                  {isEditing ? (
+                    <input
+                      type="number"
+                      className="deal-modal__edit-input"
+                      value={editValue}
+                      onChange={(e) => setEditValue(Number(e.target.value))}
+                    />
+                  ) : (
+                    <strong className="deal-modal__value" style={{ color: 'var(--accent-strong)' }}>{formatCurrencyCompact(selectedDeal.value)}</strong>
+                  )}
                 </div>
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Probability</span>
-                  <strong className="deal-modal__value">
-                    <span className="tone-pill is-warning">{selectedDeal.probability}%</span>
-                  </strong>
+                  {isEditing ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        className="deal-modal__edit-input"
+                        style={{ maxWidth: '80px' }}
+                        value={editProbability}
+                        onChange={(e) => setEditProbability(Number(e.target.value))}
+                      />
+                      <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>%</span>
+                    </div>
+                  ) : (
+                    <strong className="deal-modal__value">
+                      <span className="tone-pill is-warning">{selectedDeal.probability}%</span>
+                    </strong>
+                  )}
                 </div>
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Expected Close</span>
-                  <strong className="deal-modal__value">{formatDateLabel(selectedDeal.expectedClose) || '—'}</strong>
+                  {isEditing ? (
+                    <input
+                      type="date"
+                      className="deal-modal__edit-input"
+                      value={editCloseDate}
+                      onChange={(e) => setEditCloseDate(e.target.value)}
+                    />
+                  ) : (
+                    <strong className="deal-modal__value">{formatDateLabel(selectedDeal.expectedClose) || '—'}</strong>
+                  )}
                 </div>
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Stage</span>
@@ -359,12 +414,12 @@ export default function PipelineView({
                   ) : (
                     (tasks ?? [])
                       .filter(t => t.dealId === selectedDeal.id)
-                      .sort((a, b) => new Date(b.dueDate || 0) - new Date(a.dueDate || 0))
+                      .sort((a, b) => new Date(b.created_at || b.dueDate || 0) - new Date(a.created_at || a.dueDate || 0))
                       .map(task => (
                         <div key={task.id} className="deal-modal__history-item">
                           <div className="deal-modal__history-info">
                             <strong>{task.title}</strong>
-                            <span className="deal-modal__history-meta">{task.type} • {formatDateLabel(task.dueDate)}</span>
+                            <span className="deal-modal__history-meta">{task.type} • {formatDateLabel(task.dueDate || task.created_at)}</span>
                             {task.notes && (
                               <p className="deal-modal__history-notes">{task.notes}</p>
                             )}
@@ -404,24 +459,45 @@ export default function PipelineView({
               </div>
             </div>
 
-            {/* ── Footer: Stage Updater ── */}
+            {/* ── Footer: Save / Cancel or Stage Updater ── */}
             <div className="deal-modal__footer">
-              <p className="deal-modal__footer-label">Move to stage</p>
-              <div className="deal-modal__stage-buttons">
-                {dealStages.map((s) => (
+              {isEditing ? (
+                <div className="deal-modal__edit-actions">
                   <button
-                    key={s}
                     type="button"
-                    className={`deal-modal__stage-btn ${s === selectedDeal.stage ? 'is-active' : ''}`}
-                    onClick={() => {
-                      handleDealStageChange(selectedDeal.id, s)
-                      setSelectedDeal((d) => ({ ...d, stage: s }))
+                    className="primary-button"
+                    onClick={async () => {
+                      await handleDealUpdate(selectedDeal.id, { value: editValue, expectedClose: editCloseDate, probability: editProbability })
+                      setSelectedDeal((d) => ({ ...d, value: editValue, expectedClose: editCloseDate, probability: editProbability }))
+                      setIsEditing(false)
                     }}
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
+                  >Save</button>
+                  <button type="button" className="secondary-button" onClick={() => setIsEditing(false)}>Cancel</button>
+                </div>
+              ) : canEdit ? (
+                <>
+                  <p className="deal-modal__footer-label">Move to stage</p>
+                  <div className="deal-modal__stage-buttons">
+                    {dealStages.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={`deal-modal__stage-btn ${s === selectedDeal.stage ? 'is-active' : ''}`}
+                        onClick={() => {
+                          handleDealStageChange(selectedDeal.id, s)
+                          setSelectedDeal((d) => ({ ...d, stage: s }))
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="deal-modal__footer-label" style={{ textAlign: 'center', width: '100%', opacity: 0.6 }}>
+                  Read-only — you are not the assigned SR for this deal
+                </p>
+              )}
             </div>
 
           </div>
