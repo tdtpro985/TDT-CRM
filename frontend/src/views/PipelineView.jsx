@@ -53,6 +53,8 @@ export default function PipelineView({
   setCurrentPage,
   onViewTasks,
   currentUser,
+  teamMembers,
+  activeBranch,
 }) {
   const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
@@ -71,6 +73,10 @@ export default function PipelineView({
 
   // Show/hide closed stages
   const [showClosed, setShowClosed] = useState(false)
+
+  // SR filter (HoS/Admin only, requires a specific branch to be selected)
+  const [srFilter, setSrFilter] = useState('')
+  useEffect(() => { setSrFilter('') }, [activeBranch])
 
   // PDF attachments
   const [attachments, setAttachments] = useState([])
@@ -173,7 +179,23 @@ export default function PipelineView({
     return () => { active = false }
   }, [selectedDeal?.id, selectedDeal?.stage])
 
-  const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
+  const canFilterBySR = (
+    (currentUser?.role === 'Head of Sales' || currentUser?.role === 'Admin') &&
+    !!activeBranch
+  )
+
+  const srOptions = canFilterBySR
+    ? (teamMembers ?? []).filter(
+        (m) => m.branch === activeBranch &&
+               (m.role === 'Sales Representative' || m.role === 'Sales Rep')
+      )
+    : []
+
+  const srFilteredDeals = (canFilterBySR && srFilter)
+    ? filteredDeals.filter((d) => String(d.ownerId) === String(srFilter))
+    : filteredDeals
+
+  const totalPages = Math.ceil(srFilteredDeals.length / ITEMS_PER_PAGE)
 
   const getPaginatedData = (data, page, limit) => {
     const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 10)
@@ -181,7 +203,7 @@ export default function PipelineView({
     return data.slice(start, start + limit)
   }
 
-  const paginatedDeals = getPaginatedData(filteredDeals, currentPage, ITEMS_PER_PAGE)
+  const paginatedDeals = getPaginatedData(srFilteredDeals, currentPage, ITEMS_PER_PAGE)
 
   const closingThisMonth = activeDeals.filter((d) => d.expectedClose?.startsWith(CURRENT_MONTH)).length
 
@@ -294,6 +316,20 @@ export default function PipelineView({
                   {dealStages.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </label>
+              {canFilterBySR && (
+                <label className="filter-wrap">
+                  <span>Sales Rep</span>
+                  <select
+                    value={srFilter}
+                    onChange={(e) => { setSrFilter(e.target.value); setCurrentPage(1) }}
+                  >
+                    <option value="">All reps</option>
+                    {srOptions.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <button
                 type="button"
                 className="secondary-button"

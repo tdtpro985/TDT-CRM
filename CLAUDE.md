@@ -39,9 +39,16 @@ DB_NAME=tdt_crm
 JWT_SECRET_KEY=generate_a_random_string
 FLASK_PORT=5001
 FLASK_DEBUG=True
+FRONTEND_URL=http://localhost:5173            # used for CORS allowlist
 GOOGLE_CREDENTIALS_JSON_PATH=credentials.json   # optional, for GSheets sync
 SPREADSHEET_ID=...                               # optional, target spreadsheet
 ```
+
+For the frontend, create `frontend/.env` if you need to override the backend URL:
+```ini
+VITE_API_BASE=http://localhost:5001
+```
+On Windows, port 5000 is often occupied by other services — use 5001 and make sure `VITE_API_BASE` matches.
 
 ## Architecture
 
@@ -74,15 +81,35 @@ The API base URL defaults to `http://localhost:5001` and can be overridden with 
 
 All database connections are opened per-request via `get_db_connection()` and always closed in a `finally` block via `close_connection()`.
 
-### Branch-level data isolation
-Every API endpoint accepts a `?branch=` query parameter. The `has_branch_filter()` helper returns `False` for empty strings or `'Headquarters'`, which causes the endpoint to return all-branch data (used by the admin portal). Branch users see only their branch's records; the admin portal sees all.
+### Role-based data isolation
+The `build_scope()` helper in `app.py` is the central enforcement point for all data filtering. It reads the JWT claims and returns a `(where_parts, restrict_owner, params)` tuple that every endpoint injects into its SQL:
+
+| Role | Sees |
+|---|---|
+| `Sales Representative` | Only their own records (`owner_id` restricted) |
+| `Regional Sales Manager` | All records for branches in their region |
+| `Head of Sales` | All branches; can filter by `?branch=` or `?region=` |
+| `Admin` | Admin portal only — uses separate login and endpoints |
+
+The region → branch mapping lives in `REGION_BRANCHES` (defined identically in both `app.py` and `App.jsx`):
+- `Central`: Manila, Palawan, Legazpi, Cavite, Batangas
+- `North Luzon`: Ilocos, Isabela
+- `Vis&Min`: Gensan, Iloilo, Cebu, Davao, CDO
+
+`has_branch_filter()` returns `False` for empty strings or `'Headquarters'` — those yield unfiltered (all-branch) results. The `?branch=` and `?region=` params are mutually exclusive; `branch` takes precedence in `useCRMData.js`.
 
 The string `manila.tdtpowersteel` in the `sr` column is a reserved system identifier for the Google Sheets sync account. All queries explicitly filter it out with `LOWER(TRIM(sr)) != 'manila.tdtpowersteel'`.
 
 ### Data model relationships
+`backend/database/schema.sql` is the source of truth for the database schema. The key tables are `leads`, `companies`, `contacts`, `deals`, `activities` (called "tasks" in the UI), and `team`.
+
 Creating a lead atomically creates a matching `companies` record (using the same `id`) and a `contacts` record (with a UUID). This means `companies.id = leads.id` for leads-originated companies, and deals join to leads via either `lead_id` or `company_id`.
 
+The `GET /api/customers` endpoint is not a simple table query — it returns an enriched join of companies + leads + deal statistics (total, active, won, lost counts) computed via SQL subqueries. This is distinct from `GET /api/companies`.
+
 The `deals` GET query computes deal urgency (overdue, high priority, due today) and `lastTouch` entirely in SQL subqueries — avoid moving this logic to the frontend.
+
+**Naming conventions**: The database uses `snake_case` column names; the API serializes them to `camelCase` for the frontend. The mapping is handled in `useCRMData.js` (e.g., `contact_name` → `contact`, `close_date` → `expectedClose`). The frontend calls activities "tasks" throughout — `useCRMData` maps the `activities` API response into the `tasks` state array.
 
 ### Pipeline stages and probabilities
 Stages map to fixed probabilities in both the backend (`STAGE_PROBABILITY` dict in `app.py`) and frontend (`STAGE_PROBABILITY` in `useCRMData.js`). Changing a deal's stage via `PATCH /api/deals/<id>/stage` automatically updates the probability. Audit entries are written to `audit_log` on every stage or status change.

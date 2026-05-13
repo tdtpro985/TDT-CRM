@@ -329,6 +329,7 @@ export default function App() {
             contacts={contacts}
             companies={companies}
             teamMembers={teamMembers}
+            activeBranch={activeBranch}
             currentUser={currentUser}
             activeDeals={activeDeals}
             pipelineValue={pipelineValue}
