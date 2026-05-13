@@ -19,6 +19,29 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+def ensure_schema():
+    conn = get_db_connection()
+    if not conn:
+        print("Schema verification failed: could not connect to database.")
+        return
+    try:
+        cursor = conn.cursor()
+        # Ensure lost_reason column exists in deals table
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'deals' AND COLUMN_NAME = 'lost_reason'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'lost_reason' column to 'deals' table...")
+            cursor.execute("ALTER TABLE deals ADD COLUMN lost_reason VARCHAR(255) NULL")
+            conn.commit()
+    except Exception as e:
+        print(f"Error during schema verification: {e}")
+    finally:
+        close_connection(conn)
+
+ensure_schema()
+
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {
     "origins": os.getenv("FRONTEND_URL", "http://localhost:5173"),
@@ -135,6 +158,33 @@ REGION_BRANCHES = {
     'North Luzon': ['Ilocos', 'Isabela'],
     'Vis&Min':     ['Gensan', 'Iloilo', 'Cebu', 'Davao', 'CDO'],
 }
+
+
+ROLE_RANK = {
+    'Admin': 100,
+    'Head of Sales': 80,
+    'Regional Sales Manager': 60,
+    'Sales Representative': 40,
+}
+
+
+def can_assign(claims, current_user_id, target_id, target_role):
+    """
+    Check if current user can assign to target_role (strictly below).
+    Self-assignment is always allowed.
+    """
+    # Self-assignment is always allowed
+    if str(target_id) == str(current_user_id):
+        return True
+    
+    user_rank = ROLE_RANK.get(claims.get('role', ''), 0)
+    target_rank = ROLE_RANK.get(target_role, 0)
+    
+    # Admin can assign to anyone
+    if claims.get('role') == 'Admin':
+        return True
+    
+    return user_rank > target_rank
 
 
 def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested_region=''):
@@ -510,35 +560,40 @@ def get_team():
 
         if role == 'Sales Representative':
             cursor.execute(
-                'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
+                'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role = "Sales Representative" ORDER BY name',
                 (user_branch,),
             )
         elif role == 'Regional Sales Manager':
             region_branches = REGION_BRANCHES.get(user_region, [])
             req = normalize_branch(branch)
             allowed_normalized = [normalize_branch(b) for b in region_branches]
+            # RSM can only assign to SR
+            target_role = 'Sales Representative'
             if req and req in allowed_normalized:
                 match = next((b for b in region_branches if normalize_branch(b) == req), None)
                 cursor.execute(
-                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
-                    (match,),
+                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role = %s ORDER BY name',
+                    (match, target_role),
                 )
             elif region_branches:
                 ph = ', '.join(['%s'] * len(region_branches))
                 cursor.execute(
-                    f'SELECT id, name, role, branch, region FROM team WHERE branch IN ({ph}) ORDER BY name',
-                    tuple(region_branches),
+                    f'SELECT id, name, role, branch, region FROM team WHERE branch IN ({ph}) AND role = %s ORDER BY name',
+                    tuple(region_branches + [target_role]),
                 )
             else:
                 cursor.execute('SELECT id, name, role, branch, region FROM team WHERE 1=0')
         elif role == 'Head of Sales':
+            # HoS can assign to RSM and SR
+            target_roles = ('Regional Sales Manager', 'Sales Representative')
+            ph_roles = ', '.join(['%s'] * len(target_roles))
             if branch and branch != 'Headquarters':
                 cursor.execute(
-                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
-                    (branch,),
+                    f'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ({ph_roles}) ORDER BY name',
+                    (branch, *target_roles),
                 )
             else:
-                cursor.execute('SELECT id, name, role, branch, region FROM team ORDER BY name')
+                cursor.execute(f'SELECT id, name, role, branch, region FROM team WHERE role IN ({ph_roles}) ORDER BY name', target_roles)
         else:
             if branch and branch != 'Headquarters':
                 cursor.execute(
@@ -814,13 +869,19 @@ def create_lead():
 
         # Validation: Ensure owner_id belongs to the correct branch/region
         if owner_id:
-            cursor.execute('SELECT branch, region FROM team WHERE id = %s', (owner_id,))
+            cursor.execute('SELECT branch, region, role FROM team WHERE id = %s', (owner_id,))
             team_row = cursor.fetchone()
             if not team_row:
                 return jsonify({'error': 'Assigned owner not found in team'}), 400
             
             token_claims = get_jwt()
             token_role = token_claims.get('role', '')
+            user_id = get_jwt_identity()
+
+            # Role hierarchy check
+            if not can_assign(token_claims, user_id, owner_id, team_row[2]):
+                return jsonify({'error': f'Cannot assign lead to a user with equal or higher role ({team_row[2]})'}), 403
+
             if token_role not in ('Admin', 'Head of Sales'):
                 if token_role == 'Regional Sales Manager':
                     rsm_region = token_claims.get('region', '')
@@ -932,11 +993,16 @@ def reassign_lead(lead_id):
             return jsonify({'error': 'Lead not found'}), 404
         old_owner_id, lead_branch = lead_row
 
-        cursor.execute('SELECT branch, region FROM team WHERE id = %s', (new_owner_id,))
+        cursor.execute('SELECT branch, region, role FROM team WHERE id = %s', (new_owner_id,))
         new_owner_row = cursor.fetchone()
         if not new_owner_row:
             return jsonify({'error': 'New owner not found in team'}), 400
-        new_owner_branch, new_owner_region = new_owner_row
+        new_owner_branch, new_owner_region, new_owner_role = new_owner_row
+
+        # Role hierarchy check
+        user_id = get_jwt_identity()
+        if not can_assign(claims, user_id, new_owner_id, new_owner_role):
+            return jsonify({'error': f'Cannot reassign to a user with equal or higher role ({new_owner_role})'}), 403
 
         # RSM can only reassign within their region
         if role == 'Regional Sales Manager':
@@ -1056,11 +1122,18 @@ def create_deal():
         
         # Validation for owner_id branch mismatch
         if owner_id:
-            cursor.execute('SELECT branch FROM team WHERE id = %s', (owner_id,))
+            cursor.execute('SELECT branch, role FROM team WHERE id = %s', (owner_id,))
             team_row = cursor.fetchone()
             if not team_row:
                 return jsonify({'error': 'Assigned owner not found in team'}), 400
             
+            token_claims = get_jwt()
+            user_id = get_jwt_identity()
+
+            # Role hierarchy check
+            if not can_assign(token_claims, user_id, owner_id, team_row[1]):
+                return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({team_row[1]})'}), 403
+
             # If leadId is provided, check branch against lead's branch
             lead_id = data.get('leadId')
             if lead_id:
@@ -1165,9 +1238,15 @@ def update_deal_stage(deal_id):
             log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close))
 
         if data.get('ownerId'):
+            new_owner_id = data.get('ownerId')
+            cursor.execute('SELECT role FROM team WHERE id = %s', (new_owner_id,))
+            target_row = cursor.fetchone()
+            if target_row and not can_assign(claims, user_id, new_owner_id, target_row[0]):
+                return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({target_row[0]})'}), 403
+
             updates.append('owner_id = %s')
-            params.append(data.get('ownerId'))
-            log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(data.get('ownerId')))
+            params.append(new_owner_id)
+            log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(new_owner_id))
 
         lost_reason = data.get('lostReason')
         if new_stage == 'Closed Lost' and lost_reason:
@@ -1302,6 +1381,18 @@ def create_activity():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+
+        # Security: Resolve owner ID by name if provided, instead of trusting raw ID
+        # This prevents vulnerability of frontend manipulating database IDs
+        final_owner_id = data.get('ownerId')
+        owner_name = data.get('owner') # Frontend sends name string here
+        
+        if owner_name:
+            cursor.execute("SELECT id FROM team WHERE name = %s", (owner_name,))
+            row = cursor.fetchone()
+            if row:
+                final_owner_id = row[0]
+
         cursor.execute(
             """INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes, stage, contact_name)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
@@ -1309,7 +1400,7 @@ def create_activity():
                 data['id'],
                 data['subject'],
                 data.get('type', 'Follow-up'),
-                data.get('ownerId'),
+                final_owner_id,
                 data.get('dealId') or None,
                 data.get('dueDate') or None,
                 data.get('priority', 'Medium'),
