@@ -1040,12 +1040,12 @@ def update_deal_stage(deal_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability FROM deals WHERE id = %s', (deal_id,))
+        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability, probability_manual FROM deals WHERE id = %s', (deal_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'error': 'Deal not found'}), 404
 
-        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability = row
+        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability, old_probability_manual = row
 
         claims = get_jwt()
         user_id = get_jwt_identity()
@@ -1055,10 +1055,27 @@ def update_deal_stage(deal_id):
         updates = []
         params = []
         
+        probability = data.get('probability')
+            updates.append('probability = %s')
+            params.append(probability)
+            updates.append('probability_manual = TRUE')
+            log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability))
+        
         if new_stage:
-            new_probability = STAGE_PROBABILITY.get(new_stage, 20)
-            updates.append('stage = %s, probability = %s')
-            params.extend([new_stage, new_probability])
+            if probability is not None:
+                # Both probability and stage sent — stage updated, probability already set above
+                updates.append('stage = %s')
+                params.append(new_stage)
+            elif old_probability_manual:
+                # SR manually set probability before — preserve it
+                updates.append('stage = %s')
+                params.append(new_stage)
+            else:
+                # Auto-assign probability from stage
+                new_probability = STAGE_PROBABILITY.get(new_stage, 20)
+                updates.append('stage = %s, probability = %s')
+                params.extend([new_stage, new_probability])
+                updates.append('probability_manual = FALSE')
             log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage)
         
         if new_value is not None:
@@ -1070,12 +1087,6 @@ def update_deal_stage(deal_id):
             updates.append('close_date = %s')
             params.append(new_close)
             log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close))
-            
-        probability = data.get('probability')
-        if probability is not None and not new_stage:
-            updates.append('probability = %s')
-            params.append(probability)
-            log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability))
 
         if data.get('ownerId'):
             updates.append('owner_id = %s')
