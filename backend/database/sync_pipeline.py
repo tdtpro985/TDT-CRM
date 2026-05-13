@@ -17,8 +17,8 @@ ACTIVE_STAGES = [
 ]
 
 STAGE_PROBABILITY = {
-    'New Opportunity': 20,
-    'Qualified':       40,
+    'Qualified':       20,
+    'New Opportunity': 40,
     'Proposal':        60,
     'Negotiation':     80
 }
@@ -71,7 +71,7 @@ def fill_pipeline(conn, branch=None, target_per_stage=ITEMS_PER_PAGE):
             lead_id, customer_name, branch_name, owner_id = lead
             deal_id = str(uuid.uuid4())
             value = random.randint(25000, 500000)
-            prob = STAGE_PROBABILITY.get('New Opportunity', 20)
+            prob = STAGE_PROBABILITY.get('Qualified', 20)
             expected_close = date.today() + timedelta(days=random.randint(15, 60))
 
             cursor.execute("""
@@ -82,7 +82,7 @@ def fill_pipeline(conn, branch=None, target_per_stage=ITEMS_PER_PAGE):
                 customer_name,
                 lead_id,
                 lead_id,
-                'New Opportunity',
+                'Qualified',
                 value,
                 expected_close,
                 prob,
