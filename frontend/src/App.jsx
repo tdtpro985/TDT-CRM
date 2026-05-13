@@ -471,7 +471,7 @@ export default function App() {
 
             {currentUser.role === 'Regional Sales Manager' && (
               <select
-                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.8rem' }}
+                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #444', background: '#222222', color: '#ffffff', fontSize: '0.8rem' }}
                 value={activeBranch}
                 onChange={e => setActiveBranch(e.target.value)}
               >
