@@ -410,7 +410,7 @@ export default function App() {
           </div>
           <div className="brand-badges">
             {currentUser.role === 'Head of Sales' ? (
-              null
+              <div className="brand-branch-badge is-region">{activeRegion || 'All Regions'}</div>
             ) : currentUser.role === 'Regional Sales Manager' ? (
               <div className="brand-branch-badge is-region">{currentUser.region}</div>
             ) : (
@@ -447,7 +447,7 @@ export default function App() {
             {currentUser.role === 'Head of Sales' && (
               <>
                 <select
-                  style={{ width: '100%', marginBottom: '6px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.8rem' }}
+                  style={{ width: '100%', marginBottom: '6px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #444', background: '#222222', color: '#ffffff', fontSize: '0.8rem' }}
                   value={activeRegion}
                   onChange={e => {
                     setActiveRegion(e.target.value)
@@ -458,7 +458,7 @@ export default function App() {
                   {Object.keys(REGION_BRANCHES).map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
                 <select
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: '0.8rem' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #444', background: '#222222', color: '#ffffff', fontSize: '0.8rem' }}
                   value={activeBranch}
                   onChange={e => setActiveBranch(e.target.value)}
                 >
