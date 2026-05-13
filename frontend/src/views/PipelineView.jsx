@@ -54,7 +54,7 @@ export default function PipelineView({
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [editCloseDate, setEditCloseDate] = useState('')
-  const [editProbability, setEditProbability] = useState(0)
+  const [editProbability, setEditProbability] = useState('')
   const location = useLocation()
 
   const canEdit = selectedDeal && (
@@ -306,7 +306,7 @@ export default function PipelineView({
                   <button type="button" className="secondary-button" style={{ fontSize: '11px', padding: '6px 12px' }} onClick={() => {
                     setEditValue(selectedDeal.value)
                     setEditCloseDate(selectedDeal.expectedClose || '')
-                    setEditProbability(selectedDeal.probability)
+                    setEditProbability(String(selectedDeal.probability ?? ''))
                     setIsEditing(true)
                   }}>Edit Details</button>
                 )}
@@ -344,13 +344,13 @@ export default function PipelineView({
                   {isEditing ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <input
-                        type="number"
-                        min="0"
-                        max="100"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         className="deal-modal__edit-input"
                         style={{ maxWidth: '80px' }}
                         value={editProbability}
-                        onChange={(e) => setEditProbability(Number(e.target.value))}
+                        onChange={(e) => setEditProbability(e.target.value)}
                       />
                       <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>%</span>
                     </div>
@@ -467,8 +467,9 @@ export default function PipelineView({
                     type="button"
                     className="primary-button"
                     onClick={async () => {
-                      await handleDealUpdate(selectedDeal.id, { value: editValue, expectedClose: editCloseDate, probability: editProbability })
-                      setSelectedDeal((d) => ({ ...d, value: editValue, expectedClose: editCloseDate, probability: editProbability }))
+                      const probValue = editProbability === '' ? 0 : Number(editProbability)
+                      await handleDealUpdate(selectedDeal.id, { value: editValue, expectedClose: editCloseDate, probability: probValue })
+                      setSelectedDeal((d) => ({ ...d, value: editValue, expectedClose: editCloseDate, probability: probValue }))
                       setIsEditing(false)
                     }}
                   >Save</button>

@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS deals (
     value       DECIMAL(15, 2) DEFAULT 0,
     close_date  DATE,
     probability INT            DEFAULT 20,
+    probability_manual BOOLEAN DEFAULT FALSE,
     owner_id    INT,
     branch      VARCHAR(100),
     created_at  DATE           DEFAULT (CURRENT_DATE),
