@@ -212,7 +212,7 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
             return ([f'{col} IN ({ph})'], False, allowed)
         return (['1=0'], False, [])
 
-    if role == 'Head of Sales':
+    if role in ('Head of Sales', 'Admin'):
         if has_branch_filter(requested_branch):
             return ([f'{col} = %s'], False, [normalize_branch(requested_branch)])
         if requested_region and requested_region in REGION_BRANCHES:
@@ -1627,6 +1627,7 @@ def update_admin_profile():
 @jwt_required()
 @admin_required
 def admin_analytics():
+    branch_filter = request.args.get('branch', '').strip()
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Database connection failed'}), 500
@@ -1634,56 +1635,94 @@ def admin_analytics():
         cursor = conn.cursor()
 
         # Users per branch (exclude Headquarters — admin-only, not a sales branch)
-        cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY branch ORDER BY branch")
+        if branch_filter:
+            cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch = %s GROUP BY branch ORDER BY branch", (branch_filter,))
+        else:
+            cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY branch ORDER BY branch")
         users_per_branch = rows_to_list(cursor)
 
-        # Role distribution (exclude Headquarters admins from sales role stats)
-        cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY role ORDER BY role")
+        # Role distribution
+        if branch_filter:
+            cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch = %s GROUP BY role ORDER BY role", (branch_filter,))
+        else:
+            cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY role ORDER BY role")
         role_distribution = rows_to_list(cursor)
 
-        # Leads per branch (excluding filtered SR)
-        cursor.execute('''
-            SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted 
-            FROM leads 
-            WHERE 1=1
-            GROUP BY branch ORDER BY branch
-        ''')
+        # Leads per branch
+        if branch_filter:
+            cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads WHERE branch = %s GROUP BY branch ORDER BY branch', (branch_filter,))
+        else:
+            cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads WHERE 1=1 GROUP BY branch ORDER BY branch')
         leads_per_branch = rows_to_list(cursor)
 
-        # Deals per branch (via robust join, active only, excluding filtered SR)
-        cursor.execute('''
-            SELECT l.branch,
-                   COUNT(d.id)              AS deal_count,
-                   COALESCE(SUM(d.value),0) AS pipeline_value
-            FROM deals d
-            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-            WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
-            GROUP BY l.branch
-            ORDER BY l.branch
-        ''')
+        # Deals per branch (via robust join, active only)
+        if branch_filter:
+            cursor.execute('''
+                SELECT l.branch,
+                       COUNT(d.id)              AS deal_count,
+                       COALESCE(SUM(d.value),0) AS pipeline_value
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
+                GROUP BY l.branch
+                ORDER BY l.branch
+            ''', (branch_filter,))
+        else:
+            cursor.execute('''
+                SELECT l.branch,
+                       COUNT(d.id)              AS deal_count,
+                       COALESCE(SUM(d.value),0) AS pipeline_value
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
+                GROUP BY l.branch
+                ORDER BY l.branch
+            ''')
         deals_per_branch = rows_to_list(cursor)
 
-        # Totals (branch staff only, excluding Headquarters admins)
-        cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters'")
+        # Totals
+        if branch_filter:
+            cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters' AND branch = %s", (branch_filter,))
+        else:
+            cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters'")
         total_users = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COUNT(*) FROM leads WHERE 1=1")
+        if branch_filter:
+            cursor.execute("SELECT COUNT(*) FROM leads WHERE branch = %s", (branch_filter,))
+        else:
+            cursor.execute("SELECT COUNT(*) FROM leads WHERE 1=1")
         total_leads = cursor.fetchone()[0]
 
-        cursor.execute('''
-            SELECT COUNT(*) 
-            FROM deals d
-            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-            WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
-        ''')
+        if branch_filter:
+            cursor.execute('''
+                SELECT COUNT(*)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
+            ''', (branch_filter,))
+        else:
+            cursor.execute('''
+                SELECT COUNT(*)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
+            ''')
         active_deals = cursor.fetchone()[0]
 
-        cursor.execute('''
-            SELECT COALESCE(SUM(d.value),0) 
-            FROM deals d
-            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-            WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
-        ''')
+        if branch_filter:
+            cursor.execute('''
+                SELECT COALESCE(SUM(d.value),0)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
+            ''', (branch_filter,))
+        else:
+            cursor.execute('''
+                SELECT COALESCE(SUM(d.value),0)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
+            ''')
         pipeline_value = float(cursor.fetchone()[0])
 
         # Recent audit log (last 20)

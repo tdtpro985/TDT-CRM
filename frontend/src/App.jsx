@@ -445,11 +445,11 @@ export default function App() {
         </nav>
 
         {/* Branch / Region filter — only for Head of Sales and Regional Sales Manager */}
-        {(currentUser.role === 'Head of Sales' || currentUser.role === 'Regional Sales Manager') && (
+        {(currentUser.role === 'Head of Sales' || currentUser.role === 'Admin' || currentUser.role === 'Regional Sales Manager') && (
           <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
             <p className="nav-section-label" style={{ marginBottom: '8px' }}>Viewing Branch</p>
 
-            {currentUser.role === 'Head of Sales' && (
+            {(currentUser.role === 'Head of Sales' || currentUser.role === 'Admin') && (
               <>
                 <select
                   style={{ width: '100%', marginBottom: '6px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #444', background: '#222222', color: '#ffffff', fontSize: '0.8rem' }}
