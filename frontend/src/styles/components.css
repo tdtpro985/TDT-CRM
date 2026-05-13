@@ -881,6 +881,15 @@ section.content-grid--primary {
   box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.18);
 }
 
+.deal-modal__edit-input[type="number"]::-webkit-inner-spin-button,
+.deal-modal__edit-input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.deal-modal__edit-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 
 /* Footer stage selector */
 .deal-modal__footer {
@@ -995,6 +1004,10 @@ section.content-grid--primary {
   border-radius: var(--r-md);
   color: var(--text-secondary);
   font-size: var(--fs-sm);
+}
+
+.deal-modal__activity-item {
+  border-left: 3px solid var(--accent);
 }
 
 .toast {

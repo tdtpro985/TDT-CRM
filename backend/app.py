@@ -1284,6 +1284,28 @@ def update_activity_status(activity_id):
         close_connection(conn)
 
 
+# ─── Deal Audit Logs ─────────────────────────────────────────────────────────
+
+@app.route('/api/deals/<deal_id>/audit', methods=['GET'])
+@jwt_required()
+def get_deal_audit_logs(deal_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, entity_type AS entityType, entity_id AS entityId, action,
+                   old_value AS oldValue, new_value AS newValue, changed_at AS changedAt
+            FROM audit_log
+            WHERE entity_type = 'deal' AND entity_id = %s
+            ORDER BY changed_at DESC
+        """, (deal_id,))
+        return jsonify(rows_to_list(cursor))
+    finally:
+        close_connection(conn)
+
+
 # ─── Dashboard KPIs ───────────────────────────────────────────────────────────
 
 @app.route('/api/dashboard', methods=['GET'])
