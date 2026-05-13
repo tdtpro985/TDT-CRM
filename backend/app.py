@@ -1056,6 +1056,7 @@ def update_deal_stage(deal_id):
         params = []
         
         probability = data.get('probability')
+        if probability is not None:
             updates.append('probability = %s')
             params.append(probability)
             updates.append('probability_manual = TRUE')
