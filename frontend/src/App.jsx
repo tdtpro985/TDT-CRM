@@ -33,6 +33,11 @@ const DEAL_STAGES = Object.keys(STAGE_WORKFLOW)
 
 const SHORT_STAGE_LABEL = { 'New Opportunity': 'New Opp', 'Closed Won': 'Won', 'Closed Lost': 'Lost' }
 
+function displayRole(role) {
+  if (role === 'Sales Rep' || role === 'Sales Manager') return 'Branch Account'
+  return role
+}
+
 const REGION_BRANCHES = {
   'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
   'North Luzon': ['Ilocos', 'Isabela'],
@@ -406,7 +411,7 @@ export default function App() {
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
           <div className="brand-user-info">
             <p className="brand-user-name">{currentUser.name}</p>
-            <p className="brand-user-role">{currentUser.role}</p>
+            <p className="brand-user-role">{displayRole(currentUser.role)}</p>
           </div>
           <div className="brand-badges">
             {currentUser.role === 'Head of Sales' ? (
