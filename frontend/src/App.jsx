@@ -138,10 +138,30 @@ export default function App() {
 
   // ─── Filtered lists ─────────────────────────────────────────────────────────
 
-  const filteredCustomers = useMemo(() => customers.filter((c) =>
-    (leadStatusFilter === 'all' || c.customerStatus === leadStatusFilter) &&
-    matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus]),
-  ), [customers, searchQuery, leadStatusFilter])
+  const filteredCustomers = useMemo(() => {
+    return customers.filter((c) => {
+      // Handle deal-based status filtering
+      if (leadStatusFilter !== 'all') {
+        const companyDeals = deals.filter(d => d.companyId === c.id)
+        
+        if (leadStatusFilter === 'New') {
+          // New: No active deals (only Closed or no deals at all)
+          if (companyDeals.some(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost')) return false
+        } else if (leadStatusFilter === 'Prospect') {
+          // Prospect: At least one deal in "New Opportunity"
+          if (!companyDeals.some(d => d.stage === 'New Opportunity')) return false
+        } else if (leadStatusFilter === 'Negotiation') {
+          // Negotiation: At least one deal in "Proposal" or "Negotiation"
+          if (!companyDeals.some(d => d.stage === 'Proposal' || d.stage === 'Negotiation')) return false
+        } else if (leadStatusFilter === 'Converted') {
+          // Converted: At least one deal is Closed (Won or Lost) and owned by current user
+          if (!companyDeals.some(d => (d.stage === 'Closed Won' || d.stage === 'Closed Lost') && d.ownerId === currentUser?.id)) return false
+        }
+      }
+
+      return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
+    })
+  }, [customers, searchQuery, leadStatusFilter, deals, currentUser])
 
   const filteredDeals = useMemo(() => deals.filter(
     (d) =>
@@ -283,8 +303,10 @@ export default function App() {
             statusFilter={leadStatusFilter}
             setStatusFilter={setLeadStatusFilter}
             onCreateCustomer={handleCreateLead}
-            onReassignLead={reassignLead}
             linkHealth={linkHealth}
+            deals={deals}
+            companies={companies}
+            onCreateTask={handleCreateTask}
             showCustomerForm={showLeadForm}
             setShowCustomerForm={setShowLeadForm}
             currentUser={currentUser}
@@ -382,11 +404,19 @@ export default function App() {
       >
         <div className="brand-block">
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
-          <p className="brand-name">Sales CRM</p>
-          <div className="brand-branch-badge">{currentUser.branch}</div>
-          {currentUser.role && currentUser.role !== 'Sales Rep' && (
-            <div className="brand-branch-badge" style={{ marginTop: '4px', opacity: 0.75, fontSize: '0.7rem' }}>{currentUser.role}</div>
-          )}
+          <div className="brand-user-info">
+            <p className="brand-user-name">{currentUser.name}</p>
+            <p className="brand-user-role">{currentUser.role}</p>
+          </div>
+          <div className="brand-badges">
+            {currentUser.role === 'Head of Sales' ? (
+              null
+            ) : currentUser.role === 'Regional Sales Manager' ? (
+              <div className="brand-branch-badge is-region">{currentUser.region}</div>
+            ) : (
+              <div className="brand-branch-badge">{currentUser.branch}</div>
+            )}
+          </div>
         </div>
 
         <nav className="sidebar-nav" aria-label="Primary CRM navigation">
@@ -487,9 +517,11 @@ export default function App() {
             <p className="page-description">{currentMeta.description}</p>
           </div>
           <div className="top-bar-actions">
-            <label className="search-field">
+            <label className="search-field" htmlFor="global-search-input">
               <span className="search-icon" aria-hidden="true">Search</span>
               <input
+                id="global-search-input"
+                name="searchQuery"
                 type="search"
                 value={searchQuery}
                 onChange={(e) => {
