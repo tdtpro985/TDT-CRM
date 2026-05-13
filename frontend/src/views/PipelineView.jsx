@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import Modal from '../components/Modal'
 import { formatCurrencyCompact, formatDateLabel, formatRelativeDays, getToneClass } from '../utils'
 import { ITEMS_PER_PAGE } from '../constants'
 import { apiFetch } from '../api'
@@ -10,15 +9,22 @@ import { apiFetch } from '../api'
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
 
 const STAGE_TONES = {
+  'Qualified':       'is-stage-qualified',
   'New Opportunity': 'is-stage-new-opportunity',
-  Qualified: 'is-stage-qualified',
-  Proposal: 'is-stage-proposal',
-  Negotiation: 'is-stage-negotiation',
-  'Closed Won': 'is-stage-closed-won',
-  'Closed Lost': 'is-stage-closed-lost',
+  'Proposal':        'is-stage-proposal',
+  'Negotiation':     'is-stage-negotiation',
+  'Closed Won':      'is-stage-closed-won',
+  'Closed Lost':     'is-stage-closed-lost',
 }
 
-const DEAL_STAGE_ORDER = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won', 'Closed Lost']
+const LOST_REASONS = [
+  'Lost to competition',
+  'Budget constraint',
+  'No response from client',
+  'Client cancelled',
+  'Scope mismatch',
+  'Other',
+]
 
 function getStageTone(stage) {
   return STAGE_TONES[stage] ?? 'is-neutral'
@@ -30,11 +36,11 @@ export default function PipelineView({
   tasks,
   leads,
   contacts,
-  teamMembers,
   activeDeals,
   pipelineValue,
   averageDealSize,
   dealStages,
+  stageWorkflow,
   stageFilter,
   setStageFilter,
   setNotice,
@@ -49,59 +55,82 @@ export default function PipelineView({
 }) {
   const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
   const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
+
   const [selectedDeal, setSelectedDeal] = useState(null)
   const [dealContacts, setDealContacts] = useState([])
   const [isEditing, setIsEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
   const [editCloseDate, setEditCloseDate] = useState('')
   const [editProbability, setEditProbability] = useState(0)
+
+  // Closed Lost reason prompt
+  const [showLostPrompt, setShowLostPrompt] = useState(false)
+  const [lostReason, setLostReason] = useState(LOST_REASONS[0])
+  const [lostNotes, setLostNotes] = useState('')
+
+  // Show/hide closed stages
+  const [showClosed, setShowClosed] = useState(false)
+
+  // PDF attachments
+  const [attachments, setAttachments] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef(null)
+
   const location = useLocation()
+  const navigate = useNavigate()
 
   const canEdit = selectedDeal && (
     currentUser?.role === 'Admin' ||
     String(currentUser?.id) === String(selectedDeal.ownerId)
   )
-  const navigate = useNavigate()
+
+  const visibleStages = showClosed
+    ? dealStages
+    : dealStages.filter((s) => s !== 'Closed Won' && s !== 'Closed Lost')
 
   useEffect(() => {
     if (location.state?.openDealId) {
       const deal = deals.find(d => d.id === location.state.openDealId)
       if (deal) {
-        // Clear state so it doesn't reopen on every navigation
         navigate(location.pathname, { replace: true, state: {} })
-        
-        // Use a slight delay to avoid cascading render issue and ensure state updates correctly
         setTimeout(() => {
           setSelectedDeal(deal)
-          // Scroll to task history after modal opens
           const section = document.getElementById('task-history-section')
-          if (section) {
-            section.scrollIntoView({ behavior: 'smooth' })
-          }
+          if (section) section.scrollIntoView({ behavior: 'smooth' })
         }, 100)
       }
     }
   }, [location.state, deals, navigate, location.pathname])
 
-  const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
-
+  // Fetch deal contacts when a deal is selected
   useEffect(() => {
     let active = true
     if (selectedDeal) {
       apiFetch(`/api/deals/${selectedDeal.id}/contacts`)
         .then(res => res.json())
-        .then(data => {
-          if (active) setDealContacts(data)
-        })
-        .catch(err => {
-          console.error('Failed to fetch deal contacts:', err)
-        })
+        .then(data => { if (active) setDealContacts(data) })
+        .catch(() => {})
     } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDealContacts([])
     }
     return () => { active = false }
   }, [selectedDeal])
+
+  // Fetch attachments when deal is in Proposal stage
+  useEffect(() => {
+    let active = true
+    if (selectedDeal?.stage === 'Proposal') {
+      apiFetch(`/api/deals/${selectedDeal.id}/attachments`)
+        .then(res => res.json())
+        .then(data => { if (active) setAttachments(Array.isArray(data) ? data : []) })
+        .catch(() => {})
+    } else {
+      setAttachments([])
+    }
+    return () => { active = false }
+  }, [selectedDeal?.id, selectedDeal?.stage])
+
+  const totalPages = Math.ceil(filteredDeals.length / ITEMS_PER_PAGE)
 
   const getPaginatedData = (data, page, limit) => {
     const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 10)
@@ -117,6 +146,73 @@ export default function PipelineView({
     const stageDeals = deals.filter((d) => d.stage === stage)
     return { stage, count: stageDeals.length, value: stageDeals.reduce((sum, d) => sum + d.value, 0) }
   })
+
+  function openDeal(deal) {
+    setSelectedDeal(deal)
+    setIsEditing(false)
+    setShowLostPrompt(false)
+    setLostReason(LOST_REASONS[0])
+    setLostNotes('')
+  }
+
+  function closeDeal() {
+    setSelectedDeal(null)
+    setIsEditing(false)
+    setShowLostPrompt(false)
+    setLostReason(LOST_REASONS[0])
+    setLostNotes('')
+  }
+
+  function handleStageClick(dealId, stage) {
+    if (stage === 'Closed Lost') {
+      setShowLostPrompt(true)
+      return
+    }
+    handleDealStageChange(dealId, stage)
+    setSelectedDeal((d) => ({ ...d, stage }))
+  }
+
+  function confirmLostReason() {
+    const reason = lostNotes.trim() ? `${lostReason}: ${lostNotes.trim()}` : lostReason
+    handleDealStageChange(selectedDeal.id, 'Closed Lost', { lostReason: reason })
+    setSelectedDeal((d) => ({ ...d, stage: 'Closed Lost', lostReason: reason }))
+    setShowLostPrompt(false)
+    setLostReason(LOST_REASONS[0])
+    setLostNotes('')
+  }
+
+  async function handleFileUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setNotice('Only PDF files are supported for proposal documents.')
+      return
+    }
+    setUploading(true)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await apiFetch(`/api/deals/${selectedDeal.id}/attachments`, {
+        method: 'POST',
+        body: form,
+      })
+      if (res.ok) {
+        const newAttachment = await res.json()
+        setAttachments((prev) => [newAttachment, ...prev])
+        setNotice('Proposal document uploaded successfully.')
+      } else {
+        setNotice('Upload failed — please try again.')
+      }
+    } catch {
+      setNotice('Upload failed — backend not reachable.')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const stageHint = stageWorkflow?.[selectedDeal?.stage]
+  const recommendedActivity = stageHint?.activityType
 
   return (
     <>
@@ -155,12 +251,20 @@ export default function PipelineView({
                   {dealStages.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </label>
+              <button
+                type="button"
+                className="secondary-button"
+                style={{ fontSize: '12px', padding: '6px 12px' }}
+                onClick={() => setShowClosed((v) => !v)}
+              >
+                {showClosed ? 'Hide Closed' : 'Show Closed'}
+              </button>
             </div>
           }
         >
           <div className="pipeline-board-wrapper">
             <div className="pipeline-board">
-              {dealStages.map((stage) => {
+              {visibleStages.map((stage) => {
                 const stageDeals = paginatedDeals
                   .filter((d) => d.stage === stage)
                   .sort((a, b) => {
@@ -202,7 +306,7 @@ export default function PipelineView({
                               Last touch {formatRelativeDays(deal.lastTouch) || '—'}
                             </p>
                             <div className="field--compact pipeline-card__btn-wrap" style={{ textAlign: 'center', marginTop: '8px' }}>
-                              <button type="button" className="secondary-button pipeline-card__details-btn" onClick={() => setSelectedDeal(deal)}>View details</button>
+                              <button type="button" className="secondary-button pipeline-card__details-btn" onClick={() => openDeal(deal)}>View details</button>
                             </div>
                           </article>
                         ))
@@ -213,7 +317,7 @@ export default function PipelineView({
               })}
             </div>
           </div>
-          
+
           {/* Global Pagination */}
           {totalPages > 1 && (
             <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid var(--border)', marginTop: '16px' }}>
@@ -235,15 +339,14 @@ export default function PipelineView({
                     const val = e.target.value.replace(/\D/g, '');
                     const num = parseInt(val, 10);
                     if (val === '') {
-                      // Allow empty input while typing
                       setCurrentPage('');
                     } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
                       setCurrentPage(num);
                     }
                   }}
-                  style={{ 
-                    width: '40px', 
-                    textAlign: 'center', 
+                  style={{
+                    width: '40px',
+                    textAlign: 'center',
                     padding: '4px 0',
                     background: 'rgba(255,255,255,0.04)',
                     border: '1px solid var(--border)',
@@ -267,7 +370,7 @@ export default function PipelineView({
           )}
         </Panel>
 
-        {/* Stage Totals Summary - Now Below Pipeline */}
+        {/* Stage Totals Summary */}
         <Panel
           className="panel-compact"
           kicker="Stage totals"
@@ -291,7 +394,7 @@ export default function PipelineView({
       </section>
 
       {selectedDeal && (
-        <div className="deal-modal-overlay" onClick={() => { setSelectedDeal(null); setIsEditing(false) }}>
+        <div className="deal-modal-overlay" onClick={closeDeal}>
           <div className="deal-modal" onClick={(e) => e.stopPropagation()}>
 
             {/* ── Header ── */}
@@ -301,7 +404,7 @@ export default function PipelineView({
                 <h2>{selectedDeal.name}</h2>
               </div>
               <div className="deal-modal__header-actions">
-                <button type="button" className="deal-modal__close" aria-label="Close" onClick={() => { setSelectedDeal(null); setIsEditing(false) }}>✕</button>
+                <button type="button" className="deal-modal__close" aria-label="Close" onClick={closeDeal}>✕</button>
                 {canEdit && !isEditing && (
                   <button type="button" className="secondary-button" style={{ fontSize: '11px', padding: '6px 12px' }} onClick={() => {
                     setEditValue(selectedDeal.value)
@@ -377,6 +480,12 @@ export default function PipelineView({
                   <span className="deal-modal__label">Stage</span>
                   <strong className="deal-modal__value">{selectedDeal.stage}</strong>
                 </div>
+                {selectedDeal.stage === 'Closed Lost' && selectedDeal.lostReason && (
+                  <div className="deal-modal__field" style={{ gridColumn: 'span 2' }}>
+                    <span className="deal-modal__label">Loss Reason</span>
+                    <strong className="deal-modal__value" style={{ color: 'var(--text-muted)' }}>{selectedDeal.lostReason}</strong>
+                  </div>
+                )}
                 {selectedDeal.contactId && (
                   <div className="deal-modal__field">
                     <span className="deal-modal__label">Primary Contact</span>
@@ -403,6 +512,65 @@ export default function PipelineView({
                 )}
               </div>
 
+              {/* Proposal Documents (only in Proposal stage) */}
+              {selectedDeal.stage === 'Proposal' && (
+                <div style={{ padding: '16px 0', borderTop: '1px solid var(--border)', marginTop: '16px' }}>
+                  <h3 className="deal-modal__subheading">Proposal Documents</h3>
+                  {attachments.length > 0 ? (
+                    <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0' }}>
+                      {attachments.map((a) => (
+                        <li key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: 'var(--fs-sm)' }}>{a.label || a.filename}</span>
+                          <button
+                            type="button"
+                            className="ghost-button"
+                            style={{ fontSize: '11px', padding: '4px 10px' }}
+                            onClick={async () => {
+                              try {
+                                const res = await apiFetch(`/api/uploads/${a.filename}`)
+                                const blob = await res.blob()
+                                const url = URL.createObjectURL(blob)
+                                const link = document.createElement('a')
+                                link.href = url
+                                link.download = a.label || a.filename
+                                link.click()
+                                URL.revokeObjectURL(url)
+                              } catch {
+                                setNotice('Download failed.')
+                              }
+                            }}
+                          >
+                            Download
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)', margin: '8px 0' }}>No documents uploaded yet.</p>
+                  )}
+                  {canEdit && (
+                    <div style={{ marginTop: '12px' }}>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        style={{ display: 'none' }}
+                        onChange={handleFileUpload}
+                      />
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        style={{ fontSize: '12px' }}
+                        disabled={uploading}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        {uploading ? 'Uploading…' : 'Upload PDF'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Task History */}
               <div className="deal-modal__history" id="task-history-section">
                 <h3 className="deal-modal__subheading">Task History</h3>
@@ -425,28 +593,28 @@ export default function PipelineView({
                             )}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                            <span 
+                            <span
                               className={`tone-pill ${getToneClass(task.status)}`}
                               style={{ cursor: 'pointer' }}
                               title={`View all ${task.status.toLowerCase()} tasks`}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onViewTasks(task.status.toLowerCase());
-                                setSelectedDeal(null);
+                                closeDeal();
                               }}
                             >
                               {task.status}
                             </span>
-                            <button 
-                              type="button" 
-                              className="ghost-button" 
+                            <button
+                              type="button"
+                              className="ghost-button"
                               style={{ fontSize: '10px', padding: '4px 8px' }}
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 const nextStatus = task.status === 'Completed' ? 'reopened' : 'completed';
                                 await handleTaskStatusToggle(task.id, task.status);
                                 onViewTasks(nextStatus);
-                                setSelectedDeal(null);
+                                closeDeal();
                               }}
                             >
                               {task.status === 'Completed' ? 'Reopen' : 'Complete'}
@@ -474,8 +642,37 @@ export default function PipelineView({
                   >Save</button>
                   <button type="button" className="secondary-button" onClick={() => setIsEditing(false)}>Cancel</button>
                 </div>
+              ) : showLostPrompt ? (
+                <div style={{ width: '100%' }}>
+                  <p className="deal-modal__footer-label" style={{ marginBottom: '10px' }}>Why was this deal lost?</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <select
+                      value={lostReason}
+                      onChange={(e) => setLostReason(e.target.value)}
+                      style={{ padding: '8px', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 'var(--fs-sm)' }}
+                    >
+                      {LOST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                    <textarea
+                      value={lostNotes}
+                      onChange={(e) => setLostNotes(e.target.value)}
+                      placeholder="Additional notes (optional)"
+                      rows={2}
+                      style={{ padding: '8px', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 'var(--fs-sm)', resize: 'vertical' }}
+                    />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button type="button" className="primary-button" style={{ flex: 1 }} onClick={confirmLostReason}>Confirm Lost</button>
+                      <button type="button" className="secondary-button" onClick={() => setShowLostPrompt(false)}>Cancel</button>
+                    </div>
+                  </div>
+                </div>
               ) : canEdit ? (
                 <>
+                  {recommendedActivity && (
+                    <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', marginBottom: '8px', width: '100%' }}>
+                      Recommended activity: <strong>{recommendedActivity}</strong>
+                    </p>
+                  )}
                   <p className="deal-modal__footer-label">Move to stage</p>
                   <div className="deal-modal__stage-buttons">
                     {dealStages.map((s) => (
@@ -483,10 +680,7 @@ export default function PipelineView({
                         key={s}
                         type="button"
                         className={`deal-modal__stage-btn ${s === selectedDeal.stage ? 'is-active' : ''}`}
-                        onClick={() => {
-                          handleDealStageChange(selectedDeal.id, s)
-                          setSelectedDeal((d) => ({ ...d, stage: s }))
-                        }}
+                        onClick={() => handleStageClick(selectedDeal.id, s)}
                       >
                         {s}
                       </button>

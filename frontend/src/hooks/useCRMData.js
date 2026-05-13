@@ -5,14 +5,15 @@ import { apiFetch } from '../api'
 const CURRENT_DATE = new Date().toISOString().split('T')[0]
 
 const STAGE_PROBABILITY = {
-  'New Opportunity': 20,
-  Qualified: 40,
+  Qualified: 20,
+  'New Opportunity': 40,
   Proposal: 60,
   Negotiation: 80,
   'Closed Won': 100,
+  'Closed Lost': 0,
 }
 
-function getProbabilityForStage(stage) { return STAGE_PROBABILITY[stage] ?? 100 }
+function getProbabilityForStage(stage) { return STAGE_PROBABILITY[stage] ?? 20 }
 
 export default function useCRMData({ setNotice, showToast, currentUser }) {
   const [companies, setCompanies] = useState([])
@@ -221,8 +222,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       companyId: companyIdToUse,
       contactId: contactIdToUse,
       name: dealForm.name.trim(),
-      stage: dealForm.stage || 'New Opportunity',
-      probability: getProbabilityForStage(dealForm.stage || 'New Opportunity'),
+      stage: dealForm.stage || 'Qualified',
+      probability: getProbabilityForStage(dealForm.stage || 'Qualified'),
       ownerId: rsm?.id || dealForm.ownerId || null,
       createdAt: CURRENT_DATE,
     }
@@ -291,7 +292,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         stage: taskForm.dealStage || existingDeal.stage,
         value: taskForm.dealValue !== '' ? Number(taskForm.dealValue) : existingDeal.value,
         expectedClose: taskForm.expectedClose || existingDeal.expectedClose,
-        probability: getProbabilityForStage(taskForm.dealStage || existingDeal.stage),
+        probability: existingDeal.probability,
         ownerId: rsm?.id || taskForm.ownerId || existingDeal.ownerId || null,
       }
       
@@ -355,14 +356,17 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
-  async function updateDealStage(dealId, nextStage) {
+  async function updateDealStage(dealId, nextStage, extra = {}) {
+    const probability = STAGE_PROBABILITY[nextStage] ?? 20
     setDeals((current) =>
-      current.map((d) => (d.id === dealId ? { ...d, stage: nextStage, probability: getProbabilityForStage(nextStage) } : d)),
+      current.map((d) => (d.id === dealId
+        ? { ...d, stage: nextStage, probability, lostReason: extra.lostReason ?? d.lostReason }
+        : d)),
     )
     try {
       const res = await apiFetch(`/api/deals/${dealId}/stage`, {
         method: 'PATCH',
-        body: JSON.stringify({ stage: nextStage })
+        body: JSON.stringify({ stage: nextStage, ...extra })
       })
       if (!res.ok) throw new Error('Network error')
       setNotice('Pipeline stage updated successfully.')

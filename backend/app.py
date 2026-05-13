@@ -1,9 +1,11 @@
 import os
+import uuid
 import traceback
 from functools import wraps
 from importlib import import_module
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_limiter import Limiter
@@ -25,7 +27,11 @@ CORS(app, resources={r"/api/*": {
 
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-key')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=8)  # 8-hour sessions
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB upload limit
 jwt = JWTManager(app)
+
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @jwt.unauthorized_loader
 def unauthorized_response(callback):
@@ -66,8 +72,8 @@ def handle_exception(e):
     return jsonify(error="An internal error occurred"), 500
 
 STAGE_PROBABILITY = {
-    'New Opportunity': 20,
-    'Qualified':       40,
+    'Qualified':       20,
+    'New Opportunity': 40,
     'Proposal':        60,
     'Negotiation':     80,
     'Closed Won':      100,
@@ -973,6 +979,7 @@ def get_deals():
             SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
                    d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
                    d.probability, t.name AS owner, d.owner_id AS ownerId, d.created_at,
+                   d.lost_reason AS lostReason,
                    COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
                    CASE
                        WHEN urgency.hasOverdue = 1 THEN 'Overdue'
@@ -1037,7 +1044,7 @@ def create_deal():
     if not all(k in data for k in ['id', 'name']):
         return jsonify({'error': 'id and name are required'}), 400
 
-    stage = data.get('stage', 'New Opportunity')
+    stage = data.get('stage', 'Qualified')
     probability = STAGE_PROBABILITY.get(stage, 20)
 
     conn = get_db_connection()
@@ -1108,12 +1115,12 @@ def update_deal_stage(deal_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability FROM deals WHERE id = %s', (deal_id,))
+        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability, probability_manual FROM deals WHERE id = %s', (deal_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'error': 'Deal not found'}), 404
 
-        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability = row
+        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability, old_probability_manual = row
 
         claims = get_jwt()
         user_id = get_jwt_identity()
@@ -1123,10 +1130,28 @@ def update_deal_stage(deal_id):
         updates = []
         params = []
         
+        probability = data.get('probability')
+        if probability is not None:
+            updates.append('probability = %s')
+            params.append(probability)
+            updates.append('probability_manual = TRUE')
+            log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability))
+        
         if new_stage:
-            new_probability = STAGE_PROBABILITY.get(new_stage, 20)
-            updates.append('stage = %s, probability = %s')
-            params.extend([new_stage, new_probability])
+            if probability is not None:
+                # Both probability and stage sent — stage updated, probability already set above
+                updates.append('stage = %s')
+                params.append(new_stage)
+            elif old_probability_manual:
+                # SR manually set probability before — preserve it
+                updates.append('stage = %s')
+                params.append(new_stage)
+            else:
+                # Auto-assign probability from stage
+                new_probability = STAGE_PROBABILITY.get(new_stage, 20)
+                updates.append('stage = %s, probability = %s')
+                params.extend([new_stage, new_probability])
+                updates.append('probability_manual = FALSE')
             log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage)
         
         if new_value is not None:
@@ -1138,17 +1163,17 @@ def update_deal_stage(deal_id):
             updates.append('close_date = %s')
             params.append(new_close)
             log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close))
-            
-        probability = data.get('probability')
-        if probability is not None and not new_stage:
-            updates.append('probability = %s')
-            params.append(probability)
-            log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability))
 
         if data.get('ownerId'):
             updates.append('owner_id = %s')
             params.append(data.get('ownerId'))
             log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(data.get('ownerId')))
+
+        lost_reason = data.get('lostReason')
+        if new_stage == 'Closed Lost' and lost_reason:
+            updates.append('lost_reason = %s')
+            params.append(lost_reason)
+            log_audit(conn, 'deal', deal_id, 'lost_reason', None, lost_reason)
 
         if not updates:
             return jsonify({'message': 'No updates provided'}), 400
@@ -1687,6 +1712,62 @@ def admin_delete_user(user_id):
         return jsonify({'message': 'User deleted'})
     finally:
         close_connection(conn)
+
+
+# ─── Deal Attachments ─────────────────────────────────────────────────────────
+
+@app.route('/api/deals/<deal_id>/attachments', methods=['POST'])
+@jwt_required()
+def upload_deal_attachment(deal_id):
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file or file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    if file.content_type not in ('application/pdf', 'application/octet-stream') and not file.filename.lower().endswith('.pdf'):
+        return jsonify({'error': 'Only PDF files are allowed'}), 400
+
+    safe_name = secure_filename(file.filename)
+    file_id = str(uuid.uuid4())
+    stored_name = f"{file_id}_{safe_name}"
+    file.save(os.path.join(UPLOAD_FOLDER, stored_name))
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO deal_attachments (id, deal_id, filename, label) VALUES (%s, %s, %s, %s)',
+            (file_id, deal_id, stored_name, safe_name),
+        )
+        conn.commit()
+        return jsonify({'id': file_id, 'filename': stored_name, 'label': safe_name}), 201
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/deals/<deal_id>/attachments', methods=['GET'])
+@jwt_required()
+def get_deal_attachments(deal_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT id, filename, label, uploaded_at FROM deal_attachments WHERE deal_id = %s ORDER BY uploaded_at DESC',
+            (deal_id,),
+        )
+        return jsonify(rows_to_list(cursor))
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/uploads/<filename>', methods=['GET'])
+@jwt_required()
+def serve_attachment(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
 
 
 @app.after_request
