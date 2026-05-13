@@ -21,18 +21,20 @@ function timeAgo(dateStr) {
 
 const PAGE_SIZE = 5
 
-export default function AdminAnalyticsView() {
+export default function AdminAnalyticsView({ activeBranch = '' }) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
   const [page, setPage]       = useState(1)
 
   useEffect(() => {
-    apiFetch(`/api/admin/analytics`)
+    setLoading(true)
+    const url = activeBranch ? `/api/admin/analytics?branch=${encodeURIComponent(activeBranch)}` : `/api/admin/analytics`
+    apiFetch(url)
       .then((r) => r.json())
       .then((d) => { setData(d); setLoading(false) })
       .catch(() => { setError('Failed to load analytics.'); setLoading(false) })
-  }, [])
+  }, [activeBranch])
 
   if (loading) return <p style={{ padding: '2rem', color: 'var(--text-muted)' }}>Loading analytics…</p>
   if (error)   return <p style={{ padding: '2rem', color: '#ff6b7a' }}>{error}</p>

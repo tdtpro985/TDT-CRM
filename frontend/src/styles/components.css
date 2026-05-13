@@ -881,13 +881,8 @@ section.content-grid--primary {
   box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.18);
 }
 
-.deal-modal__edit-input[type="number"]::-webkit-inner-spin-button,
-.deal-modal__edit-input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
 .deal-modal__edit-input[type="number"] {
-  -moz-appearance: textfield;
+  -moz-appearance: auto;
 }
 
 

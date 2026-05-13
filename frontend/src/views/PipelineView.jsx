@@ -7,6 +7,7 @@ import { ITEMS_PER_PAGE } from '../constants'
 import { apiFetch } from '../api'
 
 const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
+const TODAY = new Date().toISOString().split('T')[0]
 
 const STAGE_TONES = {
   'Qualified':       'is-stage-qualified',
@@ -492,10 +493,15 @@ export default function PipelineView({
                           type="number"
                           min="0"
                           max="100"
+                          step="1"
                           className="deal-modal__edit-input"
                           style={{ maxWidth: '80px' }}
                           value={editProbability}
-                          onChange={(e) => setEditProbability(e.target.value === '' ? '' : Number(e.target.value))}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^0-9]/g, '')
+                            const num = raw === '' ? '' : Math.min(100, Math.max(0, parseInt(raw, 10)))
+                            setEditProbability(num)
+                          }}
                         />
                       <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>%</span>
                     </div>
@@ -511,6 +517,8 @@ export default function PipelineView({
                     <input
                       type="date"
                       className="deal-modal__edit-input"
+                      style={{ minWidth: '160px', maxWidth: '180px' }}
+                      min={TODAY}
                       value={editCloseDate}
                       onChange={(e) => setEditCloseDate(e.target.value)}
                     />

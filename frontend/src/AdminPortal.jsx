@@ -7,6 +7,12 @@ import AdminView from './views/AdminView'
 import AdminAnalyticsView from './views/AdminAnalyticsView'
 import AdminProfileView from './views/AdminProfileView'
 
+const REGION_BRANCHES = {
+  'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
+  'North Luzon': ['Ilocos', 'Isabela'],
+  'Vis&Min':     ['Gensan', 'Iloilo', 'Cebu', 'Davao', 'CDO'],
+}
+
 const NAV = [
   { id: 'analytics', label: 'Analytics',          description: 'Branch stats and system overview' },
   { id: 'accounts',  label: 'Account Management', description: 'Create and manage branch accounts' },
@@ -28,6 +34,8 @@ export default function AdminPortal() {
   const [adminUser, setAdminUser]     = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [toast, setToast]             = useState(null)
+  const [activeBranch, setActiveBranch] = useState('')
+  const [activeRegion, setActiveRegion] = useState('')
 
   function showToast(message) {
     setToast(message)
@@ -64,14 +72,15 @@ export default function AdminPortal() {
         aria-hidden="true"
       />
 
-      <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
+      <div className="sidebar-hover-trigger" onMouseEnter={() => setSidebarOpen(true)} />
+      <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`} onMouseLeave={() => setSidebarOpen(false)}>
         <div className="brand-block">
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
           <p className="brand-name">Admin Portal</p>
           <div className="brand-branch-badge admin-portal-badge">Headquarters</div>
         </div>
 
-        <nav className="sidebar-nav" aria-label="Admin navigation">
+        <nav className="sidebar-nav" aria-label="Admin navigation" style={{ flex: '0 0 auto' }}>
           <p className="nav-section-label">Menu</p>
           {NAV.map((item) => (
             <button
@@ -89,7 +98,31 @@ export default function AdminPortal() {
           ))}
         </nav>
 
-        <div className="sidebar-footer">
+        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
+          <p className="nav-section-label" style={{ marginBottom: '8px' }}>Viewing Branch</p>
+          <select
+            style={{ width: '100%', marginBottom: '6px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #444', background: '#222222', color: '#ffffff', fontSize: '0.8rem' }}
+            value={activeRegion}
+            onChange={e => {
+              setActiveRegion(e.target.value)
+              setActiveBranch('')
+            }}
+          >
+            <option value="">All Regions</option>
+            {Object.keys(REGION_BRANCHES).map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+          <select
+            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #444', background: '#222222', color: '#ffffff', fontSize: '0.8rem' }}
+            value={activeBranch}
+            onChange={e => setActiveBranch(e.target.value)}
+          >
+            <option value="">All Branches</option>
+            {(activeRegion ? REGION_BRANCHES[activeRegion] : Object.values(REGION_BRANCHES).flat())
+              .map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+        </div>
+
+        <div className="sidebar-footer" style={{ marginTop: 'auto' }}>
           <p className="sidebar-label">Signed in as</p>
           <div className="sidebar-user">
             <span className="sidebar-user__name">{adminUser.name}</span>
@@ -122,7 +155,7 @@ export default function AdminPortal() {
         <div className="view-content">
           <Routes>
             <Route path="/" element={<Navigate to="/admin/analytics" replace />} />
-            <Route path="/analytics" element={<AdminAnalyticsView />} />
+            <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} />} />
             <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} />} />
             <Route path="/profile" element={<AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />} />
             <Route path="*" element={<Navigate to="/admin/analytics" replace />} />
