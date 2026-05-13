@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const DEAL_STAGES = ['New Opportunity', 'Qualified', 'Proposal', 'Negotiation', 'Closed Won']
+const DEAL_STAGES = ['Qualified', 'New Opportunity', 'Proposal', 'Negotiation', 'Closed Won']
 
 export default function DealForm({ onSubmit, onCancel, companies, contacts, teamMembers, dealStages = DEAL_STAGES }) {
   const [dealForm, setDealForm] = useState({

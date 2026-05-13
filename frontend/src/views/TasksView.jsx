@@ -11,7 +11,6 @@ export default function TasksView({
   openTasks,
   dueToday,
   deals,
-  companies,
   companyMap,
   taskFilter,
   setTaskFilter,

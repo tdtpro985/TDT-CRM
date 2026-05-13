@@ -3,6 +3,8 @@ import { useState } from 'react'
 const TASK_TYPES = ['Call', 'Follow-up', 'Meeting', 'Email']
 const TASK_PRIORITIES = ['Low', 'Medium', 'High']
 
+const ACTIVE_STAGES = new Set(['Qualified', 'New Opportunity', 'Proposal', 'Negotiation'])
+
 function CompanyCombobox({ companies, companyId, onChange }) {
   const displayValue = companies.find((c) => c.id === companyId)?.name ?? companyId
 
@@ -30,7 +32,16 @@ function CompanyCombobox({ companies, companyId, onChange }) {
   )
 }
 
-export default function TaskForm({ onSubmit, onCancel, deals, companies, currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES, dealStages = [] }) {
+export default function TaskForm({
+  onSubmit,
+  onCancel,
+  deals,
+  companies,
+  currentUser,
+  fetchDealContacts,
+  taskTypes = TASK_TYPES,
+  taskPriorities = TASK_PRIORITIES,
+}) {
   const [taskForm, setTaskForm] = useState({
     title: '',
     type: taskTypes[1],
@@ -41,48 +52,80 @@ export default function TaskForm({ onSubmit, onCancel, deals, companies, current
     dueDate: '',
     priority: 'Medium',
     notes: '',
-    dealStage: dealStages[0] ?? 'New Opportunity',
+    dealStage: '',
     dealValue: '',
     expectedClose: '',
   })
+
+  const [dealContacts, setDealContacts] = useState([])
+  const [selectedContacts, setSelectedContacts] = useState([])
+  const [loadingContacts, setLoadingContacts] = useState(false)
+
+  // Active deals for the currently selected company
+  const activeDealsForCompany = deals.filter((d) =>
+    (d.companyId === taskForm.companyId) && ACTIVE_STAGES.has(d.stage)
+  )
+
+  async function loadDealContacts(dealId) {
+    if (!fetchDealContacts || !dealId) {
+      setDealContacts([])
+      setSelectedContacts([])
+      return
+    }
+    setLoadingContacts(true)
+    try {
+      const data = await fetchDealContacts(dealId)
+      setDealContacts(Array.isArray(data) ? data : [])
+      setSelectedContacts(Array.isArray(data) ? data.map((c) => c.id) : [])
+    } finally {
+      setLoadingContacts(false)
+    }
+  }
 
   function handleChange(e) {
     const { name, value } = e.target
     setTaskForm((current) => {
       const next = { ...current, [name]: value }
-      
-      // Auto-fill logic when selecting a company
-      if (name === 'companyId' && value) {
-        const selectedCompany = companies.find(c => c.id === value || c.name === value)
-        if (selectedCompany) {
-          // Find the most recent active deal for this company
-          const companyDeal = deals.find(d => 
-            (d.companyId === selectedCompany.id || d.companyId === selectedCompany.name) && 
-            d.stage !== 'Closed Won' && 
-            d.stage !== 'Closed Lost'
-          )
-          
-          if (companyDeal) {
-            next.dealId = companyDeal.id
-            next.dealStage = companyDeal.stage
-            next.dealValue = companyDeal.value
-            next.expectedClose = companyDeal.expectedClose
-          } else {
-            // No active deal, prep for new deal creation
-            next.dealId = ''
-            next.dealStage = dealStages[0]
-            next.dealValue = ''
-            next.expectedClose = ''
-          }
-        }
+
+      if (name === 'companyId') {
+        // Reset deal selection when company changes
+        next.dealId = ''
+        next.dealStage = ''
+        next.dealValue = ''
+        next.expectedClose = ''
+        setDealContacts([])
+        setSelectedContacts([])
       }
+
+      if (name === 'dealId' && value) {
+        const deal = deals.find((d) => d.id === value)
+        if (deal) {
+          next.dealStage = deal.stage
+          next.dealValue = deal.value
+          next.expectedClose = deal.expectedClose || ''
+        }
+        loadDealContacts(value)
+      }
+
       return next
     })
   }
 
+  function toggleContact(contactId) {
+    setSelectedContacts((prev) =>
+      prev.includes(contactId)
+        ? prev.filter((id) => id !== contactId)
+        : [...prev, contactId]
+    )
+  }
+
   function handleSubmit(e) {
     e.preventDefault()
-    onSubmit(taskForm)
+    const contactNames = dealContacts
+      .filter((c) => selectedContacts.includes(c.id))
+      .map((c) => c.name)
+      .join(', ')
+    onSubmit({ ...taskForm, contact: contactNames || taskForm.contact })
   }
 
   return (
@@ -101,12 +144,12 @@ export default function TaskForm({ onSubmit, onCancel, deals, companies, current
 
       <label className="field">
         <span>Owner</span>
-        <input 
-          name="owner" 
-          value={taskForm.owner} 
-          readOnly 
-          className="input--readonly" 
-          placeholder="Enter owner name" 
+        <input
+          name="owner"
+          value={taskForm.owner}
+          readOnly
+          className="input--readonly"
+          placeholder="Enter owner name"
         />
       </label>
 
@@ -115,28 +158,88 @@ export default function TaskForm({ onSubmit, onCancel, deals, companies, current
         <CompanyCombobox companies={companies} companyId={taskForm.companyId} onChange={handleChange} />
       </label>
 
+      {/* Linked deal dropdown */}
       <label className="field">
-        <span>Contact</span>
-        <input name="contact" value={taskForm.contact} onChange={handleChange} placeholder="Enter contact person" />
-      </label>
-
-      {/* Transferred Deal Fields */}
-      <label className="field">
-        <span>Deal stage</span>
-        <select name="dealStage" value={taskForm.dealStage} onChange={handleChange}>
-          {dealStages.map((s) => <option key={s} value={s}>{s}</option>)}
+        <span>Linked deal</span>
+        <select
+          name="dealId"
+          value={taskForm.dealId}
+          onChange={handleChange}
+          disabled={activeDealsForCompany.length === 0}
+        >
+          <option value="">
+            {activeDealsForCompany.length === 0 ? 'No active deals' : 'Select a deal…'}
+          </option>
+          {activeDealsForCompany.map((d) => (
+            <option key={d.id} value={d.id}>{d.name} — {d.stage}</option>
+          ))}
         </select>
       </label>
 
-      <label className="field">
-        <span>Deal value</span>
-        <input name="dealValue" type="number" min="0" value={taskForm.dealValue} onChange={handleChange} placeholder="Enter value" />
-      </label>
+      {/* Deal info (read-only) when a deal is selected */}
+      {taskForm.dealId && (
+        <>
+          <label className="field">
+            <span>Deal stage</span>
+            <input value={taskForm.dealStage} readOnly className="input--readonly" />
+          </label>
 
-      <label className="field">
-        <span>Expected close</span>
-        <input name="expectedClose" type="date" value={taskForm.expectedClose} onChange={handleChange} />
-      </label>
+          <label className="field">
+            <span>Deal value</span>
+            <input value={taskForm.dealValue} readOnly className="input--readonly" />
+          </label>
+
+          <label className="field">
+            <span>Expected close</span>
+            <input value={taskForm.expectedClose} readOnly className="input--readonly" />
+          </label>
+        </>
+      )}
+
+      {/* Deal contacts table */}
+      {taskForm.dealId && (
+        <div className="field field--span-2">
+          <span>Contacts involved</span>
+          {loadingContacts ? (
+            <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', marginTop: '6px' }}>Loading contacts…</p>
+          ) : dealContacts.length > 0 ? (
+            <table style={{ width: '100%', marginTop: '6px', borderCollapse: 'collapse', fontSize: 'var(--fs-sm)' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', fontWeight: 600, color: 'var(--text-muted)' }}>Include</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', fontWeight: 600, color: 'var(--text-muted)' }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', fontWeight: 600, color: 'var(--text-muted)' }}>Role</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dealContacts.map((c) => (
+                  <tr key={c.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '6px 8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedContacts.includes(c.id)}
+                        onChange={() => toggleContact(c.id)}
+                      />
+                    </td>
+                    <td style={{ padding: '6px 8px' }}>{c.name}</td>
+                    <td style={{ padding: '6px 8px', color: 'var(--text-muted)' }}>{c.deal_role || c.role || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', marginTop: '6px' }}>No contacts linked to this deal yet.</p>
+          )}
+        </div>
+      )}
+
+      {/* Manual contact field when no deal or no deal contacts */}
+      {(!taskForm.dealId || dealContacts.length === 0) && (
+        <label className="field">
+          <span>Contact</span>
+          <input name="contact" value={taskForm.contact} onChange={handleChange} placeholder="Enter contact person" />
+        </label>
+      )}
 
       <label className="field">
         <span>Due date</span>
@@ -152,12 +255,12 @@ export default function TaskForm({ onSubmit, onCancel, deals, companies, current
 
       <label className="field field--span-2">
         <span>Description</span>
-        <textarea 
-          name="notes" 
-          value={taskForm.notes} 
-          onChange={handleChange} 
-          placeholder="Enter task details..." 
-          required 
+        <textarea
+          name="notes"
+          value={taskForm.notes}
+          onChange={handleChange}
+          placeholder="Enter task details..."
+          required
           style={{ minHeight: '80px' }}
         />
       </label>

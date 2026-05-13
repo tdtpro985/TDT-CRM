@@ -31,8 +31,9 @@ export function getUser() {
 
 export async function apiFetch(path, options = {}) {
   const token = getToken()
+  const isFormData = options.body instanceof FormData
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers ?? {}),
   }
