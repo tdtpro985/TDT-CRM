@@ -546,7 +546,7 @@ export default function CustomersView({
                               name="phone"
                               value={contact.phone}
                               onChange={e => {
-                                const val = e.target.value
+                                const val = e.target.value.replace(/[^0-9+\s()-]/g, '')
                                 setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c))
                               }}
                               placeholder="Number"

@@ -581,7 +581,11 @@ export default function PipelineView({
                         type="number"
                         className="deal-modal__edit-input"
                         value={editValue}
-                        onChange={(e) => setEditValue(e.target.value === '' ? '' : Number(e.target.value))}
+                        min="0"
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^0-9.]/g, '')
+                          setEditValue(raw === '' ? '' : Number(raw))
+                        }}
                         style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-strong)', padding: '6px 10px', width: '100%' }}
                       />
                     </div>
@@ -823,6 +827,16 @@ export default function PipelineView({
                     className="primary-button"
                     onClick={async () => {
                       if (isUpdatingRef.current) return
+
+                      if (editValue === '' || isNaN(editValue) || Number(editValue) < 0) {
+                        setNotice('Please enter a valid positive number for deal value.')
+                        return
+                      }
+                      if (editProbability === '' || isNaN(editProbability) || editProbability < 0 || editProbability > 100) {
+                        setNotice('Please enter a valid probability (0-100).')
+                        return
+                      }
+
                       isUpdatingRef.current = true
                       const prevData = { value: selectedDeal.value, expectedClose: selectedDeal.expectedClose, probability: selectedDeal.probability }
                       setSelectedDeal((d) => ({ ...d, value: editValue, expectedClose: editCloseDate, probability: editProbability }))

@@ -135,6 +135,11 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   async function createContact(contactForm) {
+    if (!contactForm.email && !contactForm.phone) {
+      setNotice('Email or phone is required to create a contact.')
+      return
+    }
+
     let matchedCompany = companies.find((c) => c.name.toLowerCase() === contactForm.companyName.toLowerCase())
     let companyIdToUse = matchedCompany ? matchedCompany.id : null
 
@@ -149,6 +154,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     const newContact = {
       id: createRecordId('contact'),
       ...contactForm,
+      phone: (contactForm.phone || '').replace(/[^0-9+\s()-]/g, ''),
       companyId: companyIdToUse,
       name: contactForm.name.trim(),
       ownerId: rsm?.id || contactForm.ownerId || null,
@@ -219,6 +225,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     const newDeal = {
       id: createRecordId('deal'),
       ...dealForm,
+      value: Number(dealForm.value) || 0,
       companyId: companyIdToUse,
       contactId: contactIdToUse,
       name: dealForm.name.trim(),

@@ -520,7 +520,17 @@ def get_customer_detail(customer_id):
             """, tuple(deal_ids))
             activities = rows_to_list(cursor)
             
-        # 4. Fetch audit log for these deals and contacts
+        # 4. Fetch contacts for this company
+        cursor.execute(
+            """SELECT id, name, role, email, phone
+               FROM contacts
+               WHERE company_id = %s
+               ORDER BY name""",
+            (customer_id,)
+        )
+        contacts = rows_to_list(cursor)
+
+        # 5. Fetch audit log for these deals and contacts
         audit_logs = []
         if deal_ids or contacts:
             d_format = ','.join(['%s'] * len(deal_ids)) if deal_ids else "''"
@@ -539,16 +549,6 @@ def get_customer_detail(customer_id):
             params = tuple(deal_ids + contact_ids)
             cursor.execute(sql, params)
             audit_logs = rows_to_list(cursor)
-            
-        # 5. Fetch contacts for this company
-        cursor.execute(
-            """SELECT id, name, role, email, phone
-               FROM contacts
-               WHERE company_id = %s
-               ORDER BY name""",
-            (customer_id,)
-        )
-        contacts = rows_to_list(cursor)
 
         return jsonify({
             'customer': customer_data,
