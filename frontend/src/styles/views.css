@@ -1237,21 +1237,29 @@
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
+  color: var(--accent-strong);
+  border-bottom: 2px solid var(--border);
   white-space: nowrap;
-  background: rgba(255, 255, 255, 0.015);
+  background: rgba(255, 152, 0, 0.06);
 }
 
 .admin-table td {
-  padding: 13px 16px;
+  padding: 11px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   color: var(--text-strong);
   vertical-align: middle;
 }
 
+.admin-table tbody tr:nth-child(even) td {
+  background: rgba(255, 255, 255, 0.012);
+}
+
 .admin-table tbody tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 152, 0, 0.04);
+}
+
+.admin-table tbody tr:nth-child(even):hover td {
+  background: rgba(255, 152, 0, 0.055);
 }
 
 .admin-table__row--self td {

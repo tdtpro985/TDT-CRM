@@ -408,6 +408,12 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         body: JSON.stringify({ status: nextStatus })
       })
       if (!res.ok) throw new Error('Network error')
+      const data = await res.json()
+      if (data.dealId) {
+        setDeals(prev => prev.map(d => 
+          d.id === data.dealId ? { ...d, lastTouch: new Date().toISOString() } : d
+        ))
+      }
       setNotice('Task status updated.')
     } catch {
       setNotice('Task status updated locally — backend not reachable.')

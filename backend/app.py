@@ -509,16 +509,24 @@ def get_customer_detail(customer_id):
             """, tuple(deal_ids))
             activities = rows_to_list(cursor)
             
-        # 4. Fetch audit log for these deals
+        # 4. Fetch audit log for these deals & activities
         audit_logs = []
         if deal_ids:
-            format_strings = ','.join(['%s'] * len(deal_ids))
-            cursor.execute(f"""
+            act_ids = [a['id'] for a in activities]
+            d_format = ','.join(['%s'] * len(deal_ids))
+            a_format = ','.join(['%s'] * len(act_ids)) if act_ids else 'NULL'
+            
+            sql = f"""
                 SELECT id, entity_type AS entityType, entity_id AS entityId, action, old_value AS oldValue, new_value AS newValue, changed_at AS changedAt
                 FROM audit_log
-                WHERE entity_type = 'deal' AND entity_id IN ({format_strings})
-                ORDER BY changed_at DESC
-            """, tuple(deal_ids))
+                WHERE (entity_type = 'deal' AND entity_id IN ({d_format}))
+            """
+            if act_ids:
+                sql += f" OR (entity_type = 'activity' AND entity_id IN ({a_format}))"
+            sql += " ORDER BY changed_at DESC"
+            
+            params = tuple(deal_ids + act_ids) if act_ids else tuple(deal_ids)
+            cursor.execute(sql, params)
             audit_logs = rows_to_list(cursor)
             
         # 5. Fetch contacts for this company
@@ -1437,8 +1445,16 @@ def update_activity_status(activity_id):
         old_status = row[0]
         cursor.execute('UPDATE activities SET status = %s WHERE id = %s', (new_status, activity_id))
         log_audit(conn, 'activity', activity_id, 'status_change', old_status, new_status)
+
+        # Trigger deal lastTouch update by logging a deal audit entry
+        cursor.execute('SELECT deal_id FROM activities WHERE id = %s', (activity_id,))
+        d_row = cursor.fetchone()
+        deal_id = d_row[0] if d_row else None
+        if deal_id:
+            log_audit(conn, 'deal', deal_id, 'task_status_change', old_status, new_status)
+
         conn.commit()
-        return jsonify({'message': 'Activity status updated'})
+        return jsonify({'message': 'Activity status updated', 'dealId': deal_id})
     finally:
         close_connection(conn)
 
