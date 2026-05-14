@@ -105,7 +105,7 @@ export default function App() {
 
   const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
   const { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch, activeRegion } = data
-  const { setActiveBranch, setActiveRegion, reassignLead } = actions
+  const { setActiveBranch, setActiveRegion } = actions
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
@@ -358,6 +358,7 @@ export default function App() {
           <TasksView
             filteredTasks={filteredTasks}
             tasks={tasks}
+            contacts={contacts}
             openTasks={openTasks}
             dueToday={dueToday}
             deals={deals}

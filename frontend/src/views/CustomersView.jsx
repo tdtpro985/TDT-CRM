@@ -8,6 +8,15 @@ import LeadForm from '../components/forms/LeadForm'
 import TaskForm from '../components/forms/TaskForm'
 import { apiFetch } from '../api'
 
+const STAGE_COLORS = {
+  'Qualified':       '#ff9800', // Orange
+  'New Opportunity': '#38bdf8', // Blue
+  'Proposal':        '#34d399', // Green
+  'Negotiation':     '#fb7185', // Red/Pink
+  'Closed Won':      '#34d399', // Green
+  'Closed Lost':     '#666666', // Gray
+}
+
 export default function CustomersView({
   filteredCustomers,
   customers,
@@ -157,7 +166,13 @@ export default function CustomersView({
   const closedWonValue = customerDetail?.customer?.closedWonValue ?? 0
   const closedLostValue = customerDetail?.customer?.closedLostValue ?? 0
 
-  const hasHistory = (customerDetail?.deals?.length > 0) || 
+  const customerDeals = useMemo(() => 
+    deals
+      .filter(d => d.companyId === selectedCustomer?.id)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  , [deals, selectedCustomer?.id])
+
+  const hasHistory = (customerDeals.length > 0) || 
                      (customerDetail?.activities?.length > 0) || 
                      (customerDetail?.auditLogs?.length > 0)
 
@@ -285,10 +300,10 @@ export default function CustomersView({
                           </tr>
                         </thead>
                         <tbody>
-                          {customerDetail.deals.map(deal => (
+                          {customerDeals.map(deal => (
                             <tr key={deal.id}>
                               <td className="admin-table__name">{deal.name}</td>
-                              <td><span className={`tone-pill ${getToneClass(deal.stage)}`}>{deal.stage}</span></td>
+                              <td>{deal.stage}</td>
                               <td>{formatCurrencyCompact(deal.value)}</td>
                               <td className="admin-table__muted">{deal.owner}</td>
                             </tr>
@@ -307,30 +322,80 @@ export default function CustomersView({
                         ...(customerDetail?.auditLogs || []).map(l => ({ ...l, timelineType: 'audit', createdAt: l.changedAt }))
                       ]
                       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-                      .map((item, idx) => (
-                        <div key={idx} className="timeline-item">
-                          <div className="timeline-dot"></div>
-                          <div className="timeline-content">
-                            <div className="timeline-header">
-                              <span className="timeline-time">{formatDateLabel(item.createdAt)}</span>
-                              <span className={`timeline-badge ${item.timelineType === 'audit' ? 'is-audit' : 'is-activity'}`}>
-                                {item.timelineType === 'audit' ? 'Change' : item.type}
-                              </span>
-                            </div>
-                            <div className="timeline-body">
-                              {item.timelineType === 'audit' ? (
-                                <p>
-                                  <strong>{item.action.replace('_', ' ')}</strong>: 
-                                  <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
-                                </p>
-                              ) : (
-                                <p><strong>{item.subject}</strong> - {item.owner}</p>
-                              )}
-                              {item.notes && <p className="timeline-notes">{item.notes}</p>}
+                      .map((item, idx) => {
+                        const linkedDeal = deals.find(d => 
+                          d.id === (item.timelineType === 'audit' ? item.entityId : item.dealId)
+                        )
+                        const stage = item.stage || linkedDeal?.stage
+                        const dotColor = STAGE_COLORS[stage] || 'var(--accent)'
+
+                        const ACTION_LABELS = {
+                          'stage_change': 'Stage changed',
+                          'value_change': 'Value changed',
+                          'owner_id_change': 'Owner changed',
+                          'close_date_change': 'Close date changed',
+                          'probability_change': 'Probability changed',
+                          'status_change': 'Status changed',
+                          'task_status_change': 'Task status updated',
+                          'lost_reason': 'Lost reason'
+                        }
+
+                        return (
+                          <div key={idx} className="timeline-item">
+                            <div className="timeline-dot" style={{ background: dotColor }}></div>
+                            <div className="timeline-content">
+                              <div className="timeline-header">
+                                <span className="timeline-time">{formatDateLabel(item.createdAt)}</span>
+                                <span className={`timeline-badge ${item.timelineType === 'audit' ? 'is-audit' : 'is-activity'}`}>
+                                  {item.timelineType === 'audit' ? 'Change' : item.type}
+                                </span>
+                              </div>
+                              <div className="timeline-body">
+                                {item.timelineType === 'audit' ? (
+                                  <p>
+                                    {item.action.startsWith('task_status:') ? (
+                                      <>
+                                        Status updated for task <strong>"{item.action.split(':')[1]}"</strong>:{' '}
+                                        <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
+                                      </>
+                                    ) : item.action === 'task_status_change' ? (
+                                      <>
+                                        Task status updated on <strong>{linkedDeal?.name || 'deal'}</strong>:{' '}
+                                        <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <strong>{ACTION_LABELS[item.action] || item.action.replace(/_/g, ' ')}</strong>:{' '}
+                                        {item.action === 'stage_change' ? (
+                                          <>
+                                            <span className={`tone-pill ${getToneClass(item.oldValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.oldValue}</span>
+                                            → 
+                                            <span className={`tone-pill ${getToneClass(item.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.newValue}</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
+                                          </>
+                                        )}
+                                      </>
+                                    )}
+                                  </p>
+                                ) : (
+                                  <p>
+                                    <strong>{item.subject}</strong> - {item.owner}
+                                    {stage && (
+                                      <span className={`tone-pill ${getToneClass(stage)}`} style={{ fontSize: '10px', padding: '1px 6px', marginLeft: '8px' }}>
+                                        {stage}
+                                      </span>
+                                    )}
+                                  </p>
+                                )}
+                                {item.notes && <p className="timeline-notes">{item.notes}</p>}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   </>
                 )}

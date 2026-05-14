@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS deals (
     lost_reason VARCHAR(255)   NULL,
     owner_id    INT,
     branch      VARCHAR(100),
-    created_at  DATE           DEFAULT (CURRENT_DATE),
+    created_at  DATETIME       DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL,
     FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL,
     FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL

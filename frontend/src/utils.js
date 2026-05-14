@@ -74,6 +74,14 @@ export function getToneClass(value) {
   if (!value) return 'is-neutral'
   const normalizedValue = String(value).toLowerCase()
 
+  // Exact stage matches (synchronize with kanban board colors)
+  if (normalizedValue === 'qualified') return 'is-warning'        // Orange
+  if (normalizedValue === 'new opportunity') return 'is-open'     // Blue
+  if (normalizedValue === 'proposal') return 'is-positive'        // Green
+  if (normalizedValue === 'negotiation') return 'is-alert'        // Red/Pink
+  if (normalizedValue === 'closed won') return 'is-positive'      // Green
+  if (normalizedValue === 'closed lost') return 'is-neutral'      // Gray
+
   if (normalizedValue.includes('unqualified')
   ) {
     return 'is-neutral'
@@ -83,7 +91,6 @@ export function getToneClass(value) {
     normalizedValue.includes('won') ||
     normalizedValue.includes('customer') ||
     normalizedValue.includes('completed') ||
-    normalizedValue.includes('qualified') ||
     normalizedValue.includes('low')
   ) {
     return 'is-positive'
