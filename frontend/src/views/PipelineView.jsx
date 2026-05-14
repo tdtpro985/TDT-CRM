@@ -180,7 +180,7 @@ export default function PipelineView({
   }, [selectedDeal?.id, selectedDeal?.stage])
 
   const canFilterBySR = (
-    (currentUser?.role === 'Head of Sales' || currentUser?.role === 'Admin') &&
+    (currentUser?.role === 'Head of Sales' || currentUser?.role === 'Admin' || currentUser?.role === 'Regional Sales Manager') &&
     !!activeBranch
   )
 
