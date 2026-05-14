@@ -173,7 +173,6 @@ export default function CustomersView({
   , [deals, selectedCustomer?.id])
 
   const hasHistory = (customerDeals.length > 0) || 
-                     (customerDetail?.activities?.length > 0) || 
                      (customerDetail?.auditLogs?.length > 0)
 
   return (
@@ -317,27 +316,27 @@ export default function CustomersView({
                     </div>
 
                     <div className="timeline">
-                      {[
-                        ...(customerDetail?.activities || []).map(a => ({ ...a, timelineType: 'activity' })),
-                        ...(customerDetail?.auditLogs || []).map(l => ({ ...l, timelineType: 'audit', createdAt: l.changedAt }))
-                      ]
-                      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                      {(customerDetail?.auditLogs || [])
+                      .filter(l => !l.action.startsWith('task_status:') && l.action !== 'task_status_change')
+                      .sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt))
                       .map((item, idx) => {
-                        const linkedDeal = deals.find(d => 
-                          d.id === (item.timelineType === 'audit' ? item.entityId : item.dealId)
-                        )
+                        const linkedDeal = deals.find(d => d.id === item.entityId)
+                        const linkedContact = (customerDetail?.contacts || []).find(c => c.id === item.entityId)
+                        
                         const stage = item.stage || linkedDeal?.stage
-                        const dotColor = STAGE_COLORS[stage] || 'var(--accent)'
+                        const dotColor = item.entityType === 'contact' ? 'var(--text-muted)' : (STAGE_COLORS[stage] || 'var(--accent)')
 
                         const ACTION_LABELS = {
                           'stage_change': 'Stage changed',
+                          'deal_created': 'Deal created',
                           'value_change': 'Value changed',
                           'owner_id_change': 'Owner changed',
                           'close_date_change': 'Close date changed',
                           'probability_change': 'Probability changed',
                           'status_change': 'Status changed',
-                          'task_status_change': 'Task status updated',
-                          'lost_reason': 'Lost reason'
+                          'lost_reason': 'Lost reason',
+                          'contact_created': 'Contact added',
+                          'update': 'Contact updated'
                         }
 
                         return (
@@ -345,51 +344,44 @@ export default function CustomersView({
                             <div className="timeline-dot" style={{ background: dotColor }}></div>
                             <div className="timeline-content">
                               <div className="timeline-header">
-                                <span className="timeline-time">{formatDateLabel(item.createdAt)}</span>
-                                <span className={`timeline-badge ${item.timelineType === 'audit' ? 'is-audit' : 'is-activity'}`}>
-                                  {item.timelineType === 'audit' ? 'Change' : item.type}
-                                </span>
+                                <span className="timeline-time">{formatDateLabel(item.changedAt)}</span>
+                                <span className="timeline-badge is-audit">Change</span>
                               </div>
                               <div className="timeline-body">
-                                {item.timelineType === 'audit' ? (
-                                  <p>
-                                    {item.action.startsWith('task_status:') ? (
-                                      <>
-                                        Status updated for task <strong>"{item.action.split(':')[1]}"</strong>:{' '}
-                                        <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
-                                      </>
-                                    ) : item.action === 'task_status_change' ? (
-                                      <>
-                                        Task status updated on <strong>{linkedDeal?.name || 'deal'}</strong>:{' '}
-                                        <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <strong>{ACTION_LABELS[item.action] || item.action.replace(/_/g, ' ')}</strong>:{' '}
-                                        {item.action === 'stage_change' ? (
-                                          <>
+                                <p>
+                                  {item.action === 'deal_created' ? (
+                                    <>
+                                      <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(item.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.newValue}</span>
+                                      {linkedDeal && <> for <strong>{linkedDeal.name}</strong></>}
+                                    </>
+                                  ) : item.entityType === 'contact' ? (
+                                    <>
+                                      <strong>{ACTION_LABELS[item.action] || item.action}</strong>: 
+                                      {item.action === 'contact_created' ? (
+                                        <> <strong>{item.newValue}</strong></>
+                                      ) : (
+                                        <> <strong>{linkedContact?.name || 'Contact'}</strong> details updated</>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <strong>{ACTION_LABELS[item.action] || item.action.replace(/_/g, ' ')}</strong>:{' '}
+                                      {item.action === 'stage_change' ? (
+                                        <>
+                                          {item.oldValue ? (
                                             <span className={`tone-pill ${getToneClass(item.oldValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.oldValue}</span>
-                                            → 
-                                            <span className={`tone-pill ${getToneClass(item.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.newValue}</span>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
-                                          </>
-                                        )}
-                                      </>
-                                    )}
-                                  </p>
-                                ) : (
-                                  <p>
-                                    <strong>{item.subject}</strong> - {item.owner}
-                                    {stage && (
-                                      <span className={`tone-pill ${getToneClass(stage)}`} style={{ fontSize: '10px', padding: '1px 6px', marginLeft: '8px' }}>
-                                        {stage}
-                                      </span>
-                                    )}
-                                  </p>
-                                )}
+                                          ) : null}
+                                          {item.oldValue && ' → '}
+                                          <span className={`tone-pill ${getToneClass(item.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.newValue}</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
+                                        </>
+                                      )}
+                                    </>
+                                  )}
+                                </p>
                                 {item.notes && <p className="timeline-notes">{item.notes}</p>}
                               </div>
                             </div>

@@ -12,11 +12,8 @@ export default function TasksView({
   openTasks,
   dueToday,
   deals,
-  companyMap,
   taskFilter,
   setTaskFilter,
-  taskCompanyFilter,
-  setTaskCompanyFilter,
   handleTaskStatusToggle,
   currentPage,
   setCurrentPage
@@ -40,16 +37,6 @@ export default function TasksView({
   const completedCount = tasks.filter((t) => t.status === 'Completed').length
   const highPriorityCount = openTasks.filter((t) => t.priority === 'High').length
   
-  const uniqueCompanies = useMemo(() => {
-    const names = tasks.map(t => {
-      if (t.companyName) return t.companyName
-      const deal = deals.find(d => d.id === t.dealId)
-      if (deal) return companyMap[deal.companyId]?.name
-      return null
-    })
-    return Array.from(new Set(names)).filter(Boolean).sort()
-  }, [tasks, deals, companyMap])
-
   return (
     <>
       <section className="metrics-grid metrics-grid--compact">
@@ -80,39 +67,6 @@ export default function TasksView({
                   <option value="reopened">Reopened</option>
                   <option value="completed">Completed</option>
                 </select>
-              </label>
-
-              <label className="filter-wrap">
-                <span>Company</span>
-                <div className="combobox-filter">
-                  <input
-                    type="text"
-                    value={taskCompanyFilter === 'all' ? '' : taskCompanyFilter}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setTaskCompanyFilter(val || 'all')
-                      setCurrentPage(1)
-                    }}
-                    placeholder="Search company..."
-                    list="company-filter-options"
-                    autoComplete="off"
-                    style={{
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--r-md)',
-                      color: 'var(--text-strong)',
-                      padding: '4px 12px',
-                      fontSize: '0.875rem',
-                      outline: 'none',
-                      width: '180px'
-                    }}
-                  />
-                  <datalist id="company-filter-options">
-                    {uniqueCompanies.map(company => (
-                      <option key={company} value={company} />
-                    ))}
-                  </datalist>
-                </div>
               </label>
             </div>
           }

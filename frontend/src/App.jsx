@@ -71,7 +71,6 @@ export default function App() {
   const [stageFilter, setStageFilter]       = useState('all')
   const [leadStatusFilter, setLeadStatusFilter] = useState('all')
   const [taskFilter, setTaskFilter]         = useState('open')
-  const [taskCompanyFilter, setTaskCompanyFilter] = useState('all')
 
   const [leadPage, setLeadPage]             = useState(1)
   const [pipelinePage, setPipelinePage]     = useState(1)
@@ -184,12 +183,10 @@ export default function App() {
          (taskFilter === 'open' && t.status === 'Open') || 
          (taskFilter === 'completed' && t.status === 'Completed') ||
          (taskFilter === 'reopened' && t.status === 'Reopened')) &&
-        (taskCompanyFilter === 'all' || taskCompanyFilter === '' || 
-         companyName.toLowerCase().includes(taskCompanyFilter.toLowerCase())) &&
         matchesSearch(searchQuery, [t.title, t.type, t.owner, deal?.name, companyName])
       )
     }
-  ), [tasks, taskFilter, taskCompanyFilter, searchQuery, deals, companyMap])
+  ), [tasks, taskFilter, searchQuery, deals, companyMap])
 
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
 
@@ -370,8 +367,6 @@ export default function App() {
             teamMembers={teamMembers}
             taskFilter={taskFilter}
             setTaskFilter={setTaskFilter}
-            taskCompanyFilter={taskCompanyFilter}
-            setTaskCompanyFilter={setTaskCompanyFilter}
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
             showTaskForm={showTaskForm}
