@@ -386,13 +386,13 @@
   transform: translateY(-2px) scale(1.01);
 }
 
-.pipeline-card.is-stage-new-opportunity:hover {
+.pipeline-card.is-stage-qualified:hover {
   border-color: rgba(255, 152, 0, 0.34);
   background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
   box-shadow: 0 6px 16px rgba(255, 152, 0, 0.14), 0 3px 6px rgba(0, 0, 0, 0.12);
 }
 
-.pipeline-card.is-stage-qualified:hover {
+.pipeline-card.is-stage-new-opportunity:hover {
   border-color: rgba(59, 130, 246, 0.34);
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(255, 255, 255, 0.05));
   box-shadow: 0 6px 16px rgba(59, 130, 246, 0.14), 0 3px 6px rgba(0, 0, 0, 0.12);
