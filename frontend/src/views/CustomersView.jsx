@@ -11,12 +11,14 @@ import { apiFetch } from '../api'
 export default function CustomersView({
   filteredCustomers,
   customers,
+  contacts,
   deals,
   companies,
   teamMembers,
   selectedCustomerId,
   setSelectedCustomerId,
   customerStatuses,
+  dealStages,
   statusFilter,
   setStatusFilter,
   showCustomerForm,
@@ -31,7 +33,6 @@ export default function CustomersView({
   const [customerDetail, setCustomerDetail] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [showQuickTaskForm, setShowQuickTaskForm] = useState(false)
-  const [recencyFilter, setRecencyFilter] = useState(null)
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) ?? customers[0] ?? null
 
@@ -115,46 +116,7 @@ export default function CustomersView({
     )
   }
 
-  // Recency mapping for dot indicator
-  const companyLastTouch = useMemo(() => {
-    const map = {}
-    for (const d of (deals || [])) {
-      if (d.companyId && d.lastTouch) {
-        const t = new Date(d.lastTouch)
-        if (!map[d.companyId] || t > map[d.companyId]) {
-          map[d.companyId] = t
-        }
-      }
-    }
-    return map
-  }, [deals])
-
-  function getRecencyKey(customer) {
-    const touch = companyLastTouch[customer.id]
-    if (!touch || Number(customer.totalDealCount || 0) === 0) return 'inactive'
-    
-    const now = new Date()
-    const diffDays = (now - touch) / (1000 * 60 * 60 * 24)
-    
-    if (diffDays > 30) return 'stale'
-    if (diffDays > 7) return 'aging'
-    return 'recent'
-  }
-
-  function getRecencyColor(customer) {
-    const key = getRecencyKey(customer)
-    if (key === 'inactive') return 'var(--text-muted)'
-    if (key === 'stale') return 'var(--alert)'
-    if (key === 'aging') return 'var(--warning)'
-    return 'var(--positive)'
-  }
-
-  const recencyFilteredCustomers = useMemo(() => {
-    if (!recencyFilter) return filteredCustomers
-    return filteredCustomers.filter(c => getRecencyKey(c) === recencyFilter)
-  }, [filteredCustomers, recencyFilter, companyLastTouch])
-
-  const paginatedCustomers = getPaginatedData(recencyFilteredCustomers, page)
+  const paginatedCustomers = getPaginatedData(filteredCustomers, page)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [companyContacts, setCompanyContacts] = useState([])
 
@@ -214,52 +176,12 @@ export default function CustomersView({
           detail="Derived from leads and direct company entries."
           action={
             <div className="panel-inline-controls" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div className="status-legend" style={{ display: 'flex', gap: '12px', marginRight: '8px' }}>
-                {[
-                  { key: 'recent', label: 'Recent', color: 'var(--positive)' },
-                  { key: 'aging', label: 'Aging', color: 'var(--warning)' },
-                  { key: 'stale', label: 'Stale', color: 'var(--alert)' },
-                  { key: 'inactive', label: 'Inactive', color: 'var(--text-muted)' }
-                ].map(item => (
-                  <div
-                    key={item.key}
-                    onClick={() => {
-                      setRecencyFilter(prev => prev === item.key ? null : item.key)
-                      setPage(1)
-                    }}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      fontSize: 'var(--fs-xs)',
-                      color: recencyFilter === item.key ? 'var(--text-strong)' : 'var(--text-muted)',
-                      cursor: 'pointer',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      background: recencyFilter === item.key ? 'rgba(255,255,255,0.05)' : 'transparent',
-                      transition: 'all 0.2s ease',
-                      border: recencyFilter === item.key ? '1px solid var(--border-light)' : '1px solid transparent'
-                    }}
-                  >
-                    <div style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      background: item.color,
-                      boxShadow: `0 0 4px ${item.color}`,
-                      opacity: recencyFilter && recencyFilter !== item.key ? 0.4 : 1
-                    }} />
-                    <span style={{ fontWeight: recencyFilter === item.key ? 600 : 400 }}>{item.label}</span>
-                  </div>
-                ))}
-              </div>
               <label className="filter-wrap">
                 <span>Status</span>
                 <select 
                   value={statusFilter} 
                   onChange={(e) => {
                     setStatusFilter(e.target.value)
-                    setRecencyFilter(null)
                     setPage(1)
                   }}
                 >
@@ -271,8 +193,8 @@ export default function CustomersView({
           }
         >
           <div style={{ minHeight: '600px', display: 'flex', flexDirection: 'column' }}>
-            {recencyFilteredCustomers.length === 0
-              ? <EmptyState title="No customers match this filter" copy="Try adjusting your recency or status filters." />
+            {filteredCustomers.length === 0
+              ? <EmptyState title="No customers match this filter" copy="Try adjusting your status filter." />
               : (
                 <>
                   <div className="contact-list" style={{ flex: 1, alignContent: 'start' }}>
@@ -280,25 +202,10 @@ export default function CustomersView({
                       <div
                         key={customer.id}
                         className={`contact-card ${selectedCustomerId === customer.id ? 'is-selected' : ''}`}
-                        style={{ position: 'relative' }}
                         onClick={() => setSelectedCustomerId(customer.id)}
                         onDoubleClick={() => setDetailModalOpen(true)}
                       >
-                        <div
-                          style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            position: 'absolute',
-                            top: '18px',
-                            right: '18px',
-                            background: getRecencyColor(customer),
-                            boxShadow: `0 0 8px ${getRecencyColor(customer)}`,
-                            opacity: 0.8
-                          }}
-                          title={companyLastTouch[customer.id] ? `Last activity: ${formatDateLabel(companyLastTouch[customer.id])}` : 'No recorded activity'}
-                        />
-                        <div style={{ paddingRight: '34px' }}>
+                        <div>
                           <strong style={{ fontSize: 'var(--fs-md)', color: 'var(--text-strong)', display: 'block' }}>
                             {customer.name}
                           </strong>
@@ -317,7 +224,7 @@ export default function CustomersView({
                       </div>
                     ))}
                   </div>
-                  {renderPagination(recencyFilteredCustomers.length, page, setPage)}
+                  {renderPagination(filteredCustomers.length, page, setPage)}
                 </>
               )
             }
@@ -444,7 +351,9 @@ export default function CustomersView({
         <TaskForm
           deals={deals}
           companies={companies}
+          contacts={contacts}
           teamMembers={teamMembers}
+          dealStages={dealStages}
           currentUser={currentUser}
           prefilledCompanyId={selectedCustomer?.id}
           onCancel={() => setShowQuickTaskForm(false)}

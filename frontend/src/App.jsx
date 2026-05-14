@@ -301,6 +301,7 @@ export default function App() {
             setNotice={setNotice}
             filteredCustomers={filteredCustomers}
             customers={customers}
+            contacts={contacts}
             teamMembers={teamMembers}
             selectedCustomerId={selectedLeadId}
             setSelectedCustomerId={setSelectedLeadId}
@@ -310,6 +311,7 @@ export default function App() {
             onCreateCustomer={handleCreateLead}
             linkHealth={linkHealth}
             deals={deals}
+            dealStages={DEAL_STAGES}
             companies={companies}
             onCreateTask={handleCreateTask}
             showCustomerForm={showLeadForm}
@@ -577,6 +579,7 @@ export default function App() {
         <TaskForm
           deals={deals}
           companies={companies}
+          contacts={contacts}
           teamMembers={teamMembers}
           taskTypes={TASK_TYPES}
           taskPriorities={TASK_PRIORITIES}
