@@ -501,7 +501,8 @@ def get_customer_detail(customer_id):
             format_strings = ','.join(['%s'] * len(deal_ids))
             cursor.execute(f"""
                 SELECT a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId,
-                       a.deal_id AS dealId, a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at AS createdAt
+                       a.deal_id AS dealId, a.due_date AS dueDate, a.priority, a.status, a.notes,
+                       a.created_at AS createdAt, a.stage
                 FROM activities a
                 LEFT JOIN team t ON a.owner_id = t.id
                 WHERE a.deal_id IN ({format_strings})
@@ -509,23 +510,19 @@ def get_customer_detail(customer_id):
             """, tuple(deal_ids))
             activities = rows_to_list(cursor)
             
-        # 4. Fetch audit log for these deals & activities
+        # 4. Fetch audit log for these deals
         audit_logs = []
         if deal_ids:
-            act_ids = [a['id'] for a in activities]
             d_format = ','.join(['%s'] * len(deal_ids))
-            a_format = ','.join(['%s'] * len(act_ids)) if act_ids else 'NULL'
             
             sql = f"""
                 SELECT id, entity_type AS entityType, entity_id AS entityId, action, old_value AS oldValue, new_value AS newValue, changed_at AS changedAt
                 FROM audit_log
                 WHERE (entity_type = 'deal' AND entity_id IN ({d_format}))
+                ORDER BY changed_at DESC
             """
-            if act_ids:
-                sql += f" OR (entity_type = 'activity' AND entity_id IN ({a_format}))"
-            sql += " ORDER BY changed_at DESC"
             
-            params = tuple(deal_ids + act_ids) if act_ids else tuple(deal_ids)
+            params = tuple(deal_ids)
             cursor.execute(sql, params)
             audit_logs = rows_to_list(cursor)
             
@@ -1276,7 +1273,7 @@ def update_deal_stage(deal_id):
         if user_row:
             editor_name = user_row[0]
 
-        today_str = datetime.now().strftime('%Y-%m-%d')
+        today_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         change_desc = []
         if new_value is not None and float(new_value) != float(old_value):
             change_desc.append(f'value to {new_value}')
@@ -1447,11 +1444,18 @@ def update_activity_status(activity_id):
         log_audit(conn, 'activity', activity_id, 'status_change', old_status, new_status)
 
         # Trigger deal lastTouch update by logging a deal audit entry
-        cursor.execute('SELECT deal_id FROM activities WHERE id = %s', (activity_id,))
+        cursor.execute('SELECT deal_id, subject FROM activities WHERE id = %s', (activity_id,))
         d_row = cursor.fetchone()
         deal_id = d_row[0] if d_row else None
+        task_name = d_row[1] if d_row else 'task'
+
         if deal_id:
-            log_audit(conn, 'deal', deal_id, 'task_status_change', old_status, new_status)
+            # We use task_name as the entity_type or pass it in notes if schema allowed, 
+            # but since we want it on the frontend, let's include it in old_value or similar?
+            # Actually, the cleanest way without schema change is to put it in a specific format in the audit log.
+            # However, the frontend currently expects old_value/new_value to be the statuses.
+            # Let's change the action name or similar? No, let's just use the task name.
+            log_audit(conn, 'deal', deal_id, f'task_status:{task_name}', old_status, new_status)
 
         conn.commit()
         return jsonify({'message': 'Activity status updated', 'dealId': deal_id})
@@ -1955,7 +1959,7 @@ def get_deal_contacts(deal_id):
         cursor = conn.cursor()
         cursor.execute(
             '''
-            SELECT c.id, c.name, c.role, dc.role AS deal_role
+            SELECT c.id, c.name, c.role, c.email, c.phone, dc.role AS deal_role
             FROM contacts c
             INNER JOIN deal_contacts dc ON c.id = dc.contact_id
             WHERE dc.deal_id = %s

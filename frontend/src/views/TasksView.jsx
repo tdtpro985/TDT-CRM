@@ -8,6 +8,7 @@ import { formatDateLabel, getToneClass } from '../utils'
 export default function TasksView({
   filteredTasks,
   tasks,
+  contacts,
   openTasks,
   dueToday,
   deals,
@@ -123,13 +124,35 @@ export default function TasksView({
               <div className="activity-list">
                 {paginatedTasks.map((task) => {
                   const linkedDeal = deals.find((d) => d.id === task.dealId)
+                  
+                  // Resolve enriched contact info from task.contact string
+                  const contactObjects = (task.contact || '').split(', ').map(name => {
+                    return contacts.find(c => c.name.toLowerCase() === name.toLowerCase())
+                  }).filter(Boolean)
+
                   return (
                     <article key={task.id} className="activity-card" style={{ position: 'relative' }}>
                       <div className="activity-card__header">
                         <div style={{ paddingRight: '110px' }}>
                           <strong style={{ display: 'block' }}>{task.title}</strong>
                           <p style={{ margin: '4px 0 0' }}>{task.type} | {task.owner}</p>
-                          {task.contact && <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Contact: {task.contact}</p>}
+                          
+                          {contactObjects.length > 0 ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                              {contactObjects.map(c => (
+                                <div key={c.id} className="tone-pill is-neutral" style={{ fontSize: '10px', padding: '2px 8px', height: 'auto', display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ fontWeight: 700 }}>{c.name}</span>
+                                  {(c.phone || c.email) && (
+                                    <span style={{ opacity: 0.7, fontSize: '9px' }}>
+                                      {c.phone ? `📞 ${c.phone}` : c.email ? `✉️ ${c.email}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : task.contact ? (
+                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Contact: {task.contact}</p>
+                          ) : null}
                         </div>
                         <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                           <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
@@ -146,6 +169,11 @@ export default function TasksView({
                       </div>
                       <p className="activity-notes" style={{ paddingRight: '110px' }}>
                         Linked to {linkedDeal?.name ?? 'manual task'}
+                        {linkedDeal?.stage && (
+                          <span className={`tone-pill ${getToneClass(linkedDeal.stage)}`} style={{ fontSize: '10px', padding: '1px 8px', marginLeft: '6px' }}>
+                            {linkedDeal.stage}
+                          </span>
+                        )}
                         {task.companyName && <> for <strong>{task.companyName}</strong></>}.
                       </p>
                       {task.notes && (
@@ -224,28 +252,38 @@ export default function TasksView({
             detail="Use this queue to keep daily activity aligned with the pipeline."
           >
             <div className="simple-list">
-              {focusQueue.map((task) => (
-                <article key={task.id} className="simple-list__item" style={{ position: 'relative' }}>
-                  <div style={{ paddingRight: '110px' }}>
-                    <strong style={{ display: 'block' }}>{task.title}</strong>
-                    <p style={{ margin: '4px 0 0' }}>{task.owner} | due {formatDateLabel(task.dueDate)}</p>
-                  </div>
-                  <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button 
-                        type="button" 
-                        className="ghost-button" 
-                        style={{ fontSize: '11px', padding: '0', textDecoration: 'underline' }}
-                        onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
-                      >
-                        View
-                      </button>
-                      <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
+              {focusQueue.map((task) => {
+                const linkedDeal = deals.find((d) => d.id === task.dealId)
+                return (
+                  <article key={task.id} className="simple-list__item" style={{ position: 'relative' }}>
+                    <div style={{ paddingRight: '110px' }}>
+                      <strong style={{ display: 'block' }}>{task.title}</strong>
+                      <p style={{ margin: '4px 0 0' }}>
+                        {task.owner} | due {formatDateLabel(task.dueDate)}
+                        {linkedDeal?.stage && (
+                          <span className={`tone-pill ${getToneClass(linkedDeal.stage)}`} style={{ fontSize: '9px', padding: '1px 6px', marginLeft: '6px' }}>
+                            {linkedDeal.stage}
+                          </span>
+                        )}
+                      </p>
                     </div>
-                    <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
-                  </div>
-                </article>
-              ))}
+                    <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button 
+                          type="button" 
+                          className="ghost-button" 
+                          style={{ fontSize: '11px', padding: '0', textDecoration: 'underline' }}
+                          onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
+                        >
+                          View
+                        </button>
+                        <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
+                      </div>
+                      <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
           </Panel>
         </div>

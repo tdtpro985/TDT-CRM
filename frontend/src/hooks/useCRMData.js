@@ -336,6 +336,16 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       })
       if (!res.ok) throw new Error('Network error')
       setNotice(`${newTask.title} was saved to the database.`)
+
+      // If task has linked contacts, associate them with the deal too
+      if (taskForm.contactIds?.length > 0 && dealIdToUse) {
+        for (const cId of taskForm.contactIds) {
+          apiFetch(`/api/deals/${dealIdToUse}/contacts`, {
+            method: 'POST',
+            body: JSON.stringify({ contactId: cId, role: 'Task' })
+          }).catch(err => console.error('Failed to link contact to deal:', err))
+        }
+      }
     } catch {
       setNotice(`${newTask.title} was added locally — backend not reachable.`)
     }
@@ -358,6 +368,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   async function updateDealStage(dealId, nextStage, extra = {}) {
     const probability = STAGE_PROBABILITY[nextStage] ?? 20
+    const snapshot = deals.find(d => d.id === dealId)
+
     setDeals((current) =>
       current.map((d) => (d.id === dealId
         ? { ...d, stage: nextStage, probability, lostReason: extra.lostReason ?? d.lostReason }
@@ -371,11 +383,15 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       if (!res.ok) throw new Error('Network error')
       setNotice('Pipeline stage updated successfully.')
     } catch {
-      setNotice('Pipeline stage updated locally — backend not reachable.')
+      if (snapshot) {
+        setDeals((current) => current.map(d => d.id === dealId ? snapshot : d))
+      }
+      setNotice('Failed to update stage on server. Changes reverted.')
     }
   }
 
   async function updateDeal(dealId, fields) {
+    const snapshot = deals.find(d => d.id === dealId)
     setDeals((current) =>
       current.map((d) => (d.id === dealId ? { ...d, ...fields } : d)),
     )
@@ -395,6 +411,9 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       }
       setNotice('Deal updated successfully.')
     } catch {
+      if (snapshot) {
+        setDeals((current) => current.map(d => d.id === dealId ? snapshot : d))
+      }
       setNotice('Deal updated locally — backend not reachable.')
     }
   }

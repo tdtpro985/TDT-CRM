@@ -1,8 +1,11 @@
 import { useState } from 'react'
+import Select from '../Select'
 
 const DEAL_STAGES = ['Qualified', 'New Opportunity', 'Proposal', 'Negotiation', 'Closed Won']
 
-export default function DealForm({ onSubmit, onCancel, companies, contacts, teamMembers, dealStages = DEAL_STAGES }) {
+export default function DealForm({ onSubmit, onCancel, companies, contacts, teamMembers, currentUser, dealStages = DEAL_STAGES }) {
+  const isSalesRep = currentUser?.role === 'Sales Representative' || currentUser?.role === 'Sales Rep'
+  
   const [dealForm, setDealForm] = useState({
     name: '',
     companyName: '',
@@ -10,8 +13,8 @@ export default function DealForm({ onSubmit, onCancel, companies, contacts, team
     stage: dealStages[0],
     value: '',
     expectedClose: '',
-    owner: '',
-    ownerId: ''
+    owner: isSalesRep ? currentUser.name : '',
+    ownerId: isSalesRep ? currentUser.id : ''
   })
 
   function handleChange(e) {
@@ -67,9 +70,11 @@ export default function DealForm({ onSubmit, onCancel, companies, contacts, team
 
       <label className="field">
         <span>Stage</span>
-        <select name="stage" value={dealForm.stage} onChange={handleChange}>
-          {dealStages.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
+        <Select
+          value={dealForm.stage}
+          onChange={(v) => handleChange({ target: { name: 'stage', value: v } })}
+          options={dealStages.map(s => ({ value: s, label: s }))}
+        />
       </label>
 
       <label className="field">
@@ -82,22 +87,17 @@ export default function DealForm({ onSubmit, onCancel, companies, contacts, team
         <input name="expectedClose" type="date" value={dealForm.expectedClose} onChange={handleChange} required />
       </label>
 
-      <label className="field field--span-2">
-        <span>Owner</span>
-        <select
-          name="ownerId"
-          value={dealForm.ownerId}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Select Representative</option>
-          {teamMembers.map((m) => (
-            <option key={m.id} value={m.id}>
-              {m.name} ({m.branch})
-            </option>
-          ))}
-        </select>
-      </label>
+      {!isSalesRep && (
+        <label className="field field--span-2">
+          <span>Owner</span>
+          <Select
+            value={String(dealForm.ownerId)}
+            onChange={(v) => handleChange({ target: { name: 'ownerId', value: v } })}
+            options={teamMembers.map(m => ({ value: String(m.id), label: `${m.name} (${m.branch})` }))}
+            placeholder="Select Representative"
+          />
+        </label>
+      )}
 
       <div className="form-actions field--span-2">
         <button type="submit" className="primary-button">Save deal</button>

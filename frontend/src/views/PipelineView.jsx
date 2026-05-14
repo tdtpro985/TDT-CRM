@@ -86,6 +86,29 @@ export default function PipelineView({
   // Audit logs
   const [auditLogs, setAuditLogs] = useState([])
 
+  const fetchDealSubData = (dealId) => {
+    if (!dealId) return;
+    apiFetch(`/api/deals/${dealId}/contacts`)
+      .then(res => res.json())
+      .then(data => setDealContacts(data))
+      .catch(() => {});
+    
+    apiFetch(`/api/deals/${dealId}/audit`)
+      .then(res => res.json())
+      .then(data => setAuditLogs(data))
+      .catch(() => {});
+  }
+
+  // Sync selectedDeal with deals prop to ensure stage updates are reflected in modal
+  useEffect(() => {
+    if (selectedDeal) {
+      const fresh = deals.find(d => d.id === selectedDeal.id)
+      if (fresh && (fresh.stage !== selectedDeal.stage || fresh.value !== selectedDeal.value)) {
+        setSelectedDeal(fresh)
+      }
+    }
+  }, [deals, selectedDeal])
+
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -109,7 +132,7 @@ export default function PipelineView({
     if (!log.oldValue || !log.newValue || log.oldValue === log.newValue) return label
     switch (log.action) {
       case 'stage_change':
-        return <>{label}: {log.oldValue} → <span className="tone-pill is-warning" style={{ fontSize: '10px', padding: '1px 6px' }}>{log.newValue}</span></>
+        return <>{label}: <span className={`tone-pill ${getToneClass(log.oldValue)}`} style={{ fontSize: '10px', padding: '1px 6px' }}>{log.oldValue}</span> → <span className={`tone-pill ${getToneClass(log.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px' }}>{log.newValue}</span></>
       case 'value_change':
         return <>{label}: {formatCurrencyCompact(Number(log.oldValue))} → {formatCurrencyCompact(Number(log.newValue))}</>
       case 'close_date_change':
@@ -139,31 +162,14 @@ export default function PipelineView({
 
   // Fetch deal contacts when a deal is selected
   useEffect(() => {
-    let active = true
     if (selectedDeal) {
-      apiFetch(`/api/deals/${selectedDeal.id}/contacts`)
-        .then(res => res.json())
-        .then(data => { if (active) setDealContacts(data) })
-        .catch(() => {})
+      fetchDealSubData(selectedDeal.id)
     } else {
       setDealContacts([])
-    }
-    return () => { active = false }
-  }, [selectedDeal])
-
-  // Fetch audit logs when a deal is selected
-  useEffect(() => {
-    let active = true
-    if (selectedDeal) {
-      apiFetch(`/api/deals/${selectedDeal.id}/audit`)
-        .then(res => res.json())
-        .then(data => { if (active) setAuditLogs(data) })
-        .catch(() => {})
-    } else {
       setAuditLogs([])
     }
-    return () => { active = false }
-  }, [selectedDeal])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDeal?.id])
 
   // Fetch attachments when deal is in Proposal stage
   useEffect(() => {
@@ -233,13 +239,17 @@ export default function PipelineView({
       setShowLostPrompt(true)
       return
     }
-    handleDealStageChange(dealId, stage)
+    handleDealStageChange(dealId, stage).then(() => {
+      fetchDealSubData(dealId)
+    })
     setSelectedDeal((d) => ({ ...d, stage }))
   }
 
   function confirmLostReason() {
     const reason = lostNotes.trim() ? `${lostReason}: ${lostNotes.trim()}` : lostReason
-    handleDealStageChange(selectedDeal.id, 'Closed Lost', { lostReason: reason })
+    handleDealStageChange(selectedDeal.id, 'Closed Lost', { lostReason: reason }).then(() => {
+      fetchDealSubData(selectedDeal.id)
+    })
     setSelectedDeal((d) => ({ ...d, stage: 'Closed Lost', lostReason: reason }))
     setShowLostPrompt(false)
     setLostReason(LOST_REASONS[0])
@@ -372,20 +382,40 @@ export default function PipelineView({
                         stageDeals.map((deal) => (
                           <article key={deal.id} className={`pipeline-card ${getStageTone(deal.stage)}${deal.urgencyLabel === 'Overdue' ? ' is-urgent-overdue' : ''}${deal.urgencyLabel === 'High Priority' ? ' is-urgent-high' : ''}${deal.urgencyLabel === 'Due Today' ? ' is-urgent-today' : ''}`}>
                             <div className="pipeline-card__top">
-                              <strong>{deal.name}</strong>
-                              <span className="tone-pill is-warning">{deal.probability}%</span>
+                              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                <strong style={{ fontSize: 'var(--fs-base)', color: 'var(--text-strong)', lineHeight: 1.2 }}>{deal.name}</strong>
+                                <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                  {companyMap[deal.companyId]?.name ?? deal.companyId}
+                                </span>
+                              </div>
+                              <span className="tone-pill is-warning" style={{ fontSize: '10px', padding: '2px 6px' }}>{deal.probability}%</span>
                             </div>
-                            <div className="pipeline-card__value">
-                              <span className="tone-pill is-warning">{formatCurrencyCompact(deal.value)}</span>
+
+                            <div style={{ margin: '8px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }} />
+
+                            <div className="pipeline-card__value" style={{ marginBottom: '8px' }}>
+                              <span className="tone-pill is-warning" style={{ fontSize: 'var(--fs-sm)', fontWeight: 700 }}>
+                                {formatCurrencyCompact(deal.value)}
+                              </span>
                             </div>
-                            <p>{companyMap[deal.companyId]?.name ?? deal.companyId}</p>
-                            <p className="pipeline-card__owner">{deal.owner}</p>
-                            <p className="pipeline-card__close-date">{formatDateLabel(deal.expectedClose)}</p>
-                            <p className="pipeline-card__touch">
-                              Last touch {formatRelativeDays(deal.lastTouch) || '—'}
-                            </p>
-                            <div className="field--compact pipeline-card__btn-wrap" style={{ textAlign: 'center', marginTop: '8px' }}>
-                              <button type="button" className="secondary-button pipeline-card__details-btn" onClick={() => openDeal(deal)}>View details</button>
+                            
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Owner:</span>
+                                <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{deal.owner}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Close:</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>{formatDateLabel(deal.expectedClose)}</span>
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>Touch:</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>{formatRelativeDays(deal.lastTouch) || '—'}</span>
+                              </div>
+                            </div>
+
+                            <div className="field--compact pipeline-card__btn-wrap" style={{ textAlign: 'center', marginTop: '12px' }}>
+                              <button type="button" className="secondary-button pipeline-card__details-btn" style={{ width: '100%', fontSize: '11px', padding: '6px' }} onClick={() => openDeal(deal)}>View details</button>
                             </div>
                           </article>
                         ))
@@ -511,12 +541,15 @@ export default function PipelineView({
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Deal Value</span>
                   {isEditing ? (
-                    <input
-                      type="number"
-                      className="deal-modal__edit-input"
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value === '' ? '' : Number(e.target.value))}
-                    />
+                    <div className="field" style={{ margin: 0 }}>
+                      <input
+                        type="number"
+                        className="deal-modal__edit-input"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value === '' ? '' : Number(e.target.value))}
+                        style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-strong)', padding: '6px 10px', width: '100%' }}
+                      />
+                    </div>
                   ) : (
                     <strong className="deal-modal__value" style={{ color: 'var(--accent-strong)' }}>{formatCurrencyCompact(selectedDeal.value)}</strong>
                   )}
@@ -524,22 +557,24 @@ export default function PipelineView({
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Probability</span>
                   {isEditing ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          step="1"
-                          className="deal-modal__edit-input"
-                          style={{ maxWidth: '80px' }}
-                          value={editProbability}
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(/[^0-9]/g, '')
-                            const num = raw === '' ? '' : Math.min(100, Math.max(0, parseInt(raw, 10)))
-                            setEditProbability(num)
-                          }}
-                        />
-                      <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>%</span>
+                    <div className="field" style={{ margin: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            className="deal-modal__edit-input"
+                            style={{ maxWidth: '80px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-strong)', padding: '6px 10px' }}
+                            value={editProbability}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, '')
+                              const num = raw === '' ? '' : Math.min(100, Math.max(0, parseInt(raw, 10)))
+                              setEditProbability(num)
+                            }}
+                          />
+                        <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>%</span>
+                      </div>
                     </div>
                   ) : (
                     <strong className="deal-modal__value">
@@ -550,14 +585,16 @@ export default function PipelineView({
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Expected Close</span>
                   {isEditing ? (
-                    <input
-                      type="date"
-                      className="deal-modal__edit-input"
-                      style={{ minWidth: '160px', maxWidth: '180px' }}
-                      min={TODAY}
-                      value={editCloseDate}
-                      onChange={(e) => setEditCloseDate(e.target.value)}
-                    />
+                    <div className="field" style={{ margin: 0 }}>
+                      <input
+                        type="date"
+                        className="deal-modal__edit-input"
+                        style={{ minWidth: '160px', maxWidth: '180px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-strong)', padding: '6px 10px' }}
+                        min={TODAY}
+                        value={editCloseDate}
+                        onChange={(e) => setEditCloseDate(e.target.value)}
+                      />
+                    </div>
                   ) : (
                     <strong className="deal-modal__value">{formatDateLabel(selectedDeal.expectedClose) || '—'}</strong>
                   )}
@@ -583,9 +620,19 @@ export default function PipelineView({
                     <span className="deal-modal__label">All Associated Contacts</span>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
                       {dealContacts.map(c => (
-                        <span key={c.id} className="tone-pill is-neutral" style={{ padding: '4px 12px' }}>
-                          {c.name} {c.deal_role !== 'Primary' ? `(${c.deal_role})` : ''}
-                        </span>
+                        <div key={c.id} className="tone-pill is-neutral" style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '2px', height: 'auto', borderRadius: 'var(--r-md)' }}>
+                          <div style={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                            <span>{c.name}</span>
+                            {c.deal_role && <span style={{ fontSize: '9px', textTransform: 'uppercase', opacity: 0.6 }}>{c.deal_role}</span>}
+                          </div>
+                          {c.role && <div style={{ fontSize: '10px', opacity: 0.8 }}>{c.role}</div>}
+                          {(c.phone || c.email) && (
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '10px' }}>
+                              {c.phone && <span title="Phone">📞 {c.phone}</span>}
+                              {c.email && <span title="Email">✉️ {c.email}</span>}
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -732,7 +779,7 @@ export default function PipelineView({
               </div>
             </div>
 
-            {/* ── Footer: Save / Cancel or Stage Updater ── */}
+            {/* Footer: Save / Cancel or Stage Updater */}
             <div className="deal-modal__footer">
               {isEditing ? (
                 <div className="deal-modal__edit-actions">
@@ -741,6 +788,7 @@ export default function PipelineView({
                     className="primary-button"
                     onClick={async () => {
                       await handleDealUpdate(selectedDeal.id, { value: editValue, expectedClose: editCloseDate, probability: editProbability })
+                      fetchDealSubData(selectedDeal.id)
                       setSelectedDeal((d) => ({ ...d, value: editValue, expectedClose: editCloseDate, probability: editProbability }))
                       setIsEditing(false)
                     }}
