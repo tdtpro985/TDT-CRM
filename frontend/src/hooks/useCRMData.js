@@ -380,13 +380,18 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         method: 'PATCH',
         body: JSON.stringify({ stage: nextStage, ...extra })
       })
-      if (!res.ok) throw new Error('Network error')
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `Server error: ${res.status}`)
+      }
       setNotice('Pipeline stage updated successfully.')
-    } catch {
+    } catch (err) {
+      console.error('updateDealStage failed:', err)
       if (snapshot) {
         setDeals((current) => current.map(d => d.id === dealId ? snapshot : d))
       }
-      setNotice('Failed to update stage on server. Changes reverted.')
+      setNotice(`Failed to update stage: ${err.message}`)
+      throw err
     }
   }
 
@@ -404,17 +409,22 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         method: 'PATCH',
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error('Network error')
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `Server error: ${res.status}`)
+      }
       const result = await res.json()
       if (result.activity) {
         setTasks((current) => [result.activity, ...current])
       }
       setNotice('Deal updated successfully.')
-    } catch {
+    } catch (err) {
+      console.error('updateDeal failed:', err)
       if (snapshot) {
         setDeals((current) => current.map(d => d.id === dealId ? snapshot : d))
       }
-      setNotice('Deal updated locally — backend not reachable.')
+      setNotice(`Deal update failed: ${err.message}`)
+      throw err
     }
   }
 

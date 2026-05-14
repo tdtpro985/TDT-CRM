@@ -86,6 +86,8 @@ export default function PipelineView({
   // Audit logs
   const [auditLogs, setAuditLogs] = useState([])
 
+  const isUpdatingRef = useRef(false)
+
   const fetchDealSubData = (dealId) => {
     if (!dealId) return;
     apiFetch(`/api/deals/${dealId}/contacts`)
@@ -101,7 +103,7 @@ export default function PipelineView({
 
   // Sync selectedDeal with deals prop to ensure stage updates are reflected in modal
   useEffect(() => {
-    if (selectedDeal) {
+    if (selectedDeal && !isUpdatingRef.current) {
       const fresh = deals.find(d => d.id === selectedDeal.id)
       if (fresh && (fresh.stage !== selectedDeal.stage || fresh.value !== selectedDeal.value)) {
         setSelectedDeal(fresh)
@@ -125,10 +127,18 @@ export default function PipelineView({
     lost_reason: 'Deal lost',
     probability_change: 'Probability changed',
     status_change: 'Status changed',
+    task_status_change: 'Task status updated',
   }
 
   function formatAuditEntry(log) {
     const label = auditActionLabels[log.action] || log.action
+    if (log.action.startsWith('task_status:')) {
+      const taskName = log.action.split(':')[1]
+      return <>Status updated for task <strong>"{taskName}"</strong>: <span style={{ color: 'var(--text-muted)', textDecoration: 'line-through' }}>{log.oldValue}</span> → <strong>{log.newValue}</strong></>
+    }
+    if (log.action === 'task_status_change') {
+      return <>{label}: <span style={{ color: 'var(--text-muted)', textDecoration: 'line-through' }}>{log.oldValue}</span> → <strong>{log.newValue}</strong></>
+    }
     if (!log.oldValue || !log.newValue || log.oldValue === log.newValue) return label
     switch (log.action) {
       case 'stage_change':
@@ -235,25 +245,50 @@ export default function PipelineView({
   }
 
   function handleStageClick(dealId, stage) {
+    if (isUpdatingRef.current) return
     if (stage === 'Closed Lost') {
       setShowLostPrompt(true)
       return
     }
-    handleDealStageChange(dealId, stage).then(() => {
-      fetchDealSubData(dealId)
-    })
+    
+    isUpdatingRef.current = true
+    const prevStage = selectedDeal.stage
     setSelectedDeal((d) => ({ ...d, stage }))
+    
+    handleDealStageChange(dealId, stage)
+      .then(() => {
+        fetchDealSubData(dealId)
+      })
+      .catch(() => {
+        setSelectedDeal((d) => ({ ...d, stage: prevStage }))
+      })
+      .finally(() => {
+        isUpdatingRef.current = false
+      })
   }
 
   function confirmLostReason() {
+    if (isUpdatingRef.current) return
     const reason = lostNotes.trim() ? `${lostReason}: ${lostNotes.trim()}` : lostReason
-    handleDealStageChange(selectedDeal.id, 'Closed Lost', { lostReason: reason }).then(() => {
-      fetchDealSubData(selectedDeal.id)
-    })
+    
+    isUpdatingRef.current = true
+    const prevStage = selectedDeal.stage
+    const prevReason = selectedDeal.lostReason
     setSelectedDeal((d) => ({ ...d, stage: 'Closed Lost', lostReason: reason }))
     setShowLostPrompt(false)
-    setLostReason(LOST_REASONS[0])
-    setLostNotes('')
+
+    handleDealStageChange(selectedDeal.id, 'Closed Lost', { lostReason: reason })
+      .then(() => {
+        fetchDealSubData(selectedDeal.id)
+      })
+      .catch(() => {
+        setSelectedDeal((d) => ({ ...d, stage: prevStage, lostReason: prevReason }))
+      })
+      .finally(() => {
+        isUpdatingRef.current = false
+        setLostReason(LOST_REASONS[0])
+        setLostNotes('')
+      })
   }
 
   async function handleFileUpload(e) {
@@ -787,10 +822,20 @@ export default function PipelineView({
                     type="button"
                     className="primary-button"
                     onClick={async () => {
-                      await handleDealUpdate(selectedDeal.id, { value: editValue, expectedClose: editCloseDate, probability: editProbability })
-                      fetchDealSubData(selectedDeal.id)
+                      if (isUpdatingRef.current) return
+                      isUpdatingRef.current = true
+                      const prevData = { value: selectedDeal.value, expectedClose: selectedDeal.expectedClose, probability: selectedDeal.probability }
                       setSelectedDeal((d) => ({ ...d, value: editValue, expectedClose: editCloseDate, probability: editProbability }))
                       setIsEditing(false)
+
+                      try {
+                        await handleDealUpdate(selectedDeal.id, { value: editValue, expectedClose: editCloseDate, probability: editProbability })
+                        fetchDealSubData(selectedDeal.id)
+                      } catch {
+                        setSelectedDeal((d) => ({ ...d, ...prevData }))
+                      } finally {
+                        isUpdatingRef.current = false
+                      }
                     }}
                   >Save</button>
                   <button type="button" className="secondary-button" onClick={() => setIsEditing(false)}>Cancel</button>

@@ -35,6 +35,16 @@ def ensure_schema():
             print("Adding missing 'lost_reason' column to 'deals' table...")
             cursor.execute("ALTER TABLE deals ADD COLUMN lost_reason VARCHAR(255) NULL")
             conn.commit()
+
+        # Ensure probability_manual column exists in deals table
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'deals' AND COLUMN_NAME = 'probability_manual'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'probability_manual' column to 'deals' table...")
+            cursor.execute("ALTER TABLE deals ADD COLUMN probability_manual BOOLEAN DEFAULT FALSE")
+            conn.commit()
     except Exception as e:
         print(f"Error during schema verification: {e}")
     finally:
@@ -510,19 +520,23 @@ def get_customer_detail(customer_id):
             """, tuple(deal_ids))
             activities = rows_to_list(cursor)
             
-        # 4. Fetch audit log for these deals
+        # 4. Fetch audit log for these deals and contacts
         audit_logs = []
-        if deal_ids:
-            d_format = ','.join(['%s'] * len(deal_ids))
+        if deal_ids or contacts:
+            d_format = ','.join(['%s'] * len(deal_ids)) if deal_ids else "''"
+            c_format = ','.join(['%s'] * len(contacts)) if contacts else "''"
+            
+            contact_ids = [c['id'] for c in contacts]
             
             sql = f"""
                 SELECT id, entity_type AS entityType, entity_id AS entityId, action, old_value AS oldValue, new_value AS newValue, changed_at AS changedAt
                 FROM audit_log
                 WHERE (entity_type = 'deal' AND entity_id IN ({d_format}))
+                   OR (entity_type = 'contact' AND entity_id IN ({c_format}))
                 ORDER BY changed_at DESC
             """
             
-            params = tuple(deal_ids)
+            params = tuple(deal_ids + contact_ids)
             cursor.execute(sql, params)
             audit_logs = rows_to_list(cursor)
             
@@ -743,6 +757,7 @@ def create_contact():
                 data.get('status', 'Active'),
             ),
         )
+        log_audit(conn, 'contact', data['id'], 'contact_created', None, data['name'])
         conn.commit()
         return jsonify({'message': 'Contact created', 'id': data['id']}), 201
     finally:
@@ -1173,6 +1188,7 @@ def create_deal():
                 data.get('ownerId'),
             ),
         )
+        log_audit(conn, 'deal', data['id'], 'deal_created', None, stage)
         conn.commit()
         return jsonify({'message': 'Deal created', 'id': data['id']}), 201
     finally:
