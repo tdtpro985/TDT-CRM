@@ -34,6 +34,10 @@ export const REGION_BRANCHES = {
 
 export const LOST_REASONS = ['Price', 'Competitor', 'Budget', 'Timeline', 'No response', 'Other']
 
+export const HEALTH_LABELS = ['Critical', 'At Risk', 'Healthy']
+export const HEALTH_COLORS = { Critical: '#fb7185', 'At Risk': '#fbbf24', Healthy: '#34d399' }
+export const HEALTH_MAP = { Overdue: 'Critical', 'High Priority': 'At Risk', 'Due Today': 'Healthy' }
+
 export const NAV_CONFIG = [
   { id: 'dashboard', label: 'Dashboard',         description: '5 KPI overview' },
   { id: 'database',  label: 'Customer Database',  description: 'Customer records and registry' },
