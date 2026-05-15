@@ -1,19 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import MetricCard from '../components/MetricCard'
 import Panel from '../components/Panel'
 import { apiFetch } from '../api'
+import { formatCurrencyCompact, formatTimeAgo, getPaginatedData } from '../utils'
 
-import { formatCurrencyCompact } from '../utils'
-
-function timeAgo(dateStr) {
-  const diff = Date.now() - new Date(dateStr).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1)  return 'just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
-}
+import Pagination from '../components/Pagination'
 
 const PAGE_SIZE = 5
 
@@ -23,6 +14,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
   const [error, setError]     = useState('')
   const [page, setPage]       = useState(1)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setLoading(true)
     const url = activeBranch ? `/api/admin/analytics?branch=${encodeURIComponent(activeBranch)}` : `/api/admin/analytics`
@@ -31,40 +23,39 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
       .then((d) => { setData(d); setLoading(false) })
       .catch(() => { setError('Failed to load analytics.'); setLoading(false) })
   }, [activeBranch])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  if (loading) return <p style={{ padding: '2rem', color: 'var(--text-muted)' }}>Loading analytics…</p>
-  if (error)   return <p style={{ padding: '2rem', color: '#ff6b7a' }}>{error}</p>
+  const { totals, usersPerBranch, roleDistribution, leadsPerBranch, dealsPerBranch, auditLog } = data || {}
 
-  const { totals, usersPerBranch, roleDistribution, leadsPerBranch, dealsPerBranch, auditLog } = data
-
-  // Merge branch data into one table
   const branchMap = {}
-  usersPerBranch.forEach((r) => {
-    branchMap[r.branch] = { branch: r.branch, users: r.count, leads: 0, converted: 0, deals: 0, pipeline: 0 }
-  })
-  leadsPerBranch.forEach((r) => {
-    if (!branchMap[r.branch]) branchMap[r.branch] = { branch: r.branch, users: 0, leads: 0, converted: 0, deals: 0, pipeline: 0 }
-    branchMap[r.branch].leads     = r.total
-    branchMap[r.branch].converted = r.converted
-  })
-  dealsPerBranch.forEach((r) => {
-    const key = r.branch ?? 'Unknown'
-    if (!branchMap[key]) branchMap[key] = { branch: key, users: 0, leads: 0, converted: 0, deals: 0, pipeline: 0 }
-    branchMap[key].deals    = r.deal_count
-    branchMap[key].pipeline = r.pipeline_value
-  })
+  if (usersPerBranch) {
+    usersPerBranch.forEach((r) => {
+      branchMap[r.branch] = { branch: r.branch, users: r.count, leads: 0, converted: 0, deals: 0, pipeline: 0 }
+    })
+  }
+  if (leadsPerBranch) {
+    leadsPerBranch.forEach((r) => {
+      if (!branchMap[r.branch]) branchMap[r.branch] = { branch: r.branch, users: 0, leads: 0, converted: 0, deals: 0, pipeline: 0 }
+      branchMap[r.branch].leads     = r.total
+      branchMap[r.branch].converted = r.converted
+    })
+  }
+  if (dealsPerBranch) {
+    dealsPerBranch.forEach((r) => {
+      const key = r.branch ?? 'Unknown'
+      if (!branchMap[key]) branchMap[key] = { branch: key, users: 0, leads: 0, converted: 0, deals: 0, pipeline: 0 }
+      branchMap[key].deals    = r.deal_count
+      branchMap[key].pipeline = r.pipeline_value
+    })
+  }
   const branchRows = Object.values(branchMap).sort((a, b) => a.branch?.localeCompare(b.branch))
   const totalPages = Math.ceil(branchRows.length / PAGE_SIZE)
 
-  const getPaginatedData = (data, currentPage, limit) => {
-    const pageNum = currentPage === '' || isNaN(currentPage) ? 1 : parseInt(currentPage, 10)
-    const start = (pageNum - 1) * limit
-    return data.slice(start, start + limit)
-  }
-
-  const pagedRows = getPaginatedData(branchRows, page, PAGE_SIZE)
-
+  const pagedRows = useMemo(() => getPaginatedData(branchRows, page, PAGE_SIZE), [branchRows, page])
   const maxLeads = Math.max(...branchRows.map((r) => r.leads), 1)
+
+  if (loading) return <p style={{ padding: '2rem', color: 'var(--text-muted)' }}>Loading analytics…</p>
+  if (error)   return <p style={{ padding: '2rem', color: '#ff6b7a' }}>{error}</p>
 
   const actionLabel = { status_change: 'Status', stage_change: 'Stage' }
 
@@ -125,55 +116,14 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
             </table>
           </div>
 
-          {totalPages > 1 && (
-            <div className="analytics-pagination">
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                ← Prev
-              </button>
-              <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={page}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    const num = parseInt(val, 10);
-                    if (val === '') {
-                      setPage('');
-                    } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
-                      setPage(num);
-                    }
-                  }}
-                  style={{ 
-                    width: '40px', 
-                    textAlign: 'center', 
-                    padding: '4px 0',
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--r-md)',
-                    color: 'var(--text-strong)',
-                    fontWeight: 700,
-                    outline: 'none'
-                  }}
-                />
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
-              </div>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={page === totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Next →
-              </button>
-            </div>
-          )}
+          <Pagination 
+            currentPage={page} 
+            totalPages={totalPages} 
+            onPageChange={setPage} 
+            prevLabel="← Prev" 
+            nextLabel="Next →" 
+            className="analytics-pagination" 
+          />
         </Panel>
 
         {/* Right column */}
@@ -217,7 +167,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
                         <span className="analytics-audit-new">{entry.new_value}</span>
                       </span>
                     </div>
-                    <span className="analytics-audit-time">{timeAgo(entry.changed_at)}</span>
+                    <span className="analytics-audit-time">{formatTimeAgo(entry.changed_at)}</span>
                   </div>
                 ))}
               </div>

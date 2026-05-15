@@ -3,19 +3,18 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
 import { apiFetch } from '../api'
+import { REGION_BRANCHES, ITEMS_PER_PAGE } from '../constants'
+import { getPaginatedData } from '../utils'
 
-const BRANCHES = [
-  'Manila', 'Batangas', 'Cavite', 'CDO', 'Cebu', 'Davao',
-  'Isabela', 'Iloilo', 'Ilocos', 'Gensan', 'Legazpi',
-  'Palawan', 'Powerstore',
-]
+import Pagination from '../components/Pagination'
 
 const ROLES = ['Sales Rep', 'Sales Manager', 'Admin']
 
 const EMPTY_FORM  = { username: '', password: '', name: '', email: '', role: 'Sales Rep', branch: '' }
-const PAGE_SIZE   = 5
 
 export default function AdminView({ currentUser, showToast }) {
+  const BRANCHES = useMemo(() => Object.values(REGION_BRANCHES).flat().sort(), [])
+  const PAGE_SIZE = 5
   const [users, setUsers]             = useState([])
   const [loading, setLoading]         = useState(true)
   const [branchFilter, setBranchFilter] = useState('all')
@@ -57,13 +56,8 @@ export default function AdminView({ currentUser, showToast }) {
 
   const totalPages = Math.ceil(filteredUsers.length / PAGE_SIZE)
 
-  const getPaginatedData = (data, currentPage, limit) => {
-    const pageNum = currentPage === '' || isNaN(currentPage) ? 1 : parseInt(currentPage, 10)
-    const start = (pageNum - 1) * limit
-    return data.slice(start, start + limit)
-  }
+  const pagedUsers = useMemo(() => getPaginatedData(filteredUsers, page, PAGE_SIZE), [filteredUsers, page])
 
-  const pagedUsers = getPaginatedData(filteredUsers, page, PAGE_SIZE)
 
   function openCreate() {
     setEditingId(null)
@@ -275,55 +269,7 @@ export default function AdminView({ currentUser, showToast }) {
             </div>
           )}
 
-          {totalPages > 1 && (
-            <div className="analytics-pagination">
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={page === 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Prev
-              </button>
-              <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={page}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    const num = parseInt(val, 10);
-                    if (val === '') {
-                      setPage('');
-                    } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
-                      setPage(num);
-                    }
-                  }}
-                  style={{ 
-                    width: '40px', 
-                    textAlign: 'center', 
-                    padding: '4px 0',
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--r-md)',
-                    color: 'var(--text-strong)',
-                    fontWeight: 700,
-                    outline: 'none'
-                  }}
-                />
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
-              </div>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={page === totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Next
-              </button>
-            </div>
-           )}
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} prevLabel="Prev" className="analytics-pagination" />
         </Panel>
 
         {/* Branch breakdown sidebar */}
