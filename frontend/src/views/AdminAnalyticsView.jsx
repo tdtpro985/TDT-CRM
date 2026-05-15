@@ -3,11 +3,7 @@ import MetricCard from '../components/MetricCard'
 import Panel from '../components/Panel'
 import { apiFetch } from '../api'
 
-function fmt(n) {
-  if (n >= 1_000_000) return `₱${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000)     return `₱${(n / 1_000).toFixed(0)}K`
-  return `₱${n}`
-}
+import { formatCurrencyCompact } from '../utils'
 
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -79,7 +75,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
         <MetricCard label="Total Users"    value={totals.users.toLocaleString()}       meta="Accounts across all branches"        accent="accent"  />
         <MetricCard label="Total Leads"    value={totals.leads.toLocaleString()}        meta="Customer records in the system"      accent="surface" />
         <MetricCard label="Active Deals"   value={totals.activeDeals.toLocaleString()}  meta="Open pipeline opportunities"         accent="alt"     />
-        <MetricCard label="Pipeline Value" value={fmt(totals.pipelineValue)}            meta="Revenue across active deals"         accent="accent"  />
+        <MetricCard label="Pipeline Value" value={formatCurrencyCompact(totals.pipelineValue)}            meta="Revenue across active deals"         accent="accent"  />
       </section>
 
       <section className="content-grid content-grid--primary">
@@ -116,7 +112,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
                         </span>
                       </td>
                       <td>{r.deals}</td>
-                      <td>{fmt(r.pipeline)}</td>
+                      <td>{formatCurrencyCompact(r.pipeline)}</td>
                       <td>
                         <div className="analytics-bar-track">
                           <div className="analytics-bar-fill" style={{ width: `${barW}%` }} />
