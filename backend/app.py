@@ -1226,7 +1226,7 @@ def update_deal_stage(deal_id):
         params = []
         
         probability = data.get('probability')
-        if probability is not None:
+        if probability is not None and probability != old_probability:
             updates.append('probability = %s')
             params.append(probability)
             updates.append('probability_manual = TRUE')
@@ -1249,12 +1249,12 @@ def update_deal_stage(deal_id):
                 updates.append('probability_manual = FALSE')
             log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage)
         
-        if new_value is not None:
+        if new_value is not None and float(new_value) != float(old_value):
             updates.append('value = %s')
             params.append(new_value)
             log_audit(conn, 'deal', deal_id, 'value_change', str(old_value), str(new_value))
             
-        if new_close:
+        if new_close and str(new_close) != str(old_close):
             updates.append('close_date = %s')
             params.append(new_close)
             log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close))
