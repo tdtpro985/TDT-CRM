@@ -28,15 +28,6 @@ const STAGE_COLORS = {
   'Closed Lost':     '#666666',
 }
 
-const LOST_REASONS = [
-  'Lost to competition',
-  'Budget constraint',
-  'No response from client',
-  'Client cancelled',
-  'Scope mismatch',
-  'Other',
-]
-
 function getStageTone(stage) {
   return STAGE_TONES[stage] ?? 'is-neutral'
 }
