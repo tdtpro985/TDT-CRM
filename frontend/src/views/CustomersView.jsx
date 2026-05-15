@@ -130,8 +130,8 @@ export default function CustomersView({
   }, [customers, deals])
 
   const winLossRatio = customerDetail?.customer?.winLossRatio ?? '—'
-  const closedWonValue = customerDetail?.customer?.closedWonValue ?? 0
-  const closedLostValue = customerDetail?.customer?.closedLostValue ?? 0
+  const closedWonValue = customerDetail?.customer?.closedWonValue ?? null
+  const closedLostValue = customerDetail?.customer?.closedLostValue ?? null
 
   const customerDeals = useMemo(() => 
     deals
@@ -255,8 +255,8 @@ export default function CustomersView({
 
                     <div className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '24px' }}>
                       <MetricCard label="W/L Ratio" value={Number(winLossRatio) ? Number(winLossRatio).toFixed(2) : winLossRatio} meta="Performance" accent="accent" />
-                      <MetricCard label="Won Value" value={formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
-                      <MetricCard label="Lost Value" value={formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
+                      <MetricCard label="Won Value" value={closedWonValue === null ? '-' : formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
+                      <MetricCard label="Lost Value" value={closedLostValue === null ? '-' : formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
                     </div>
 
                     <div className="admin-table-wrap" style={{ marginBottom: '24px' }}>
