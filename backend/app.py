@@ -238,12 +238,12 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
     return ([], False, [])
 
 
-def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=None):
+def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=None, user_id=None):
     cursor = conn.cursor()
     cursor.execute(
-        """INSERT INTO audit_log (entity_type, entity_id, action, old_value, new_value)
-           VALUES (%s, %s, %s, %s, %s)""",
-        (entity_type, entity_id, action, old_value, new_value),
+        """INSERT INTO audit_log (entity_type, entity_id, action, old_value, new_value, user_id)
+           VALUES (%s, %s, %s, %s, %s, %s)""",
+        (entity_type, entity_id, action, old_value, new_value, user_id),
     )
     cursor.close()
 
@@ -540,15 +540,16 @@ def get_customer_detail(customer_id):
             contact_ids = [c['id'] for c in contacts]
             
             sql = f"""
-                SELECT id, entity_type AS entityType, entity_id AS entityId, action, old_value AS oldValue, new_value AS newValue, changed_at AS changedAt
-                FROM audit_log
-                WHERE (entity_type = 'deal' AND entity_id IN ({d_format}))
-                   OR (entity_type = 'contact' AND entity_id IN ({c_format}))
-                ORDER BY changed_at DESC
+                SELECT a.id, a.entity_type AS entityType, a.entity_id AS entityId, a.action, 
+                       a.old_value AS oldValue, a.new_value AS newValue, a.changed_at AS changedAt,
+                       t.name AS changedBy
+                FROM audit_log a
+                LEFT JOIN team t ON a.user_id = t.id
+                WHERE (a.entity_type = 'deal' AND a.entity_id IN ({d_format}))
+                   OR (a.entity_type = 'contact' AND a.entity_id IN ({c_format}))
+                ORDER BY a.changed_at DESC
             """
-            
-            params = tuple(deal_ids + contact_ids)
-            cursor.execute(sql, params)
+            cursor.execute(sql, tuple(params))
             audit_logs = rows_to_list(cursor)
 
         return jsonify({
@@ -758,7 +759,7 @@ def create_contact():
                 data.get('status', 'Active'),
             ),
         )
-        log_audit(conn, 'contact', data['id'], 'contact_created', None, data['name'])
+        log_audit(conn, 'contact', data['id'], 'contact_created', None, data['name'], get_jwt_identity())
         conn.commit()
         return jsonify({'message': 'Contact created', 'id': data['id']}), 201
     finally:
@@ -812,7 +813,8 @@ def update_contact(contact_id):
             cursor.execute(f'UPDATE contacts SET {", ".join(updates)} WHERE id = %s', params)
             log_audit(conn, 'contact', contact_id, 'update',
                       json.dumps({'name': old_name, 'role': old_role, 'email': old_email, 'phone': old_phone}),
-                      json.dumps({'name': name, 'role': role, 'email': email, 'phone': phone}))
+                      json.dumps({'name': name, 'role': role, 'email': email, 'phone': phone}),
+                      get_jwt_identity())
             conn.commit()
 
         return jsonify({'message': 'Contact updated', 'id': contact_id})
@@ -983,7 +985,7 @@ def update_lead_status(lead_id):
 
         old_status = row[0]
         cursor.execute('UPDATE leads SET status = %s WHERE id = %s', (new_status, lead_id))
-        log_audit(conn, 'lead', lead_id, 'status_change', old_status, new_status)
+        log_audit(conn, 'lead', lead_id, 'status_change', old_status, new_status, get_jwt_identity())
         conn.commit()
         return jsonify({'message': 'Lead status updated'})
     finally:
@@ -1034,7 +1036,7 @@ def reassign_lead(lead_id):
 
         cursor.execute('UPDATE leads SET owner_id = %s WHERE id = %s', (new_owner_id, lead_id))
         cursor.execute('UPDATE companies SET owner_id = %s WHERE id = %s', (new_owner_id, lead_id))
-        log_audit(conn, 'lead', lead_id, 'reassign', str(old_owner_id), str(new_owner_id))
+        log_audit(conn, 'lead', lead_id, 'reassign', str(old_owner_id), str(new_owner_id), get_jwt_identity())
         conn.commit()
         return jsonify({'message': 'Lead reassigned successfully'})
     finally:
@@ -1189,7 +1191,7 @@ def create_deal():
                 data.get('ownerId'),
             ),
         )
-        log_audit(conn, 'deal', data['id'], 'deal_created', None, stage)
+        log_audit(conn, 'deal', data['id'], 'deal_created', None, stage, get_jwt_identity())
         conn.commit()
         return jsonify({'message': 'Deal created', 'id': data['id']}), 201
     finally:
@@ -1230,7 +1232,7 @@ def update_deal_stage(deal_id):
             updates.append('probability = %s')
             params.append(probability)
             updates.append('probability_manual = TRUE')
-            log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability))
+            log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability), get_jwt_identity())
         
         if new_stage:
             if probability is not None:
@@ -1247,17 +1249,17 @@ def update_deal_stage(deal_id):
                 updates.append('stage = %s, probability = %s')
                 params.extend([new_stage, new_probability])
                 updates.append('probability_manual = FALSE')
-            log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage)
+            log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage, get_jwt_identity())
         
         if new_value is not None and float(new_value) != float(old_value):
             updates.append('value = %s')
             params.append(new_value)
-            log_audit(conn, 'deal', deal_id, 'value_change', str(old_value), str(new_value))
+            log_audit(conn, 'deal', deal_id, 'value_change', str(old_value), str(new_value), get_jwt_identity())
             
         if new_close and str(new_close) != str(old_close):
             updates.append('close_date = %s')
             params.append(new_close)
-            log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close))
+            log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close), get_jwt_identity())
 
         if data.get('ownerId'):
             new_owner_id = data.get('ownerId')
@@ -1268,13 +1270,13 @@ def update_deal_stage(deal_id):
 
             updates.append('owner_id = %s')
             params.append(new_owner_id)
-            log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(new_owner_id))
+            log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(new_owner_id), get_jwt_identity())
 
         lost_reason = data.get('lostReason')
         if new_stage == 'Closed Lost' and lost_reason:
             updates.append('lost_reason = %s')
             params.append(lost_reason)
-            log_audit(conn, 'deal', deal_id, 'lost_reason', None, lost_reason)
+            log_audit(conn, 'deal', deal_id, 'lost_reason', None, lost_reason, get_jwt_identity())
 
         if not updates:
             return jsonify({'message': 'No updates provided'}), 400
@@ -1458,7 +1460,7 @@ def update_activity_status(activity_id):
 
         old_status = row[0]
         cursor.execute('UPDATE activities SET status = %s WHERE id = %s', (new_status, activity_id))
-        log_audit(conn, 'activity', activity_id, 'status_change', old_status, new_status)
+        log_audit(conn, 'activity', activity_id, 'status_change', old_status, new_status, get_jwt_identity())
 
         # Trigger deal lastTouch update by logging a deal audit entry
         cursor.execute('SELECT deal_id, subject FROM activities WHERE id = %s', (activity_id,))
@@ -1472,7 +1474,7 @@ def update_activity_status(activity_id):
             # Actually, the cleanest way without schema change is to put it in a specific format in the audit log.
             # However, the frontend currently expects old_value/new_value to be the statuses.
             # Let's change the action name or similar? No, let's just use the task name.
-            log_audit(conn, 'deal', deal_id, f'task_status:{task_name}', old_status, new_status)
+            log_audit(conn, 'deal', deal_id, f'task_status:{task_name}', old_status, new_status, get_jwt_identity())
 
         conn.commit()
         return jsonify({'message': 'Activity status updated', 'dealId': deal_id})
@@ -1491,11 +1493,13 @@ def get_deal_audit_logs(deal_id):
     try:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT id, entity_type AS entityType, entity_id AS entityId, action,
-                   old_value AS oldValue, new_value AS newValue, changed_at AS changedAt
-            FROM audit_log
-            WHERE entity_type = 'deal' AND entity_id = %s
-            ORDER BY changed_at DESC
+            SELECT a.id, a.entity_type AS entityType, a.entity_id AS entityId, a.action,
+                   a.old_value AS oldValue, a.new_value AS newValue, a.changed_at AS changedAt,
+                   t.name AS changedBy
+            FROM audit_log a
+            LEFT JOIN team t ON a.user_id = t.id
+            WHERE a.entity_type = 'deal' AND a.entity_id = %s
+            ORDER BY a.changed_at DESC
         """, (deal_id,))
         return jsonify(rows_to_list(cursor))
     finally:

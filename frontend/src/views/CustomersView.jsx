@@ -300,7 +300,7 @@ export default function CustomersView({
 
                     <div className="timeline">
                       {(customerDetail?.auditLogs || [])
-                      .filter(l => !l.action.startsWith('task_status:') && l.action !== 'task_status_change')
+                      .filter(l => !l.action.startsWith('task_status:') && l.action !== 'task_status_change' && l.action !== 'value_change')
                       .sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt))
                       .map((item, idx) => {
                         const linkedDeal = deals.find(d => d.id === item.entityId)
@@ -328,6 +328,11 @@ export default function CustomersView({
                             <div className="timeline-content">
                               <div className="timeline-header">
                                 <span className="timeline-time">{formatDateLabel(item.changedAt)}</span>
+                                {item.changedBy && (
+                                  <span className="timeline-user" style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                                    by {item.changedBy}
+                                  </span>
+                                )}
                                 <span className="timeline-badge is-audit">Change</span>
                               </div>
                               <div className="timeline-body">
