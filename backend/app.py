@@ -15,6 +15,7 @@ from database.database import get_db_connection, close_connection
 from database.sync_pipeline import fill_pipeline
 from gsheets_sync import sync_from_sheets, sync_to_sheets
 from datetime import timedelta, date, datetime
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -810,8 +811,8 @@ def update_contact(contact_id):
             params.append(contact_id)
             cursor.execute(f'UPDATE contacts SET {", ".join(updates)} WHERE id = %s', params)
             log_audit(conn, 'contact', contact_id, 'update',
-                      str({'name': old_name, 'role': old_role, 'email': old_email, 'phone': old_phone}),
-                      str({'name': name, 'role': role, 'email': email, 'phone': phone}))
+                      json.dumps({'name': old_name, 'role': old_role, 'email': old_email, 'phone': old_phone}),
+                      json.dumps({'name': name, 'role': role, 'email': email, 'phone': phone}))
             conn.commit()
 
         return jsonify({'message': 'Contact updated', 'id': contact_id})

@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import { formatCurrencyCompact, formatDateLabel, formatRelativeDays, getToneClass } from '../utils'
-import { ITEMS_PER_PAGE } from '../constants'
+import { formatCurrencyCompact, formatDateLabel, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO } from '../utils'
+import { ITEMS_PER_PAGE, LOST_REASONS } from '../constants'
 import { apiFetch } from '../api'
+import Pagination from '../components/Pagination'
 
-const CURRENT_MONTH = new Date().toISOString().slice(0, 7)
-const TODAY = new Date().toISOString().split('T')[0]
+const CURRENT_MONTH = getCurrentMonthISO()
+const TODAY = getTodayISO()
 
 const STAGE_TONES = {
   'Qualified':       'is-stage-qualified',
@@ -17,15 +18,6 @@ const STAGE_TONES = {
   'Closed Won':      'is-stage-closed-won',
   'Closed Lost':     'is-stage-closed-lost',
 }
-
-const LOST_REASONS = [
-  'Lost to competition',
-  'Budget constraint',
-  'No response from client',
-  'Client cancelled',
-  'Scope mismatch',
-  'Other',
-]
 
 function getStageTone(stage) {
   return STAGE_TONES[stage] ?? 'is-neutral'
@@ -89,16 +81,16 @@ export default function PipelineView({
   const isUpdatingRef = useRef(false)
 
   const fetchDealSubData = (dealId) => {
-    if (!dealId) return;
+    if (!dealId) return
     apiFetch(`/api/deals/${dealId}/contacts`)
-      .then(res => res.json())
-      .then(data => setDealContacts(data))
-      .catch(() => {});
-    
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setDealContacts(Array.isArray(data) ? data : []))
+      .catch(() => {})
+
     apiFetch(`/api/deals/${dealId}/audit`)
-      .then(res => res.json())
-      .then(data => setAuditLogs(data))
-      .catch(() => {});
+      .then(res => res.ok ? res.json() : [])
+      .then(data => setAuditLogs(Array.isArray(data) ? data : []))
+      .catch(() => {})
   }
 
   // Sync selectedDeal with deals prop to ensure stage updates are reflected in modal
@@ -186,7 +178,7 @@ export default function PipelineView({
     let active = true
     if (selectedDeal?.stage === 'Proposal') {
       apiFetch(`/api/deals/${selectedDeal.id}/attachments`)
-        .then(res => res.json())
+        .then(res => res.ok ? res.json() : [])
         .then(data => { if (active) setAttachments(Array.isArray(data) ? data : []) })
         .catch(() => {})
     } else {
@@ -219,7 +211,7 @@ export default function PipelineView({
     return data.slice(start, start + limit)
   }
 
-  const paginatedDeals = getPaginatedData(srFilteredDeals, currentPage, ITEMS_PER_PAGE)
+  const paginatedDeals = useMemo(() => getPaginatedData(srFilteredDeals, currentPage, ITEMS_PER_PAGE), [srFilteredDeals, currentPage])
 
   const closingThisMonth = activeDeals.filter((d) => d.expectedClose?.startsWith(CURRENT_MONTH)).length
 
@@ -463,55 +455,7 @@ export default function PipelineView({
           </div>
 
           {/* Global Pagination */}
-          {totalPages > 1 && (
-            <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid var(--border)', marginTop: '16px' }}>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              >
-                Previous
-              </button>
-              <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={currentPage}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '');
-                    const num = parseInt(val, 10);
-                    if (val === '') {
-                      setCurrentPage('');
-                    } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
-                      setCurrentPage(num);
-                    }
-                  }}
-                  style={{
-                    width: '40px',
-                    textAlign: 'center',
-                    padding: '4px 0',
-                    background: 'rgba(255,255,255,0.04)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--r-md)',
-                    color: 'var(--text-strong)',
-                    fontWeight: 700,
-                    outline: 'none'
-                  }}
-                />
-                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
-              </div>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              >
-                Next
-              </button>
-            </div>
-          )}
+          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
         </Panel>
 
         {/* Stage Totals Summary */}
