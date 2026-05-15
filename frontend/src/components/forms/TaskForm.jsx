@@ -100,7 +100,7 @@ export default function TaskForm({
 
   const companyContacts = useMemo(() => {
     const combined = [...fetchedContacts]
-    return combined.sort((a, b) => a.name.localeCompare(b.name))
+    return combined.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   }, [fetchedContacts])
 
   // Auto-logic when company changes
