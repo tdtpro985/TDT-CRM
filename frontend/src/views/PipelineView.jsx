@@ -19,6 +19,24 @@ const STAGE_TONES = {
   'Closed Lost':     'is-stage-closed-lost',
 }
 
+const STAGE_COLORS = {
+  'Qualified':       '#ff9800',
+  'New Opportunity': '#38bdf8',
+  'Proposal':        '#34d399',
+  'Negotiation':     '#fb7185',
+  'Closed Won':      '#34d399',
+  'Closed Lost':     '#666666',
+}
+
+const LOST_REASONS = [
+  'Lost to competition',
+  'Budget constraint',
+  'No response from client',
+  'Client cancelled',
+  'Scope mismatch',
+  'Other',
+]
+
 function getStageTone(stage) {
   return STAGE_TONES[stage] ?? 'is-neutral'
 }
@@ -110,39 +128,6 @@ export default function PipelineView({
     currentUser?.role === 'Admin' ||
     String(currentUser?.id) === String(selectedDeal.ownerId)
   )
-
-  const auditActionLabels = {
-    stage_change: 'Stage changed',
-    value_change: 'Deal value changed',
-    close_date_change: 'Close date changed',
-    owner_id_change: 'Owner changed',
-    lost_reason: 'Deal lost',
-    probability_change: 'Probability changed',
-    status_change: 'Status changed',
-    task_status_change: 'Task status updated',
-  }
-
-  function formatAuditEntry(log) {
-    const label = auditActionLabels[log.action] || log.action
-    if (log.action.startsWith('task_status:')) {
-      const taskName = log.action.split(':')[1]
-      return <>Status updated for task <strong>"{taskName}"</strong>: <span style={{ color: 'var(--text-muted)', textDecoration: 'line-through' }}>{log.oldValue}</span> → <strong>{log.newValue}</strong></>
-    }
-    if (log.action === 'task_status_change') {
-      return <>{label}: <span style={{ color: 'var(--text-muted)', textDecoration: 'line-through' }}>{log.oldValue}</span> → <strong>{log.newValue}</strong></>
-    }
-    if (!log.oldValue || !log.newValue || log.oldValue === log.newValue) return label
-    switch (log.action) {
-      case 'stage_change':
-        return <>{label}: <span className={`tone-pill ${getToneClass(log.oldValue)}`} style={{ fontSize: '10px', padding: '1px 6px' }}>{log.oldValue}</span> → <span className={`tone-pill ${getToneClass(log.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px' }}>{log.newValue}</span></>
-      case 'value_change':
-        return <>{label}: {formatCurrencyCompact(Number(log.oldValue))} → {formatCurrencyCompact(Number(log.newValue))}</>
-      case 'close_date_change':
-        return <>{label}: {formatDateLabel(log.oldValue)} → {formatDateLabel(log.newValue)}</>
-      default:
-        return <>{label}: {log.oldValue} → {log.newValue}</>
-    }
-  }
 
   const visibleStages = showClosed
     ? dealStages
@@ -690,51 +675,55 @@ export default function PipelineView({
               {/* Task History */}
               <div className="deal-modal__history" id="task-history-section">
                 <h3 className="deal-modal__subheading">Task History</h3>
-                <div className="deal-modal__task-list">
+                <div className="timeline">
                   {(tasks ?? []).filter(t => t.dealId === selectedDeal.id).length === 0 ? (
                     <div className="deal-modal__empty-history">
                       No tasks found for this deal.
                     </div>
                   ) : (
                     (tasks ?? [])
-                      .filter(t => t.dealId === selectedDeal.id)
+                      .filter(t => t.dealId === selectedDeal.id && t.type !== 'Update')
                       .sort((a, b) => new Date(b.created_at || b.dueDate || 0) - new Date(a.created_at || a.dueDate || 0))
                       .map(task => (
-                        <div key={task.id} className="deal-modal__history-item">
-                          <div className="deal-modal__history-info">
-                            <strong>{task.title}</strong>
-                            <span className="deal-modal__history-meta">{task.type} • {formatDateLabel(task.dueDate || task.created_at)}</span>
-                            {task.notes && (
-                              <p className="deal-modal__history-notes">{task.notes}</p>
-                            )}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                            <span
-                              className={`tone-pill ${getToneClass(task.status)}`}
-                              style={{ cursor: 'pointer' }}
-                              title={`View all ${task.status.toLowerCase()} tasks`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onViewTasks(task.status.toLowerCase());
-                                closeDeal();
-                              }}
-                            >
-                              {task.status}
-                            </span>
-                            <button
-                              type="button"
-                              className="ghost-button"
-                              style={{ fontSize: '10px', padding: '4px 8px' }}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                const nextStatus = task.status === 'Completed' ? 'reopened' : 'completed';
-                                await handleTaskStatusToggle(task.id, task.status);
-                                onViewTasks(nextStatus);
-                                closeDeal();
-                              }}
-                            >
-                              {task.status === 'Completed' ? 'Reopen' : 'Complete'}
-                            </button>
+                        <div key={task.id} className="timeline-item">
+                          <div className="timeline-dot" style={{ background: 'var(--accent)' }}></div>
+                          <div className="timeline-content">
+                            <div className="timeline-header">
+                              <span className="timeline-time">{task.type} • {formatDateLabel(task.dueDate || task.created_at)}</span>
+                              <span className="timeline-badge is-activity">Task</span>
+                            </div>
+                            <div className="timeline-body">
+                              <p><strong>{task.title}</strong></p>
+                              {task.notes && <p className="timeline-notes">{task.notes}</p>}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center' }}>
+                              <span
+                                className={`tone-pill ${getToneClass(task.status)}`}
+                                style={{ cursor: 'pointer' }}
+                                title={`View all ${task.status.toLowerCase()} tasks`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onViewTasks(task.status.toLowerCase());
+                                  closeDeal();
+                                }}
+                              >
+                                {task.status}
+                              </span>
+                              <button
+                                type="button"
+                                className="ghost-button"
+                                style={{ fontSize: '10px', padding: '4px 8px' }}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const nextStatus = task.status === 'Completed' ? 'reopened' : 'completed';
+                                  await handleTaskStatusToggle(task.id, task.status);
+                                  onViewTasks(nextStatus);
+                                  closeDeal();
+                                }}
+                              >
+                                {task.status === 'Completed' ? 'Reopen' : 'Complete'}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))
@@ -745,18 +734,75 @@ export default function PipelineView({
               {/* Activity Logs */}
               <div className="deal-modal__history">
                 <h3 className="deal-modal__subheading">Activity Logs</h3>
-                <div className="deal-modal__task-list">
+                <div className="timeline">
                   {auditLogs.length === 0 ? (
                     <div className="deal-modal__empty-history">No activity logs found for this deal.</div>
                   ) : (
-                    auditLogs.map(log => (
-                      <div key={log.id} className="deal-modal__history-item deal-modal__activity-item">
-                        <div className="deal-modal__history-info">
-                          <strong>{formatAuditEntry(log)}</strong>
-                          <span className="deal-modal__history-meta">{formatDateLabel(log.changedAt)}</span>
+                    auditLogs.map(log => {
+                      const dotColor = STAGE_COLORS[selectedDeal?.stage] || 'var(--accent)'
+                      const ACTION_LABELS = {
+                        'stage_change': 'Stage changed',
+                        'value_change': 'Value changed',
+                        'owner_id_change': 'Owner changed',
+                        'close_date_change': 'Close date changed',
+                        'probability_change': 'Probability changed',
+                        'status_change': 'Status changed',
+                        'lost_reason': 'Lost reason',
+                        'deal_created': 'Deal created',
+                      }
+
+                      return (
+                        <div key={log.id} className="timeline-item">
+                          <div className="timeline-dot" style={{ background: dotColor }}></div>
+                          <div className="timeline-content">
+                            <div className="timeline-header">
+                              <span className="timeline-time">{formatDateLabel(log.changedAt)}</span>
+                              <span className="timeline-badge is-audit">Change</span>
+                            </div>
+                            <div className="timeline-body">
+                              <p>
+                                {log.action === 'deal_created' ? (
+                                  <>
+                                    <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(log.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{log.newValue}</span>
+                                    {selectedDeal && <> for <strong>{selectedDeal.name}</strong></>}
+                                  </>
+                                ) : log.action.startsWith('task_status:') ? (
+                                  <>
+                                    Status updated for task <strong>"{log.action.split(':')[1]}"</strong>:{' '}
+                                    <span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong>
+                                  </>
+                                ) : log.action === 'task_status_change' ? (
+                                  <>
+                                    <strong>Task status updated</strong>:{' '}
+                                    <span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong>
+                                  </>
+                                ) : (
+                                  <>
+                                    <strong>{ACTION_LABELS[log.action] || log.action.replace(/_/g, ' ')}</strong>:{' '}
+                                    {log.action === 'stage_change' ? (
+                                      <>
+                                        {log.oldValue ? (
+                                          <span className={`tone-pill ${getToneClass(log.oldValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{log.oldValue}</span>
+                                        ) : null}
+                                        {log.oldValue && ' → '}
+                                        <span className={`tone-pill ${getToneClass(log.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{log.newValue}</span>
+                                      </>
+                                    ) : log.action === 'value_change' ? (
+                                      <>{formatCurrencyCompact(Number(log.oldValue))} → <strong>{formatCurrencyCompact(Number(log.newValue))}</strong></>
+                                    ) : log.action === 'close_date_change' ? (
+                                      <>{formatDateLabel(log.oldValue)} → <strong>{formatDateLabel(log.newValue)}</strong></>
+                                    ) : (
+                                      <><span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong></>
+                                    )}
+                                  </>
+                                )}
+                              </p>
+                              {log.notes && <p className="timeline-notes">{log.notes}</p>}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      )
+                    })
                   )}
                 </div>
               </div>
