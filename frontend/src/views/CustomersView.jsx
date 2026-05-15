@@ -514,7 +514,7 @@ export default function CustomersView({
                                 setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, name: val } : c))
                               }}
                               placeholder="Name *"
-                              style={{ width: '100%', boxSizing: 'border-box' }}
+                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg-input)', color: 'var(--text-strong)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '6px 10px' }}
                             />
                           </td>
                           <td>
@@ -526,7 +526,7 @@ export default function CustomersView({
                                 setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, role: val } : c))
                               }}
                               placeholder="Role"
-                              style={{ width: '100%', boxSizing: 'border-box' }}
+                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg-input)', color: 'var(--text-strong)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '6px 10px' }}
                             />
                           </td>
                           <td>
@@ -538,7 +538,7 @@ export default function CustomersView({
                                 setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, email: val } : c))
                               }}
                               placeholder="Email"
-                              style={{ width: '100%', boxSizing: 'border-box' }}
+                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg-input)', color: 'var(--text-strong)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '6px 10px' }}
                             />
                           </td>
                           <td>
@@ -550,7 +550,7 @@ export default function CustomersView({
                                 setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c))
                               }}
                               placeholder="Number"
-                              style={{ width: '100%', boxSizing: 'border-box' }}
+                              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg-input)', color: 'var(--text-strong)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '6px 10px' }}
                             />
                           </td>
                           <td style={{ whiteSpace: 'nowrap' }}>
