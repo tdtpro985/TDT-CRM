@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO } from '../utils'
-import { ITEMS_PER_PAGE, LOST_REASONS } from '../constants'
+import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP } from '../constants'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
 
@@ -17,15 +17,6 @@ const STAGE_TONES = {
   'Negotiation':     'is-stage-negotiation',
   'Closed Won':      'is-stage-closed-won',
   'Closed Lost':     'is-stage-closed-lost',
-}
-
-const STAGE_COLORS = {
-  'Qualified':       '#ff9800',
-  'New Opportunity': '#38bdf8',
-  'Proposal':        '#34d399',
-  'Negotiation':     '#fb7185',
-  'Closed Won':      '#34d399',
-  'Closed Lost':     '#666666',
 }
 
 function getStageTone(stage) {
@@ -306,13 +297,7 @@ export default function PipelineView({
         <Panel
           kicker="Deal pipeline visualization"
           title="Track every opportunity by stage"
-          detail={
-            <div className="priority-legend">
-              <span><span className="priority-dot is-overdue" /> Overdue</span>
-              <span><span className="priority-dot is-high" /> High Priority</span>
-              <span><span className="priority-dot is-today" /> Due Today</span>
-            </div>
-          }
+          detail="Colored corner strips show deal health at a glance"
           action={
             <div className="panel-inline-controls">
               <label className="filter-wrap">
@@ -383,7 +368,7 @@ export default function PipelineView({
                         </div>
                       ) : (
                         stageDeals.map((deal) => (
-                          <article key={deal.id} className={`pipeline-card ${getStageTone(deal.stage)}${deal.urgencyLabel === 'Overdue' ? ' is-urgent-overdue' : ''}${deal.urgencyLabel === 'High Priority' ? ' is-urgent-high' : ''}${deal.urgencyLabel === 'Due Today' ? ' is-urgent-today' : ''}`}>
+                          <article key={deal.id} className={`pipeline-card ${getStageTone(deal.stage)}${deal.urgencyLabel === 'Overdue' ? ' is-health-critical' : ''}${deal.urgencyLabel === 'High Priority' ? ' is-health-at-risk' : ''}${deal.urgencyLabel === 'Due Today' ? ' is-health-healthy' : ''}`}>
                             <div className="pipeline-card__top">
                               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
                                 <strong style={{ fontSize: 'var(--fs-base)', color: 'var(--text-strong)', lineHeight: 1.2 }}>{deal.name}</strong>

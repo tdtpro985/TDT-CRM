@@ -323,9 +323,9 @@
   box-sizing: border-box;
 }
 
-.pipeline-card.is-urgent-overdue::before,
-.pipeline-card.is-urgent-high::before,
-.pipeline-card.is-urgent-today::before {
+.pipeline-card.is-health-critical::before,
+.pipeline-card.is-health-at-risk::before,
+.pipeline-card.is-health-healthy::before {
   content: '';
   position: absolute;
   top: 0;
@@ -336,35 +336,17 @@
   border-width: 16px 16px 0 0;
 }
 
-.pipeline-card.is-urgent-overdue::before {
+.pipeline-card.is-health-critical::before {
   border-color: #fb7185 transparent transparent transparent;
 }
 
-.pipeline-card.is-urgent-high::before,
-.pipeline-card.is-urgent-today::before {
-  border-color: var(--accent) transparent transparent transparent;
+.pipeline-card.is-health-at-risk::before {
+  border-color: #fbbf24 transparent transparent transparent;
 }
 
-.priority-legend {
-  display: flex;
-  gap: 16px;
-  justify-content: flex-end;
-  padding: 0 0 8px;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+.pipeline-card.is-health-healthy::before {
+  border-color: #34d399 transparent transparent transparent;
 }
-
-.priority-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 4px;
-}
-
-.priority-dot.is-overdue { background: #fb7185; }
-.priority-dot.is-high    { background: var(--accent); }
-.priority-dot.is-today   { background: var(--accent); }
 
 .pipeline-card__btn-wrap {
   opacity: 0;
