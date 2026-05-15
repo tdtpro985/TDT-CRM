@@ -1,10 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { createRecordId } from '../../utils'
 import { apiFetch } from '../../api'
+import { TASK_TYPES, TASK_PRIORITIES } from '../../constants'
 import Select from '../Select'
-
-const TASK_TYPES = ['Call', 'Follow-up', 'Meeting', 'Email']
-const TASK_PRIORITIES = ['Low', 'Medium', 'High']
 
 function CompanyCombobox({ companies, companyId, onChange }) {
   const displayValue = companies.find((c) => c.id === companyId)?.name ?? companyId
@@ -35,7 +33,7 @@ function CompanyCombobox({ companies, companyId, onChange }) {
 }
 
 export default function TaskForm({
-  onSubmit, onCancel, deals, companies, contacts = [], teamMembers = [],
+  onSubmit, onCancel, deals, companies, teamMembers = [],
   currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES,
   dealStages = [], prefilledCompanyId = ''
 }) {
@@ -62,7 +60,6 @@ export default function TaskForm({
   const [fetchedContacts, setFetchedContacts] = useState([])
 
   const canAssignSR = currentUser?.role === 'Head of Sales' || currentUser?.role === 'Regional Sales Manager'
-  const isSalesRep = currentUser?.role === 'Sales Representative' || currentUser?.role === 'Sales Rep'
 
   const activeDeals = useMemo(() => {
     if (!taskForm.companyId) return []
@@ -134,7 +131,8 @@ export default function TaskForm({
     } else {
       setSection1Expanded(false)
     }
-  }, [taskForm.companyId, activeDeals.length])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskForm.companyId, activeDeals.length, companies, dealStages])
 
   // Auto-select contact if only 1
   useEffect(() => {
@@ -143,7 +141,7 @@ export default function TaskForm({
     } else {
       setSelectedContactIds([])
     }
-  }, [companyContacts.length])
+  }, [companyContacts.length, companyContacts])
 
   const availableSRs = useMemo(() => {
     if (!canAssignSR) return []

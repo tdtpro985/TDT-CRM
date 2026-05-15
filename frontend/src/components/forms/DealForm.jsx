@@ -1,7 +1,6 @@
 import { useState } from 'react'
+import { DEAL_STAGES } from '../../constants'
 import Select from '../Select'
-
-const DEAL_STAGES = ['Qualified', 'New Opportunity', 'Proposal', 'Negotiation', 'Closed Won']
 
 export default function DealForm({ onSubmit, onCancel, companies, contacts, teamMembers, currentUser, dealStages = DEAL_STAGES }) {
   const isSalesRep = currentUser?.role === 'Sales Representative' || currentUser?.role === 'Sales Rep'
