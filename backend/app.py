@@ -538,6 +538,7 @@ def get_customer_detail(customer_id):
             c_format = ','.join(['%s'] * len(contacts)) if contacts else "''"
             
             contact_ids = [c['id'] for c in contacts]
+            params = deal_ids + contact_ids
             
             sql = f"""
                 SELECT a.id, a.entity_type AS entityType, a.entity_id AS entityId, a.action, 
