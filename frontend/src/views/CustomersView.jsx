@@ -3,19 +3,12 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId } from '../utils'
+import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData } from '../utils'
+import { STAGE_COLORS, ITEMS_PER_PAGE } from '../constants'
 import LeadForm from '../components/forms/LeadForm'
 import TaskForm from '../components/forms/TaskForm'
 import { apiFetch } from '../api'
-
-const STAGE_COLORS = {
-  'Qualified':       '#ff9800', // Orange
-  'New Opportunity': '#38bdf8', // Blue
-  'Proposal':        '#34d399', // Green
-  'Negotiation':     '#fb7185', // Red/Pink
-  'Closed Won':      '#34d399', // Green
-  'Closed Lost':     '#666666', // Gray
-}
+import Pagination from '../components/Pagination'
 
 export default function CustomersView({
   filteredCustomers,
@@ -38,10 +31,57 @@ export default function CustomersView({
   page,
   setPage
 }) {
-  const ITEMS_PER_PAGE = 7
+  const [showQuickTaskForm, setShowQuickTaskForm] = useState(false)
   const [customerDetail, setCustomerDetail] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
-  const [showQuickTaskForm, setShowQuickTaskForm] = useState(false)
+  const [companyContacts, setCompanyContacts] = useState([])
+  const [detailModalOpen, setDetailModalOpen] = useState(false)
+
+  const renderContactDiff = (item, linkedContact) => {
+    const ACTION_LABELS = {
+      'contact_created': 'Contact added',
+      'update': 'Contact updated'
+    }
+
+    if (item.action === 'contact_created') {
+      const val = parseAuditValue(item.newValue)
+      return (
+        <>
+          <strong>{ACTION_LABELS[item.action]}</strong>: 
+          {val && typeof val === 'object' ? <strong> {val.name}</strong> : <strong> {item.newValue}</strong>}
+        </>
+      )
+    }
+
+    const oldVal = parseAuditValue(item.oldValue)
+    const newVal = parseAuditValue(item.newValue)
+
+    if (oldVal && newVal && typeof oldVal === 'object' && typeof newVal === 'object') {
+      const changes = []
+      if (oldVal.name !== newVal.name) changes.push(<span key="name">Name: <em>{oldVal.name}</em> → <strong>{newVal.name}</strong></span>)
+      if (oldVal.role !== newVal.role) changes.push(<span key="role">Role: <em>{oldVal.role}</em> → <strong>{newVal.role}</strong></span>)
+      if (oldVal.email !== newVal.email) changes.push(<span key="email">Email: <em>{oldVal.email}</em> → <strong>{newVal.email}</strong></span>)
+      if (oldVal.phone !== newVal.phone) changes.push(<span key="phone">Phone: <em>{oldVal.phone}</em> → <strong>{newVal.phone}</strong></span>)
+      
+      return (
+        <>
+          <strong>{ACTION_LABELS[item.action] || item.action}</strong>: 
+          {changes.length > 0 ? (
+            <span style={{ marginLeft: '4px' }}>
+              {changes.reduce((prev, curr) => [prev, ', ', curr])}
+            </span>
+          ) : <span> {linkedContact?.name || 'Contact'} details updated</span>}
+        </>
+      )
+    }
+
+    return (
+      <>
+        <strong>{ACTION_LABELS[item.action] || item.action}</strong>: 
+        <strong> {linkedContact?.name || 'Contact'}</strong> details updated
+      </>
+    )
+  }
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) ?? customers[0] ?? null
 
@@ -50,6 +90,10 @@ export default function CustomersView({
       fetchDetail(selectedCustomer.id)
     }
   }, [selectedCustomer?.id])
+
+  useEffect(() => {
+    setCompanyContacts(customerDetail?.contacts || [])
+  }, [customerDetail?.contacts])
 
   async function fetchDetail(id) {
     setLoadingDetail(true)
@@ -65,87 +109,10 @@ export default function CustomersView({
     }
   }
 
-  const getPaginatedData = (data, p) => {
-    const pageNum = p === '' || isNaN(p) ? 1 : parseInt(p, 10)
-    const startIndex = (pageNum - 1) * ITEMS_PER_PAGE
-    return data.slice(startIndex, startIndex + ITEMS_PER_PAGE)
-  }
-
-  const renderPagination = (totalItems, currentPage, setPage) => {
-    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE)
-    if (totalPages <= 1) return null
-    return (
-      <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid var(--border)' }}>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={currentPage === 1}
-          onClick={() => setPage(p => Math.max(1, p - 1))}
-        >
-          Previous
-        </button>
-        <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={currentPage}
-            onChange={(e) => {
-              const val = e.target.value.replace(/\D/g, '');
-              const num = parseInt(val, 10);
-              if (val === '') {
-                setPage('');
-              } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
-                setPage(num);
-              }
-            }}
-            style={{ 
-              width: '40px', 
-              textAlign: 'center', 
-              padding: '4px 0',
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--r-md)',
-              color: 'var(--text-strong)',
-              fontWeight: 700,
-              outline: 'none'
-            }}
-          />
-          <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
-        </div>
-        <button
-          type="button"
-          className="secondary-button"
-          disabled={currentPage === totalPages}
-          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-        >
-          Next
-        </button>
-      </div>
-    )
-  }
-
-  const paginatedCustomers = getPaginatedData(filteredCustomers, page)
-  const [detailModalOpen, setDetailModalOpen] = useState(false)
-  const [companyContacts, setCompanyContacts] = useState([])
-
-  useEffect(() => {
-    if (customerDetail?.contacts) {
-      setCompanyContacts(customerDetail.contacts.map(c => ({ ...c, isEditing: false, isNew: false })))
-    } else {
-      setCompanyContacts([])
-    }
-  }, [customerDetail?.contacts])
-
-  // KPI Calculations for the summary cards
-  const activeDealSum = useMemo(() =>
-    (customers || []).reduce((sum, c) => sum + Number(c.activeDealCount || 0), 0)
-  , [customers])
-
+  const activeDealSum = useMemo(() => deals.filter(d => d.companyId === selectedCustomer?.id && !['Closed Won', 'Closed Lost'].includes(d.stage)).length, [deals, selectedCustomer?.id])
   const coldCompanyCount = useMemo(() => {
     const deadline = new Date()
     deadline.setDate(deadline.getDate() - 30)
-    // companyId -> newest lastTouch date
     const touchMap = {}
     for (const d of (deals || [])) {
       if (d.companyId && d.lastTouch) {
@@ -163,8 +130,8 @@ export default function CustomersView({
   }, [customers, deals])
 
   const winLossRatio = customerDetail?.customer?.winLossRatio ?? '—'
-  const closedWonValue = customerDetail?.customer?.closedWonValue ?? 0
-  const closedLostValue = customerDetail?.customer?.closedLostValue ?? 0
+  const closedWonValue = customerDetail?.customer?.closedWonValue ?? null
+  const closedLostValue = customerDetail?.customer?.closedLostValue ?? null
 
   const customerDeals = useMemo(() => 
     deals
@@ -175,8 +142,12 @@ export default function CustomersView({
   const hasHistory = (customerDeals.length > 0) || 
                      (customerDetail?.auditLogs?.length > 0)
 
+  const paginatedCustomers = getPaginatedData(filteredCustomers, page, ITEMS_PER_PAGE)
+  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE)
+
   return (
     <>
+
       <section className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
         <MetricCard label="Total Customers" value={customers.length.toLocaleString()} meta="Total records" accent="accent" />
         <MetricCard label="Active Deals" value={activeDealSum.toLocaleString()} meta="Currently in pipeline" accent="alt" />
@@ -238,14 +209,14 @@ export default function CustomersView({
                       </div>
                     ))}
                   </div>
-                  {renderPagination(filteredCustomers.length, page, setPage)}
+                  <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
                 </>
-              )
-            }
+                )}
           </div>
         </Panel>
 
         <div className="panel-stack">
+
           <Panel
             kicker="Transactional history"
             title={selectedCustomer?.name ?? 'Select a customer'}
@@ -284,8 +255,8 @@ export default function CustomersView({
 
                     <div className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '24px' }}>
                       <MetricCard label="W/L Ratio" value={Number(winLossRatio) ? Number(winLossRatio).toFixed(2) : winLossRatio} meta="Performance" accent="accent" />
-                      <MetricCard label="Won Value" value={formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
-                      <MetricCard label="Lost Value" value={formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
+                      <MetricCard label="Won Value" value={closedWonValue === null ? '-' : formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
+                      <MetricCard label="Lost Value" value={closedLostValue === null ? '-' : formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
                     </div>
 
                     <div className="admin-table-wrap" style={{ marginBottom: '24px' }}>
@@ -355,14 +326,7 @@ export default function CustomersView({
                                       {linkedDeal && <> for <strong>{linkedDeal.name}</strong></>}
                                     </>
                                   ) : item.entityType === 'contact' ? (
-                                    <>
-                                      <strong>{ACTION_LABELS[item.action] || item.action}</strong>: 
-                                      {item.action === 'contact_created' ? (
-                                        <> <strong>{item.newValue}</strong></>
-                                      ) : (
-                                        <> <strong>{linkedContact?.name || 'Contact'}</strong> details updated</>
-                                      )}
-                                    </>
+                                    renderContactDiff(item, linkedContact)
                                   ) : (
                                     <>
                                       <strong>{ACTION_LABELS[item.action] || item.action.replace(/_/g, ' ')}</strong>:{' '}
@@ -591,6 +555,7 @@ export default function CustomersView({
                                     })
                                   }
                                   setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false, isNew: false } : c2))
+                                  fetchDetail(selectedCustomer.id)
                                 } catch (e) {
                                   console.error('Failed to save contact:', e)
                                 }
