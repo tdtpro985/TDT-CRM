@@ -1,9 +1,11 @@
 import os
+import uuid
 import traceback
 from functools import wraps
 from importlib import import_module
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_limiter import Limiter
@@ -13,9 +15,43 @@ from database.database import get_db_connection, close_connection
 from database.sync_pipeline import fill_pipeline
 from gsheets_sync import sync_from_sheets, sync_to_sheets
 from datetime import timedelta, date, datetime
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
+
+def ensure_schema():
+    conn = get_db_connection()
+    if not conn:
+        print("Schema verification failed: could not connect to database.")
+        return
+    try:
+        cursor = conn.cursor()
+        # Ensure lost_reason column exists in deals table
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'deals' AND COLUMN_NAME = 'lost_reason'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'lost_reason' column to 'deals' table...")
+            cursor.execute("ALTER TABLE deals ADD COLUMN lost_reason VARCHAR(255) NULL")
+            conn.commit()
+
+        # Ensure probability_manual column exists in deals table
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'deals' AND COLUMN_NAME = 'probability_manual'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'probability_manual' column to 'deals' table...")
+            cursor.execute("ALTER TABLE deals ADD COLUMN probability_manual BOOLEAN DEFAULT FALSE")
+            conn.commit()
+    except Exception as e:
+        print(f"Error during schema verification: {e}")
+    finally:
+        close_connection(conn)
+
+ensure_schema()
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {
@@ -25,7 +61,11 @@ CORS(app, resources={r"/api/*": {
 
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-key')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=8)  # 8-hour sessions
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB upload limit
 jwt = JWTManager(app)
+
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @jwt.unauthorized_loader
 def unauthorized_response(callback):
@@ -66,8 +106,8 @@ def handle_exception(e):
     return jsonify(error="An internal error occurred"), 500
 
 STAGE_PROBABILITY = {
-    'New Opportunity': 20,
-    'Qualified':       40,
+    'Qualified':       20,
+    'New Opportunity': 40,
     'Proposal':        60,
     'Negotiation':     80,
     'Closed Won':      100,
@@ -131,6 +171,33 @@ REGION_BRANCHES = {
 }
 
 
+ROLE_RANK = {
+    'Admin': 100,
+    'Head of Sales': 80,
+    'Regional Sales Manager': 60,
+    'Sales Representative': 40,
+}
+
+
+def can_assign(claims, current_user_id, target_id, target_role):
+    """
+    Check if current user can assign to target_role (strictly below).
+    Self-assignment is always allowed.
+    """
+    # Self-assignment is always allowed
+    if str(target_id) == str(current_user_id):
+        return True
+    
+    user_rank = ROLE_RANK.get(claims.get('role', ''), 0)
+    target_rank = ROLE_RANK.get(target_role, 0)
+    
+    # Admin can assign to anyone
+    if claims.get('role') == 'Admin':
+        return True
+    
+    return user_rank > target_rank
+
+
 def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested_region=''):
     """
     Returns (where_parts, restrict_owner, params) for role-based data filtering.
@@ -156,7 +223,7 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
             return ([f'{col} IN ({ph})'], False, allowed)
         return (['1=0'], False, [])
 
-    if role == 'Head of Sales':
+    if role in ('Head of Sales', 'Admin'):
         if has_branch_filter(requested_branch):
             return ([f'{col} = %s'], False, [normalize_branch(requested_branch)])
         if requested_region and requested_region in REGION_BRANCHES:
@@ -171,12 +238,12 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
     return ([], False, [])
 
 
-def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=None):
+def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=None, user_id=None):
     cursor = conn.cursor()
     cursor.execute(
-        """INSERT INTO audit_log (entity_type, entity_id, action, old_value, new_value)
-           VALUES (%s, %s, %s, %s, %s)""",
-        (entity_type, entity_id, action, old_value, new_value),
+        """INSERT INTO audit_log (entity_type, entity_id, action, old_value, new_value, user_id)
+           VALUES (%s, %s, %s, %s, %s, %s)""",
+        (entity_type, entity_id, action, old_value, new_value, user_id),
     )
     cursor.close()
 
@@ -445,7 +512,8 @@ def get_customer_detail(customer_id):
             format_strings = ','.join(['%s'] * len(deal_ids))
             cursor.execute(f"""
                 SELECT a.id, a.subject, a.type, t.name AS owner, a.owner_id AS ownerId,
-                       a.deal_id AS dealId, a.due_date AS dueDate, a.priority, a.status, a.notes, a.created_at AS createdAt
+                       a.deal_id AS dealId, a.due_date AS dueDate, a.priority, a.status, a.notes,
+                       a.created_at AS createdAt, a.stage
                 FROM activities a
                 LEFT JOIN team t ON a.owner_id = t.id
                 WHERE a.deal_id IN ({format_strings})
@@ -453,23 +521,44 @@ def get_customer_detail(customer_id):
             """, tuple(deal_ids))
             activities = rows_to_list(cursor)
             
-        # 4. Fetch audit log for these deals
+        # 4. Fetch contacts for this company
+        cursor.execute(
+            """SELECT id, name, role, email, phone
+               FROM contacts
+               WHERE company_id = %s
+               ORDER BY name""",
+            (customer_id,)
+        )
+        contacts = rows_to_list(cursor)
+
+        # 5. Fetch audit log for these deals and contacts
         audit_logs = []
-        if deal_ids:
-            format_strings = ','.join(['%s'] * len(deal_ids))
-            cursor.execute(f"""
-                SELECT id, entity_type AS entityType, entity_id AS entityId, action, old_value AS oldValue, new_value AS newValue, changed_at AS changedAt
-                FROM audit_log
-                WHERE entity_type = 'deal' AND entity_id IN ({format_strings})
-                ORDER BY changed_at DESC
-            """, tuple(deal_ids))
-            audit_logs = rows_to_list(cursor)
+        if deal_ids or contacts:
+            d_format = ','.join(['%s'] * len(deal_ids)) if deal_ids else "''"
+            c_format = ','.join(['%s'] * len(contacts)) if contacts else "''"
             
+            contact_ids = [c['id'] for c in contacts]
+            params = deal_ids + contact_ids
+            
+            sql = f"""
+                SELECT a.id, a.entity_type AS entityType, a.entity_id AS entityId, a.action, 
+                       a.old_value AS oldValue, a.new_value AS newValue, a.changed_at AS changedAt,
+                       t.name AS changedBy
+                FROM audit_log a
+                LEFT JOIN team t ON a.user_id = t.id
+                WHERE (a.entity_type = 'deal' AND a.entity_id IN ({d_format}))
+                   OR (a.entity_type = 'contact' AND a.entity_id IN ({c_format}))
+                ORDER BY a.changed_at DESC
+            """
+            cursor.execute(sql, tuple(params))
+            audit_logs = rows_to_list(cursor)
+
         return jsonify({
             'customer': customer_data,
             'deals': deals,
             'activities': activities,
-            'auditLogs': audit_logs
+            'auditLogs': audit_logs,
+            'contacts': contacts,
         })
     finally:
         close_connection(conn)
@@ -493,35 +582,40 @@ def get_team():
 
         if role == 'Sales Representative':
             cursor.execute(
-                'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
+                'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role = "Sales Representative" ORDER BY name',
                 (user_branch,),
             )
         elif role == 'Regional Sales Manager':
             region_branches = REGION_BRANCHES.get(user_region, [])
             req = normalize_branch(branch)
             allowed_normalized = [normalize_branch(b) for b in region_branches]
+            # RSM can only assign to SR
+            target_role = 'Sales Representative'
             if req and req in allowed_normalized:
                 match = next((b for b in region_branches if normalize_branch(b) == req), None)
                 cursor.execute(
-                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
-                    (match,),
+                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role = %s ORDER BY name',
+                    (match, target_role),
                 )
             elif region_branches:
                 ph = ', '.join(['%s'] * len(region_branches))
                 cursor.execute(
-                    f'SELECT id, name, role, branch, region FROM team WHERE branch IN ({ph}) ORDER BY name',
-                    tuple(region_branches),
+                    f'SELECT id, name, role, branch, region FROM team WHERE branch IN ({ph}) AND role = %s ORDER BY name',
+                    tuple(region_branches + [target_role]),
                 )
             else:
                 cursor.execute('SELECT id, name, role, branch, region FROM team WHERE 1=0')
         elif role == 'Head of Sales':
+            # HoS can assign to RSM and SR
+            target_roles = ('Regional Sales Manager', 'Sales Representative')
+            ph_roles = ', '.join(['%s'] * len(target_roles))
             if branch and branch != 'Headquarters':
                 cursor.execute(
-                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
-                    (branch,),
+                    f'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ({ph_roles}) ORDER BY name',
+                    (branch, *target_roles),
                 )
             else:
-                cursor.execute('SELECT id, name, role, branch, region FROM team ORDER BY name')
+                cursor.execute(f'SELECT id, name, role, branch, region FROM team WHERE role IN ({ph_roles}) ORDER BY name', target_roles)
         else:
             if branch and branch != 'Headquarters':
                 cursor.execute(
@@ -643,6 +737,8 @@ def create_contact():
     data = request.get_json()
     if not all(k in data for k in ['id', 'name']):
         return jsonify({'error': 'id and name are required'}), 400
+    if not data.get('email') and not data.get('phone'):
+        return jsonify({'error': 'email or phone is required'}), 400
 
     conn = get_db_connection()
     if not conn:
@@ -664,8 +760,65 @@ def create_contact():
                 data.get('status', 'Active'),
             ),
         )
+        log_audit(conn, 'contact', data['id'], 'contact_created', None, data['name'], get_jwt_identity())
         conn.commit()
         return jsonify({'message': 'Contact created', 'id': data['id']}), 201
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/contacts/<contact_id>', methods=['PUT'])
+@jwt_required()
+def update_contact(contact_id):
+    data = request.get_json()
+    name = data.get('name')
+    role = data.get('role')
+    email = data.get('email')
+    phone = data.get('phone')
+
+    if not name:
+        return jsonify({'error': 'name is required'}), 400
+    if not email and not phone:
+        return jsonify({'error': 'email or phone is required'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT name, role, email, phone FROM contacts WHERE id = %s", (contact_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Contact not found'}), 404
+
+        old_name, old_role, old_email, old_phone = row
+
+        updates = []
+        params = []
+        if name != old_name:
+            updates.append('name = %s')
+            params.append(name)
+        if role != old_role:
+            updates.append('role = %s')
+            params.append(role)
+        if email != old_email:
+            updates.append('email = %s')
+            params.append(email)
+        if phone != old_phone:
+            updates.append('phone = %s')
+            params.append(phone)
+
+        if updates:
+            params.append(contact_id)
+            cursor.execute(f'UPDATE contacts SET {", ".join(updates)} WHERE id = %s', params)
+            log_audit(conn, 'contact', contact_id, 'update',
+                      json.dumps({'name': old_name, 'role': old_role, 'email': old_email, 'phone': old_phone}),
+                      json.dumps({'name': name, 'role': role, 'email': email, 'phone': phone}),
+                      get_jwt_identity())
+            conn.commit()
+
+        return jsonify({'message': 'Contact updated', 'id': contact_id})
     finally:
         close_connection(conn)
 
@@ -740,13 +893,19 @@ def create_lead():
 
         # Validation: Ensure owner_id belongs to the correct branch/region
         if owner_id:
-            cursor.execute('SELECT branch, region FROM team WHERE id = %s', (owner_id,))
+            cursor.execute('SELECT branch, region, role FROM team WHERE id = %s', (owner_id,))
             team_row = cursor.fetchone()
             if not team_row:
                 return jsonify({'error': 'Assigned owner not found in team'}), 400
             
             token_claims = get_jwt()
             token_role = token_claims.get('role', '')
+            user_id = get_jwt_identity()
+
+            # Role hierarchy check
+            if not can_assign(token_claims, user_id, owner_id, team_row[2]):
+                return jsonify({'error': f'Cannot assign lead to a user with equal or higher role ({team_row[2]})'}), 403
+
             if token_role not in ('Admin', 'Head of Sales'):
                 if token_role == 'Regional Sales Manager':
                     rsm_region = token_claims.get('region', '')
@@ -827,7 +986,7 @@ def update_lead_status(lead_id):
 
         old_status = row[0]
         cursor.execute('UPDATE leads SET status = %s WHERE id = %s', (new_status, lead_id))
-        log_audit(conn, 'lead', lead_id, 'status_change', old_status, new_status)
+        log_audit(conn, 'lead', lead_id, 'status_change', old_status, new_status, get_jwt_identity())
         conn.commit()
         return jsonify({'message': 'Lead status updated'})
     finally:
@@ -858,11 +1017,16 @@ def reassign_lead(lead_id):
             return jsonify({'error': 'Lead not found'}), 404
         old_owner_id, lead_branch = lead_row
 
-        cursor.execute('SELECT branch, region FROM team WHERE id = %s', (new_owner_id,))
+        cursor.execute('SELECT branch, region, role FROM team WHERE id = %s', (new_owner_id,))
         new_owner_row = cursor.fetchone()
         if not new_owner_row:
             return jsonify({'error': 'New owner not found in team'}), 400
-        new_owner_branch, new_owner_region = new_owner_row
+        new_owner_branch, new_owner_region, new_owner_role = new_owner_row
+
+        # Role hierarchy check
+        user_id = get_jwt_identity()
+        if not can_assign(claims, user_id, new_owner_id, new_owner_role):
+            return jsonify({'error': f'Cannot reassign to a user with equal or higher role ({new_owner_role})'}), 403
 
         # RSM can only reassign within their region
         if role == 'Regional Sales Manager':
@@ -873,7 +1037,7 @@ def reassign_lead(lead_id):
 
         cursor.execute('UPDATE leads SET owner_id = %s WHERE id = %s', (new_owner_id, lead_id))
         cursor.execute('UPDATE companies SET owner_id = %s WHERE id = %s', (new_owner_id, lead_id))
-        log_audit(conn, 'lead', lead_id, 'reassign', str(old_owner_id), str(new_owner_id))
+        log_audit(conn, 'lead', lead_id, 'reassign', str(old_owner_id), str(new_owner_id), get_jwt_identity())
         conn.commit()
         return jsonify({'message': 'Lead reassigned successfully'})
     finally:
@@ -905,6 +1069,7 @@ def get_deals():
             SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
                    d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
                    d.probability, t.name AS owner, d.owner_id AS ownerId, d.created_at,
+                   d.lost_reason AS lostReason,
                    COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
                    CASE
                        WHEN urgency.hasOverdue = 1 THEN 'Overdue'
@@ -969,7 +1134,7 @@ def create_deal():
     if not all(k in data for k in ['id', 'name']):
         return jsonify({'error': 'id and name are required'}), 400
 
-    stage = data.get('stage', 'New Opportunity')
+    stage = data.get('stage', 'Qualified')
     probability = STAGE_PROBABILITY.get(stage, 20)
 
     conn = get_db_connection()
@@ -981,11 +1146,18 @@ def create_deal():
         
         # Validation for owner_id branch mismatch
         if owner_id:
-            cursor.execute('SELECT branch FROM team WHERE id = %s', (owner_id,))
+            cursor.execute('SELECT branch, role FROM team WHERE id = %s', (owner_id,))
             team_row = cursor.fetchone()
             if not team_row:
                 return jsonify({'error': 'Assigned owner not found in team'}), 400
             
+            token_claims = get_jwt()
+            user_id = get_jwt_identity()
+
+            # Role hierarchy check
+            if not can_assign(token_claims, user_id, owner_id, team_row[1]):
+                return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({team_row[1]})'}), 403
+
             # If leadId is provided, check branch against lead's branch
             lead_id = data.get('leadId')
             if lead_id:
@@ -1020,6 +1192,7 @@ def create_deal():
                 data.get('ownerId'),
             ),
         )
+        log_audit(conn, 'deal', data['id'], 'deal_created', None, stage, get_jwt_identity())
         conn.commit()
         return jsonify({'message': 'Deal created', 'id': data['id']}), 201
     finally:
@@ -1040,12 +1213,12 @@ def update_deal_stage(deal_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability FROM deals WHERE id = %s', (deal_id,))
+        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability, probability_manual FROM deals WHERE id = %s', (deal_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'error': 'Deal not found'}), 404
 
-        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability = row
+        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability, old_probability_manual = row
 
         claims = get_jwt()
         user_id = get_jwt_identity()
@@ -1055,32 +1228,56 @@ def update_deal_stage(deal_id):
         updates = []
         params = []
         
-        if new_stage:
-            new_probability = STAGE_PROBABILITY.get(new_stage, 20)
-            updates.append('stage = %s, probability = %s')
-            params.extend([new_stage, new_probability])
-            log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage)
-        
-        if new_value is not None:
-            updates.append('value = %s')
-            params.append(new_value)
-            log_audit(conn, 'deal', deal_id, 'value_change', str(old_value), str(new_value))
-            
-        if new_close:
-            updates.append('close_date = %s')
-            params.append(new_close)
-            log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close))
-            
         probability = data.get('probability')
-        if probability is not None and not new_stage:
+        if probability is not None and probability != old_probability:
             updates.append('probability = %s')
             params.append(probability)
-            log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability))
+            updates.append('probability_manual = TRUE')
+            log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability), get_jwt_identity())
+        
+        if new_stage:
+            if probability is not None:
+                # Both probability and stage sent — stage updated, probability already set above
+                updates.append('stage = %s')
+                params.append(new_stage)
+            elif old_probability_manual:
+                # SR manually set probability before — preserve it
+                updates.append('stage = %s')
+                params.append(new_stage)
+            else:
+                # Auto-assign probability from stage
+                new_probability = STAGE_PROBABILITY.get(new_stage, 20)
+                updates.append('stage = %s, probability = %s')
+                params.extend([new_stage, new_probability])
+                updates.append('probability_manual = FALSE')
+            log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage, get_jwt_identity())
+        
+        if new_value is not None and float(new_value) != float(old_value):
+            updates.append('value = %s')
+            params.append(new_value)
+            log_audit(conn, 'deal', deal_id, 'value_change', str(old_value), str(new_value), get_jwt_identity())
+            
+        if new_close and str(new_close) != str(old_close):
+            updates.append('close_date = %s')
+            params.append(new_close)
+            log_audit(conn, 'deal', deal_id, 'close_date_change', str(old_close), str(new_close), get_jwt_identity())
 
         if data.get('ownerId'):
+            new_owner_id = data.get('ownerId')
+            cursor.execute('SELECT role FROM team WHERE id = %s', (new_owner_id,))
+            target_row = cursor.fetchone()
+            if target_row and not can_assign(claims, user_id, new_owner_id, target_row[0]):
+                return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({target_row[0]})'}), 403
+
             updates.append('owner_id = %s')
-            params.append(data.get('ownerId'))
-            log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(data.get('ownerId')))
+            params.append(new_owner_id)
+            log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(new_owner_id), get_jwt_identity())
+
+        lost_reason = data.get('lostReason')
+        if new_stage == 'Closed Lost' and lost_reason:
+            updates.append('lost_reason = %s')
+            params.append(lost_reason)
+            log_audit(conn, 'deal', deal_id, 'lost_reason', None, lost_reason, get_jwt_identity())
 
         if not updates:
             return jsonify({'message': 'No updates provided'}), 400
@@ -1096,7 +1293,7 @@ def update_deal_stage(deal_id):
         if user_row:
             editor_name = user_row[0]
 
-        today_str = datetime.now().strftime('%Y-%m-%d')
+        today_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         change_desc = []
         if new_value is not None and float(new_value) != float(old_value):
             change_desc.append(f'value to {new_value}')
@@ -1209,6 +1406,18 @@ def create_activity():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+
+        # Security: Resolve owner ID by name if provided, instead of trusting raw ID
+        # This prevents vulnerability of frontend manipulating database IDs
+        final_owner_id = data.get('ownerId')
+        owner_name = data.get('owner') # Frontend sends name string here
+        
+        if owner_name:
+            cursor.execute("SELECT id FROM team WHERE name = %s", (owner_name,))
+            row = cursor.fetchone()
+            if row:
+                final_owner_id = row[0]
+
         cursor.execute(
             """INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes, stage, contact_name)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
@@ -1216,7 +1425,7 @@ def create_activity():
                 data['id'],
                 data['subject'],
                 data.get('type', 'Follow-up'),
-                data.get('ownerId'),
+                final_owner_id,
                 data.get('dealId') or None,
                 data.get('dueDate') or None,
                 data.get('priority', 'Medium'),
@@ -1252,9 +1461,48 @@ def update_activity_status(activity_id):
 
         old_status = row[0]
         cursor.execute('UPDATE activities SET status = %s WHERE id = %s', (new_status, activity_id))
-        log_audit(conn, 'activity', activity_id, 'status_change', old_status, new_status)
+        log_audit(conn, 'activity', activity_id, 'status_change', old_status, new_status, get_jwt_identity())
+
+        # Trigger deal lastTouch update by logging a deal audit entry
+        cursor.execute('SELECT deal_id, subject FROM activities WHERE id = %s', (activity_id,))
+        d_row = cursor.fetchone()
+        deal_id = d_row[0] if d_row else None
+        task_name = d_row[1] if d_row else 'task'
+
+        if deal_id:
+            # We use task_name as the entity_type or pass it in notes if schema allowed, 
+            # but since we want it on the frontend, let's include it in old_value or similar?
+            # Actually, the cleanest way without schema change is to put it in a specific format in the audit log.
+            # However, the frontend currently expects old_value/new_value to be the statuses.
+            # Let's change the action name or similar? No, let's just use the task name.
+            log_audit(conn, 'deal', deal_id, f'task_status:{task_name}', old_status, new_status, get_jwt_identity())
+
         conn.commit()
-        return jsonify({'message': 'Activity status updated'})
+        return jsonify({'message': 'Activity status updated', 'dealId': deal_id})
+    finally:
+        close_connection(conn)
+
+
+# ─── Deal Audit Logs ─────────────────────────────────────────────────────────
+
+@app.route('/api/deals/<deal_id>/audit', methods=['GET'])
+@jwt_required()
+def get_deal_audit_logs(deal_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT a.id, a.entity_type AS entityType, a.entity_id AS entityId, a.action,
+                   a.old_value AS oldValue, a.new_value AS newValue, a.changed_at AS changedAt,
+                   t.name AS changedBy
+            FROM audit_log a
+            LEFT JOIN team t ON a.user_id = t.id
+            WHERE a.entity_type = 'deal' AND a.entity_id = %s
+            ORDER BY a.changed_at DESC
+        """, (deal_id,))
+        return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
 
@@ -1421,6 +1669,7 @@ def update_admin_profile():
 @jwt_required()
 @admin_required
 def admin_analytics():
+    branch_filter = request.args.get('branch', '').strip()
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Database connection failed'}), 500
@@ -1428,56 +1677,94 @@ def admin_analytics():
         cursor = conn.cursor()
 
         # Users per branch (exclude Headquarters — admin-only, not a sales branch)
-        cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY branch ORDER BY branch")
+        if branch_filter:
+            cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch = %s GROUP BY branch ORDER BY branch", (branch_filter,))
+        else:
+            cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY branch ORDER BY branch")
         users_per_branch = rows_to_list(cursor)
 
-        # Role distribution (exclude Headquarters admins from sales role stats)
-        cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY role ORDER BY role")
+        # Role distribution
+        if branch_filter:
+            cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch = %s GROUP BY role ORDER BY role", (branch_filter,))
+        else:
+            cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY role ORDER BY role")
         role_distribution = rows_to_list(cursor)
 
-        # Leads per branch (excluding filtered SR)
-        cursor.execute('''
-            SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted 
-            FROM leads 
-            WHERE 1=1
-            GROUP BY branch ORDER BY branch
-        ''')
+        # Leads per branch
+        if branch_filter:
+            cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads WHERE branch = %s GROUP BY branch ORDER BY branch', (branch_filter,))
+        else:
+            cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads WHERE 1=1 GROUP BY branch ORDER BY branch')
         leads_per_branch = rows_to_list(cursor)
 
-        # Deals per branch (via robust join, active only, excluding filtered SR)
-        cursor.execute('''
-            SELECT l.branch,
-                   COUNT(d.id)              AS deal_count,
-                   COALESCE(SUM(d.value),0) AS pipeline_value
-            FROM deals d
-            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-            WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
-            GROUP BY l.branch
-            ORDER BY l.branch
-        ''')
+        # Deals per branch (via robust join, active only)
+        if branch_filter:
+            cursor.execute('''
+                SELECT l.branch,
+                       COUNT(d.id)              AS deal_count,
+                       COALESCE(SUM(d.value),0) AS pipeline_value
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
+                GROUP BY l.branch
+                ORDER BY l.branch
+            ''', (branch_filter,))
+        else:
+            cursor.execute('''
+                SELECT l.branch,
+                       COUNT(d.id)              AS deal_count,
+                       COALESCE(SUM(d.value),0) AS pipeline_value
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
+                GROUP BY l.branch
+                ORDER BY l.branch
+            ''')
         deals_per_branch = rows_to_list(cursor)
 
-        # Totals (branch staff only, excluding Headquarters admins)
-        cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters'")
+        # Totals
+        if branch_filter:
+            cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters' AND branch = %s", (branch_filter,))
+        else:
+            cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters'")
         total_users = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COUNT(*) FROM leads WHERE 1=1")
+        if branch_filter:
+            cursor.execute("SELECT COUNT(*) FROM leads WHERE branch = %s", (branch_filter,))
+        else:
+            cursor.execute("SELECT COUNT(*) FROM leads WHERE 1=1")
         total_leads = cursor.fetchone()[0]
 
-        cursor.execute('''
-            SELECT COUNT(*) 
-            FROM deals d
-            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-            WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
-        ''')
+        if branch_filter:
+            cursor.execute('''
+                SELECT COUNT(*)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
+            ''', (branch_filter,))
+        else:
+            cursor.execute('''
+                SELECT COUNT(*)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
+            ''')
         active_deals = cursor.fetchone()[0]
 
-        cursor.execute('''
-            SELECT COALESCE(SUM(d.value),0) 
-            FROM deals d
-            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-            WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
-        ''')
+        if branch_filter:
+            cursor.execute('''
+                SELECT COALESCE(SUM(d.value),0)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
+            ''', (branch_filter,))
+        else:
+            cursor.execute('''
+                SELECT COALESCE(SUM(d.value),0)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
+            ''')
         pipeline_value = float(cursor.fetchone()[0])
 
         # Recent audit log (last 20)
@@ -1621,6 +1908,62 @@ def admin_delete_user(user_id):
         close_connection(conn)
 
 
+# ─── Deal Attachments ─────────────────────────────────────────────────────────
+
+@app.route('/api/deals/<deal_id>/attachments', methods=['POST'])
+@jwt_required()
+def upload_deal_attachment(deal_id):
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file or file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    if file.content_type not in ('application/pdf', 'application/octet-stream') and not file.filename.lower().endswith('.pdf'):
+        return jsonify({'error': 'Only PDF files are allowed'}), 400
+
+    safe_name = secure_filename(file.filename)
+    file_id = str(uuid.uuid4())
+    stored_name = f"{file_id}_{safe_name}"
+    file.save(os.path.join(UPLOAD_FOLDER, stored_name))
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO deal_attachments (id, deal_id, filename, label) VALUES (%s, %s, %s, %s)',
+            (file_id, deal_id, stored_name, safe_name),
+        )
+        conn.commit()
+        return jsonify({'id': file_id, 'filename': stored_name, 'label': safe_name}), 201
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/deals/<deal_id>/attachments', methods=['GET'])
+@jwt_required()
+def get_deal_attachments(deal_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'SELECT id, filename, label, uploaded_at FROM deal_attachments WHERE deal_id = %s ORDER BY uploaded_at DESC',
+            (deal_id,),
+        )
+        return jsonify(rows_to_list(cursor))
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/uploads/<filename>', methods=['GET'])
+@jwt_required()
+def serve_attachment(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+
+
 @app.after_request
 def set_security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
@@ -1638,7 +1981,7 @@ def get_deal_contacts(deal_id):
         cursor = conn.cursor()
         cursor.execute(
             '''
-            SELECT c.id, c.name, c.role, dc.role AS deal_role
+            SELECT c.id, c.name, c.role, c.email, c.phone, dc.role AS deal_role
             FROM contacts c
             INNER JOIN deal_contacts dc ON c.id = dc.contact_id
             WHERE dc.deal_id = %s

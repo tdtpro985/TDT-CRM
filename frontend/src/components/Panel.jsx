@@ -8,7 +8,7 @@ export default function Panel({ kicker, title, detail, className = '', id, actio
         </div>
         {action ? <div className="panel-action">{action}</div> : null}
       </div>
-      {detail ? <p className="panel-copy">{detail}</p> : null}
+      {detail ? <div className="panel-copy">{detail}</div> : null}
       {children}
     </article>
   )

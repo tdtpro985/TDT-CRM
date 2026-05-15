@@ -67,13 +67,15 @@ CREATE TABLE IF NOT EXISTS deals (
     company_id  VARCHAR(100),
     contact_id  VARCHAR(100),
     lead_id     VARCHAR(100),
-    stage       VARCHAR(100)   DEFAULT 'New Opportunity',
+    stage       VARCHAR(100)   DEFAULT 'Qualified',
     value       DECIMAL(15, 2) DEFAULT 0,
     close_date  DATE,
     probability INT            DEFAULT 20,
+    probability_manual BOOLEAN DEFAULT FALSE,
+    lost_reason VARCHAR(255)   NULL,
     owner_id    INT,
     branch      VARCHAR(100),
-    created_at  DATE           DEFAULT (CURRENT_DATE),
+    created_at  DATETIME       DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL,
     FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL,
     FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL
@@ -106,6 +108,16 @@ CREATE TABLE IF NOT EXISTS activities (
     created_at DATE         DEFAULT (CURRENT_DATE),
     FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL,
     FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE SET NULL
+);
+
+-- ─── Deal Attachments ────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS deal_attachments (
+    id           VARCHAR(100) PRIMARY KEY,
+    deal_id      VARCHAR(100) NOT NULL,
+    filename     VARCHAR(500) NOT NULL,
+    label        VARCHAR(255),
+    uploaded_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE CASCADE
 );
 
 -- ─── Audit Log ────────────────────────────────────────────────────────────────

@@ -6,13 +6,19 @@ export function formatPercentage(value) {
 export function formatCurrencyCompact(value) {
   const num = Number(value)
   if (isNaN(num)) return 'PHP 0'
-  if (num >= 1000000) {
-    return `PHP ${(num / 1000000).toFixed(1)}M`
+  
+  const formatShort = (v, suffix) => {
+    const val = Math.round(v * 10) / 10
+    // If it's a whole number after rounding, don't show .0
+    const str = val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)
+    return `PHP ${str}${suffix}`
   }
-  if (num >= 1000) {
-    return `PHP ${(num / 1000).toFixed(0)}K`
-  }
-  return `PHP ${num.toLocaleString()}`
+
+  if (num >= 1000000000) return formatShort(num / 1000000000, 'B')
+  if (num >= 1000000) return formatShort(num / 1000000, 'M')
+  if (num >= 1000) return formatShort(num / 1000, 'K')
+  
+  return `PHP ${num.toLocaleString('en-PH')}`
 }
 
 export function formatCurrencyFull(value) {
@@ -74,6 +80,14 @@ export function getToneClass(value) {
   if (!value) return 'is-neutral'
   const normalizedValue = String(value).toLowerCase()
 
+  // Exact stage matches (synchronize with kanban board colors)
+  if (normalizedValue === 'qualified') return 'is-warning'        // Orange
+  if (normalizedValue === 'new opportunity') return 'is-open'     // Blue
+  if (normalizedValue === 'proposal') return 'is-positive'        // Green
+  if (normalizedValue === 'negotiation') return 'is-alert'        // Red/Pink
+  if (normalizedValue === 'closed won') return 'is-positive'      // Green
+  if (normalizedValue === 'closed lost') return 'is-neutral'      // Gray
+
   if (normalizedValue.includes('unqualified')
   ) {
     return 'is-neutral'
@@ -83,7 +97,6 @@ export function getToneClass(value) {
     normalizedValue.includes('won') ||
     normalizedValue.includes('customer') ||
     normalizedValue.includes('completed') ||
-    normalizedValue.includes('qualified') ||
     normalizedValue.includes('low')
   ) {
     return 'is-positive'
@@ -139,4 +152,50 @@ export function focusSection(setActiveView, setNotice, viewId, sectionId, messag
       focusTarget.focus()
     }
   }, 80)
+}
+
+export function getTodayISO() {
+  return new Date().toISOString().split('T')[0]
+}
+
+export function getCurrentMonthISO() {
+  return new Date().toISOString().slice(0, 7)
+}
+
+export function formatTimeAgo(dateStr) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1)  return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+export function getPaginatedData(data, page, pageSize) {
+  const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 10)
+  const startIndex = (pageNum - 1) * pageSize
+  return data.slice(startIndex, startIndex + pageSize)
+}
+
+export function displayRole(role) {
+  if (role === 'Sales Rep' || role === 'Sales Manager') return 'Branch Account'
+  return role
+}
+
+export function shortStageLabel(stage, SHORT_STAGE_LABEL) {
+  return SHORT_STAGE_LABEL[stage] ?? stage
+}
+
+export function parseAuditValue(val) {
+  if (!val) return null
+  try {
+    return JSON.parse(val)
+  } catch {
+    try {
+      return JSON.parse(val.replace(/'/g, '"'))
+    } catch {
+      return val
+    }
+  }
 }
