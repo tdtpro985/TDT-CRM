@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import { formatCurrencyCompact, formatDateLabel, formatRelativeDays, getToneClass } from '../utils'
+import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatRelativeDays, getToneClass } from '../utils'
 import { ITEMS_PER_PAGE } from '../constants'
 import { apiFetch } from '../api'
 
@@ -554,10 +554,10 @@ export default function PipelineView({
                   {isEditing ? (
                     <div className="field" style={{ margin: 0 }}>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         className="deal-modal__edit-input"
-                        value={editValue}
-                        min="0"
+                        value={editValue === '' ? '' : Number(editValue).toLocaleString('en-US')}
                         onChange={(e) => {
                           const raw = e.target.value.replace(/[^0-9.]/g, '')
                           setEditValue(raw === '' ? '' : Number(raw))
@@ -566,7 +566,7 @@ export default function PipelineView({
                       />
                     </div>
                   ) : (
-                    <strong className="deal-modal__value" style={{ color: 'var(--accent-strong)' }}>{formatCurrencyCompact(selectedDeal.value)}</strong>
+                    <strong className="deal-modal__value" style={{ color: 'var(--accent-strong)' }}>{formatCurrencyFull(selectedDeal.value)}</strong>
                   )}
                 </div>
                 <div className="deal-modal__field">
