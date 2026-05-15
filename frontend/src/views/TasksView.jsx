@@ -3,7 +3,10 @@ import { useMemo } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
-import { formatDateLabel, getToneClass } from '../utils'
+import { formatDateLabel, getToneClass, getPaginatedData } from '../utils'
+import { ITEMS_PER_PAGE } from '../constants'
+
+import Pagination from '../components/Pagination'
 
 export default function TasksView({
   filteredTasks,
@@ -19,16 +22,9 @@ export default function TasksView({
   setCurrentPage
 }) {
   const navigate = useNavigate()
-  const ITEMS_PER_PAGE = 10
   const totalPages = Math.ceil(filteredTasks.length / ITEMS_PER_PAGE)
 
-  const getPaginatedData = (data, page, limit) => {
-    const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 10)
-    const start = (pageNum - 1) * limit
-    return data.slice(start, start + limit)
-  }
-
-  const paginatedTasks = getPaginatedData(filteredTasks, currentPage, ITEMS_PER_PAGE)
+  const paginatedTasks = useMemo(() => getPaginatedData(filteredTasks, currentPage, ITEMS_PER_PAGE), [filteredTasks, currentPage])
 
   const focusQueue = [...openTasks]
     .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
@@ -146,55 +142,7 @@ export default function TasksView({
                 })}
               </div>
 
-              {totalPages > 1 && (
-                <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid var(--border)', marginTop: '16px' }}>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  >
-                    Previous
-                  </button>
-                  <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={currentPage}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, '');
-                        const num = parseInt(val, 10);
-                        if (val === '') {
-                          setCurrentPage('');
-                        } else if (!isNaN(num) && num >= 1 && num <= totalPages) {
-                          setCurrentPage(num);
-                        }
-                      }}
-                      style={{ 
-                        width: '40px', 
-                        textAlign: 'center', 
-                        padding: '4px 0',
-                        background: 'rgba(255,255,255,0.04)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--r-md)',
-                        color: 'var(--text-strong)',
-                        fontWeight: 700,
-                        outline: 'none'
-                      }}
-                    />
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
+              <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
             </>
           )}
         </Panel>

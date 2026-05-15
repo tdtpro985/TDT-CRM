@@ -1,8 +1,21 @@
 import { useState, useMemo } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
 import './App.css'
-import { formatCurrencyCompact, matchesSearch } from './utils'
+import { formatCurrencyCompact, matchesSearch, displayRole, shortStageLabel, getTodayISO } from './utils'
 import { clearToken, getUser, saveUser, apiFetch } from './api'
+import {
+  LEAD_STATUSES,
+  CUSTOMER_STATUSES,
+  TASK_TYPES,
+  TASK_PRIORITIES,
+  LEAD_SOURCES,
+  STAGE_WORKFLOW,
+  DEAL_STAGES,
+  SHORT_STAGE_LABEL,
+  REGION_BRANCHES,
+  NAV_CONFIG,
+  VIEW_META
+} from './constants'
 import DashboardView from './views/DashboardView'
 import CustomersView from './views/CustomersView'
 import PipelineView  from './views/PipelineView'
@@ -12,53 +25,6 @@ import LoginPage     from './components/LoginPage'
 import Modal         from './components/Modal'
 import LeadForm      from './components/forms/LeadForm'
 import TaskForm      from './components/forms/TaskForm'
-
-const CURRENT_DATE = new Date().toISOString().split('T')[0]
-
-const LEAD_STATUSES  = ['New', 'Working', 'Qualified', 'Unqualified', 'Converted']
-const CUSTOMER_STATUSES = ['New', 'Prospect', 'Negotiation', 'Converted']
-const TASK_TYPES     = ['Call', 'Follow-up', 'Meeting', 'Email']
-const TASK_PRIORITIES = ['Low', 'Medium', 'High']
-const LEAD_SOURCES   = ['Website', 'Referral', 'Outbound', 'Event', 'Email']
-
-const STAGE_WORKFLOW = {
-  'Qualified':       { probability: 20, activityType: null,      hint: 'Verify company exists in the customer database.' },
-  'New Opportunity': { probability: 40, activityType: 'Call',    hint: 'Client has requested a quotation. Gather scope requirements.' },
-  'Proposal':        { probability: 60, activityType: 'Meeting', hint: 'Formalize and present the proposal document.' },
-  'Negotiation':     { probability: 80, activityType: 'Meeting', hint: 'Adjust terms. Resolve to Closed Won or Closed Lost.' },
-  'Closed Won':      { probability: 100, activityType: null,     hint: 'Deal signed and closed.' },
-  'Closed Lost':     { probability: 0,   activityType: null,     hint: 'Deal lost. Capture reason before closing.' },
-}
-const DEAL_STAGES = Object.keys(STAGE_WORKFLOW)
-
-const SHORT_STAGE_LABEL = { 'New Opportunity': 'New Opp', 'Closed Won': 'Won', 'Closed Lost': 'Lost' }
-
-function displayRole(role) {
-  if (role === 'Sales Rep' || role === 'Sales Manager') return 'Branch Account'
-  return role
-}
-
-const REGION_BRANCHES = {
-  'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
-  'North Luzon': ['Ilocos', 'Isabela'],
-  'Vis&Min':     ['Gensan', 'Iloilo', 'Cebu', 'Davao', 'CDO'],
-}
-
-const NAV_CONFIG = [
-  { id: 'dashboard', label: 'Dashboard',         description: '5 KPI overview' },
-  { id: 'database',  label: 'Customer Database',  description: 'Customer records and registry' },
-  { id: 'pipeline',  label: 'Pipeline',           description: 'Opportunity visibility' },
-  { id: 'tasks',     label: 'Tasks',              description: 'Follow-ups and activity log' },
-]
-
-const VIEW_META = {
-  dashboard: { eyebrow: 'In-house CRM prototype', title: 'Dashboard', description: '', searchPlaceholder: 'Search leads, deals, tasks, or companies' },
-  database:  { eyebrow: 'Transaction history', title: 'Customer Database', description: '', searchPlaceholder: 'Search customer name, region, SR, or branch' },
-  pipeline:  { eyebrow: 'Pipeline visibility', title: 'Pipeline', description: '', searchPlaceholder: 'Search deal, company, stage, or owner' },
-  tasks:     { eyebrow: 'Activity tracking', title: 'Tasks', description: '', searchPlaceholder: 'Search tasks, deals, owners, or due dates' },
-}
-
-function shortStageLabel(stage) { return SHORT_STAGE_LABEL[stage] ?? stage }
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -113,9 +79,10 @@ export default function App() {
   const activeDeals  = deals.filter((d) => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost')
   const pipelineValue = activeDeals.reduce((sum, d) => sum + Number(d.value || 0), 0)
   const openTasks    = tasks.filter((t) => t.status !== 'Completed')
-  const dueToday     = openTasks.filter((t) => t.dueDate === CURRENT_DATE)
+    const dueToday     = openTasks.filter((t) => t.dueDate === getTodayISO())
 
-  const currentMonth     = CURRENT_DATE.slice(0, 7)
+
+  const currentMonth     = getTodayISO().slice(0, 7)
   const newLeads         = leads.filter((l) => l.createdAt?.startsWith(currentMonth))
   const convertedLeads   = leads.filter((l) => l.status === 'Converted')
   const conversionRate   = leads.length ? Math.floor((convertedLeads.length / leads.length) * 100) : 0
@@ -128,9 +95,10 @@ export default function App() {
     return { stage, count: stageDeals.length, value: stageDeals.reduce((sum, d) => sum + Number(d.value || 0), 0) }
   })
 
-  const stageBreakdown = stageSummary
-    .map((s) => `${shortStageLabel(s.stage)} ${s.count}`)
+    const stageBreakdown = stageSummary
+    .map((s) => `${shortStageLabel(s.stage, SHORT_STAGE_LABEL)} ${s.count}`)
     .join(' | ')
+
 
   const topKpis = useMemo(() => [
     { label: 'New Customers',   value: newLeads.length.toLocaleString(),    meta: 'Customers added this month',                                   accent: 'accent'  },
