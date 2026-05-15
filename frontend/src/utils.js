@@ -6,13 +6,19 @@ export function formatPercentage(value) {
 export function formatCurrencyCompact(value) {
   const num = Number(value)
   if (isNaN(num)) return 'PHP 0'
-  if (num >= 1000000) {
-    return `PHP ${(num / 1000000).toFixed(1)}M`
+  
+  const formatShort = (v, suffix) => {
+    const val = Math.round(v * 10) / 10
+    // If it's a whole number after rounding, don't show .0
+    const str = val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)
+    return `PHP ${str}${suffix}`
   }
-  if (num >= 1000) {
-    return `PHP ${(num / 1000).toFixed(0)}K`
-  }
-  return `PHP ${num.toLocaleString()}`
+
+  if (num >= 1000000000) return formatShort(num / 1000000000, 'B')
+  if (num >= 1000000) return formatShort(num / 1000000, 'M')
+  if (num >= 1000) return formatShort(num / 1000, 'K')
+  
+  return `PHP ${num.toLocaleString('en-PH')}`
 }
 
 export function formatCurrencyFull(value) {

@@ -109,7 +109,7 @@ export default function CustomersView({
     }
   }
 
-  const activeDealSum = useMemo(() => deals.filter(d => d.companyId === selectedCustomer?.id && !['Closed Won', 'Closed Lost'].includes(d.stage)).length, [deals, selectedCustomer?.id])
+  const activeDealSum = useMemo(() => deals.filter(d => !['Closed Won', 'Closed Lost'].includes(d.stage)).length, [deals])
   const coldCompanyCount = useMemo(() => {
     const deadline = new Date()
     deadline.setDate(deadline.getDate() - 30)
@@ -129,15 +129,27 @@ export default function CustomersView({
     ).length
   }, [customers, deals])
 
-  const winLossRatio = customerDetail?.customer?.winLossRatio ?? '—'
-  const closedWonValue = customerDetail?.customer?.closedWonValue ?? null
-  const closedLostValue = customerDetail?.customer?.closedLostValue ?? null
-
   const customerDeals = useMemo(() => 
     deals
       .filter(d => d.companyId === selectedCustomer?.id)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   , [deals, selectedCustomer?.id])
+
+  const wonCount = useMemo(() =>
+    customerDeals.filter(d => d.stage === 'Closed Won').length, [customerDeals])
+  const lostCount = useMemo(() =>
+    customerDeals.filter(d => d.stage === 'Closed Lost').length, [customerDeals])
+  const closedWonValue = useMemo(() =>
+    customerDeals.filter(d => d.stage === 'Closed Won')
+      .reduce((sum, d) => sum + Number(d.value || 0), 0), [customerDeals])
+  const closedLostValue = useMemo(() =>
+    customerDeals.filter(d => d.stage === 'Closed Lost')
+      .reduce((sum, d) => sum + Number(d.value || 0), 0), [customerDeals])
+  const winLossRatio = useMemo(() => {
+    if (wonCount === 0 && lostCount === 0) return '—'
+    if (lostCount === 0) return wonCount
+    return wonCount / lostCount
+  }, [wonCount, lostCount])
 
   const hasHistory = (customerDeals.length > 0) || 
                      (customerDetail?.auditLogs?.length > 0)
@@ -255,8 +267,8 @@ export default function CustomersView({
 
                     <div className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '24px' }}>
                       <MetricCard label="W/L Ratio" value={Number(winLossRatio) ? Number(winLossRatio).toFixed(2) : winLossRatio} meta="Performance" accent="accent" />
-                      <MetricCard label="Won Value" value={closedWonValue === null ? '-' : formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
-                      <MetricCard label="Lost Value" value={closedLostValue === null ? '-' : formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
+                      <MetricCard label="Won Value" value={wonCount === 0 ? '-' : formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
+                      <MetricCard label="Lost Value" value={lostCount === 0 ? '-' : formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
                     </div>
 
                     <div className="admin-table-wrap" style={{ marginBottom: '24px' }}>
@@ -413,6 +425,9 @@ export default function CustomersView({
       >
         <div style={{ padding: '0 24px 24px' }}>
           <div className="detail-list">
+            {(['Admin', 'Head of Sales', 'Regional Sales Manager'].includes(currentUser?.role)) && (
+              <div><span>SR Owner</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>
+            )}
             <div><span>Region</span><strong>{selectedCustomer?.city || selectedCustomer?.region || '—'}</strong></div>
             <div><span>Branch</span><strong>{selectedCustomer?.branch ?? '—'}</strong></div>
             <div><span>Address</span><strong>{selectedCustomer?.address ?? '—'}</strong></div>
