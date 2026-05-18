@@ -1,8 +1,8 @@
 :root {
   /* ── Border radii ───────────────── */
-  --r-sm:   10px;
-  --r-md:   14px;
-  --r-lg:   20px;
+  --r-sm:   4px;
+  --r-md:   8px;
+  --r-lg:   12px;
   --r-full: 999px;
 
   /* ── Font sizes ─────────────────── */
@@ -36,6 +36,7 @@
   /* ── Colors: Backgrounds ────────── */
   --bg-app:   #0a0e17;
   --bg-card:  #141e2d;
+  --bg-surface: #1e293b;
   --bg-input: rgba(10, 14, 23, 0.7);
 
   /* ── Colors: Text ───────────────── */
@@ -45,9 +46,10 @@
   --text-secondary: #cbd5e1;
 
   /* ── Colors: Border ─────────────── */
-  --border: rgba(255, 255, 255, 0.08);
+  --border:        rgba(255, 255, 255, 0.15);
+  --border-strong: rgba(255, 255, 255, 0.25);
 
   /* ── Shadows ────────────────────── */
-  --shadow-soft:   0 4px 24px rgba(0, 0, 0, 0.25);
-  --shadow-strong: 0 8px 40px rgba(0, 0, 0, 0.45);
+  --shadow-soft:   none;
+  --shadow-strong: none;
 }

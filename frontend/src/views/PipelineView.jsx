@@ -733,6 +733,11 @@ export default function PipelineView({
                           <div className="timeline-content">
                             <div className="timeline-header">
                               <span className="timeline-time">{formatDateLabel(log.changedAt)}</span>
+                              {log.changedBy && (
+                                <span className="timeline-user" style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                                  by {log.changedBy}
+                                </span>
+                              )}
                               <span className="timeline-badge is-audit">Change</span>
                             </div>
                             <div className="timeline-body">

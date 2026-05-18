@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\kramzu\\\\Documents\\\\GitHub\\\\TDT-CRM\" -Name -Recurse | Where-Object {$_ -eq \"package.json\"})"
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\kramzu\\\\Documents\\\\GitHub\\\\TDT-CRM\" -Name -Recurse | Where-Object {$_ -eq \"package.json\"})",
+      "Bash(python -c ' *)",
+      "Bash(Get-ChildItem *)",
+      "Bash(Get-ChildItem)"
     ]
   }
 }
