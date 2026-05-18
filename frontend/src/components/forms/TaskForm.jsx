@@ -33,9 +33,9 @@ function CompanyCombobox({ companies, companyId, onChange }) {
 }
 
 export default function TaskForm({
-  onSubmit, onCancel, deals, companies, teamMembers = [],
+  onSubmit, onCancel, deals, companies, contacts = [], teamMembers = [],
   currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES,
-  dealStages = [], prefilledCompanyId = ''
+  dealStages = [], prefilledCompanyId = '', fetchCompanies, fetchContacts
 }) {
   const [taskForm, setTaskForm] = useState({
     title: '',
@@ -96,9 +96,18 @@ export default function TaskForm({
   }, [taskForm.companyId, companies])
 
   const companyContacts = useMemo(() => {
-    const combined = [...fetchedContacts]
-    return combined.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-  }, [fetchedContacts])
+    const selectedCompany = companies.find(c => c.id === taskForm.companyId || c.name === taskForm.companyId)
+    if (!selectedCompany) return []
+
+    // Filter global contacts prop
+    const existing = contacts.filter(c => c.companyId === selectedCompany.id)
+    
+    // Combine with internal fetched contacts (removing duplicates by ID)
+    const combined = [...existing, ...fetchedContacts]
+    const unique = Array.from(new Map(combined.map(c => [c.id, c])).values())
+
+    return unique.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+  }, [taskForm.companyId, companies, contacts, fetchedContacts])
 
   // Auto-logic when company changes
   useEffect(() => {
@@ -209,9 +218,36 @@ export default function TaskForm({
     }
 
     setContactErrors({})
-    if (!taskForm.companyId) return
+    
+    let companyIdToUse = taskForm.companyId
+    let selectedCompany = companies.find(c => c.id === taskForm.companyId || c.name === taskForm.companyId)
 
-    const selectedCompany = companies.find(c => c.id === taskForm.companyId || c.name === taskForm.companyId)
+    // If company doesn't exist, create it first
+    if (!selectedCompany && taskForm.companyId) {
+      const newCompanyId = createRecordId('company')
+      const companyPayload = {
+        id: newCompanyId,
+        name: taskForm.companyId.trim(),
+        status: 'Active'
+      }
+      try {
+        const cRes = await apiFetch('/api/companies', { method: 'POST', body: JSON.stringify(companyPayload) })
+        if (cRes.ok) {
+          selectedCompany = await cRes.json()
+          companyIdToUse = selectedCompany.id
+          // Update parent form so it knows the new ID
+          setTaskForm(prev => ({ ...prev, companyId: companyIdToUse }))
+          if (fetchCompanies) fetchCompanies()
+        } else {
+          console.error('Failed to create company for new contact')
+          return
+        }
+      } catch (err) {
+        console.error('Error creating company:', err)
+        return
+      }
+    }
+
     if (!selectedCompany) return
 
     // Clean phone number to +63 format if it starts with 09
@@ -238,9 +274,17 @@ export default function TaskForm({
         setSelectedContactIds(prev => [...prev, saved.id])
         setAddingContact(false)
         setNewContact({ name: '', email: '', phone: '', role: '' })
+        if (fetchContacts) fetchContacts()
+      } else if (res.status === 409) {
+        const errData = await res.json()
+        setContactErrors({ global: errData.error || 'Contact already exists' })
+      } else {
+        const errData = await res.json()
+        setContactErrors({ global: errData.error || 'Failed to add contact' })
       }
     } catch (err) {
       console.error('Failed to add contact:', err)
+      setContactErrors({ global: 'Network error occurred' })
     }
   }
 
@@ -298,6 +342,20 @@ export default function TaskForm({
             marginBottom: '16px',
             border: '1px solid var(--border)' 
           }}>
+            {contactErrors.global && (
+              <div style={{ 
+                background: 'rgba(251, 113, 133, 0.1)', 
+                color: 'var(--alert)', 
+                padding: '10px 14px', 
+                borderRadius: '8px', 
+                fontSize: '11px', 
+                fontWeight: 600,
+                marginBottom: '12px',
+                border: '1px solid rgba(251, 113, 133, 0.2)'
+              }}>
+                ⚠ {contactErrors.global}
+              </div>
+            )}
             <div className="form-grid" style={{ margin: 0, gap: '12px' }}>
               <label className="field">
                 <span style={{ display: 'flex', justifyContent: 'space-between' }}>
