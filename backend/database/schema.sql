@@ -128,7 +128,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action      VARCHAR(100),
     old_value   TEXT,
     new_value   TEXT,
-    changed_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+    user_id     INT,
+    changed_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES team(id) ON DELETE SET NULL
 );
 
 -- User seeds are managed by backend bootstrap script for cross-device consistency:
