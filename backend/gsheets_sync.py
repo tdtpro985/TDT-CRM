@@ -3,21 +3,30 @@ import json
 import html
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from database.database import get_db_connection, close_connection
+from .database.database import get_db_connection, close_connection
 from datetime import datetime
 import uuid
 
 # Configuration
 SPREADSHEET_ID = os.getenv('SPREADSHEET_ID', '1Q0PXxC_jY13bEz-RXo8go-g7_9RRqb9Acy5hRXeawAQ')
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-CREDENTIALS_FILE = os.getenv('GOOGLE_CREDENTIALS_JSON_PATH', 'credentials.json')
+
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_DEFAULT_CRED_PATH = os.path.join(_SCRIPT_DIR, 'credentials.json')
+CREDENTIALS_FILE = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON_PATH') or _DEFAULT_CRED_PATH
+
 
 def get_sheets_service():
-    if not os.path.exists(CREDENTIALS_FILE):
-        return None, f"Google credentials not found at {CREDENTIALS_FILE}. Check your .env file."
+    # Final resolution of path: if relative, make it relative to script dir
+    path = CREDENTIALS_FILE
+    if not os.path.isabs(path):
+        path = os.path.join(_SCRIPT_DIR, path)
+
+    if not os.path.exists(path):
+        return None, f"Google credentials not found at {path}. Check your .env file."
     
     try:
-        creds = service_account.Credentials.from_service_account_file(CREDENTIALS_FILE, scopes=SCOPES)
+        creds = service_account.Credentials.from_service_account_file(path, scopes=SCOPES)
         return build('sheets', 'v4', credentials=creds), None
     except Exception as e:
         return None, str(e)
@@ -190,6 +199,10 @@ def sync_to_sheets(lead_data):
     return result
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
+    # Re-evaluate CREDENTIALS_FILE after loading .env
+    CREDENTIALS_FILE = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON_PATH') or _DEFAULT_CRED_PATH
     print("Starting Google Sheets Sync...")
     result = sync_from_sheets()
     if "error" in result:

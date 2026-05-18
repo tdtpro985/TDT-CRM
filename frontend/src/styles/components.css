@@ -881,10 +881,6 @@ section.content-grid--primary {
   box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.18);
 }
 
-.deal-modal__edit-input[type="number"] {
-  -moz-appearance: auto;
-}
-
 
 /* Footer stage selector */
 .deal-modal__footer {
