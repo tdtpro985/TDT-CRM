@@ -46,6 +46,17 @@ def ensure_schema():
             print("Adding missing 'probability_manual' column to 'deals' table...")
             cursor.execute("ALTER TABLE deals ADD COLUMN probability_manual BOOLEAN DEFAULT FALSE")
             conn.commit()
+
+        # Ensure user_id column exists in audit_log table
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'audit_log' AND COLUMN_NAME = 'user_id'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'user_id' column to 'audit_log' table...")
+            cursor.execute("ALTER TABLE audit_log ADD COLUMN user_id INT NULL")
+            cursor.execute("ALTER TABLE audit_log ADD FOREIGN KEY (user_id) REFERENCES team(id) ON DELETE SET NULL")
+            conn.commit()
     except Exception as e:
         print(f"Error during schema verification: {e}")
     finally:
@@ -176,6 +187,7 @@ ROLE_RANK = {
     'Head of Sales': 80,
     'Regional Sales Manager': 60,
     'Sales Representative': 40,
+    'Sales Rep': 40,
 }
 
 
@@ -188,11 +200,12 @@ def can_assign(claims, current_user_id, target_id, target_role):
     if str(target_id) == str(current_user_id):
         return True
     
-    user_rank = ROLE_RANK.get(claims.get('role', ''), 0)
+    user_role = claims.get('role', '')
+    user_rank = ROLE_RANK.get(user_role, 0)
     target_rank = ROLE_RANK.get(target_role, 0)
     
     # Admin can assign to anyone
-    if claims.get('role') == 'Admin':
+    if user_role == 'Admin':
         return True
     
     return user_rank > target_rank
@@ -202,14 +215,14 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
     """
     Returns (where_parts, restrict_owner, params) for role-based data filtering.
     where_parts: SQL fragment list using `col` for branch matching.
-    restrict_owner: True only for Sales Representative — callers add own-alias owner_id filter.
+    restrict_owner: True for Sales Rep/Representative — callers add own-alias owner_id filter.
     params: positional values for where_parts.
     """
     role        = claims.get('role', 'Sales Rep')
     user_region = claims.get('region', '')
     user_branch = claims.get('branch', '')
 
-    if role == 'Sales Representative':
+    if role in ('Sales Representative', 'Sales Rep'):
         return ([f'{col} = %s'], True, [normalize_branch(user_branch)])
 
     if role == 'Regional Sales Manager':
@@ -424,7 +437,7 @@ def get_customers():
         where_clauses = ["1=1"] + list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_clauses.append("l.owner_id = %s")
+            where_clauses.append("(l.owner_id = %s OR l.owner_id IS NULL)")
             params.append(user_id)
 
         if where_clauses:
@@ -521,12 +534,13 @@ def get_customer_detail(customer_id):
             """, tuple(deal_ids))
             activities = rows_to_list(cursor)
             
-        # 4. Fetch contacts for this company
+        # 4. Fetch contacts for this "Account" (all companies sharing the same customer name)
         cursor.execute(
-            """SELECT id, name, role, email, phone
-               FROM contacts
-               WHERE company_id = %s
-               ORDER BY name""",
+            """SELECT c.id, c.name, c.role, c.email, c.phone, c.company_id AS companyId
+               FROM contacts c
+               JOIN leads l ON c.company_id = l.id
+               WHERE l.customer_name = (SELECT customer_name FROM leads WHERE id = %s)
+               ORDER BY c.name""",
             (customer_id,)
         )
         contacts = rows_to_list(cursor)
@@ -580,9 +594,9 @@ def get_team():
         user_region = claims.get('region', '')
         user_branch = claims.get('branch', '')
 
-        if role == 'Sales Representative':
+        if role in ('Sales Representative', 'Sales Rep'):
             cursor.execute(
-                'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role = "Sales Representative" ORDER BY name',
+                'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ("Sales Representative", "Sales Rep") ORDER BY name',
                 (user_branch,),
             )
         elif role == 'Regional Sales Manager':
@@ -590,24 +604,25 @@ def get_team():
             req = normalize_branch(branch)
             allowed_normalized = [normalize_branch(b) for b in region_branches]
             # RSM can only assign to SR
-            target_role = 'Sales Representative'
+            target_roles = ('Sales Representative', 'Sales Rep')
+            ph_roles = ', '.join(['%s'] * len(target_roles))
             if req and req in allowed_normalized:
                 match = next((b for b in region_branches if normalize_branch(b) == req), None)
                 cursor.execute(
-                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role = %s ORDER BY name',
-                    (match, target_role),
+                    f'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ({ph_roles}) ORDER BY name',
+                    (match, *target_roles),
                 )
             elif region_branches:
-                ph = ', '.join(['%s'] * len(region_branches))
+                ph_branches = ', '.join(['%s'] * len(region_branches))
                 cursor.execute(
-                    f'SELECT id, name, role, branch, region FROM team WHERE branch IN ({ph}) AND role = %s ORDER BY name',
-                    tuple(region_branches + [target_role]),
+                    f'SELECT id, name, role, branch, region FROM team WHERE branch IN ({ph_branches}) AND role IN ({ph_roles}) ORDER BY name',
+                    tuple(region_branches + list(target_roles)),
                 )
             else:
                 cursor.execute('SELECT id, name, role, branch, region FROM team WHERE 1=0')
         elif role == 'Head of Sales':
             # HoS can assign to RSM and SR
-            target_roles = ('Regional Sales Manager', 'Sales Representative')
+            target_roles = ('Regional Sales Manager', 'Sales Representative', 'Sales Rep')
             ph_roles = ', '.join(['%s'] * len(target_roles))
             if branch and branch != 'Headquarters':
                 cursor.execute(
@@ -648,7 +663,7 @@ def get_companies():
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('c.owner_id = %s')
+            where_parts.append('(l.owner_id = %s OR l.owner_id IS NULL)')
             params.append(user_id)
         where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
         cursor.execute(f'''
@@ -677,21 +692,56 @@ def create_company():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+        user_id = get_jwt_identity()
+        claims = get_jwt()
+        
+        # Default owner and branch from current user if not provided
+        owner_id = data.get('ownerId') or user_id
+        
+        # Fetch branch from team if not provided
+        branch = data.get('branch')
+        region = data.get('region')
+        if not branch:
+            cursor.execute('SELECT branch, region FROM team WHERE id = %s', (user_id,))
+            user_row = cursor.fetchone()
+            if user_row:
+                branch = user_row[0]
+                region = region or user_row[1]
+
+        # 1. Insert into leads (Master record)
+        cursor.execute(
+            """INSERT INTO leads (id, customer_name, branch, region, owner_id, status)
+               VALUES (%s, %s, %s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE customer_name = VALUES(customer_name)""",
+            (data['id'], data['name'], branch, region, owner_id, 'New')
+        )
+
+        # 2. Insert into companies
         cursor.execute(
             """INSERT INTO companies (id, name, industry, website, city, owner_id, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+               VALUES (%s, %s, %s, %s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE name = VALUES(name), owner_id = VALUES(owner_id)""",
             (
                 data['id'],
                 data['name'],
                 data.get('industry'),
                 data.get('website'),
                 data.get('city'),
-                data.get('ownerId'),
+                owner_id,
                 data.get('status', 'Active'),
             ),
         )
         conn.commit()
-        return jsonify({'message': 'Company created', 'id': data['id']}), 201
+        return jsonify({
+            'id': data['id'],
+            'name': data['name'],
+            'industry': data.get('industry'),
+            'website': data.get('website'),
+            'city': data.get('city'),
+            'ownerId': owner_id,
+            'branch': branch,
+            'status': data.get('status', 'Active')
+        }), 201
     finally:
         close_connection(conn)
 
@@ -714,7 +764,7 @@ def get_contacts():
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('c.owner_id = %s')
+            where_parts.append('(l.owner_id = %s OR l.owner_id IS NULL)')
             params.append(user_id)
         where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
         cursor.execute(f'''
@@ -745,24 +795,87 @@ def create_contact():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+        user_id = get_jwt_identity()
+        owner_id = data.get('ownerId') or user_id
+        
+        # Strict Duplicate Check: Name + (Email OR Phone)
+        name = data['name'].strip()
+        email = data.get('email', '').strip() or None
+        phone = data.get('phone', '').strip() or None
+        
+        check_sql = "SELECT id, name FROM contacts WHERE LOWER(TRIM(name)) = %s AND ("
+        check_params = [name.lower()]
+        
+        conditions = []
+        if email:
+            conditions.append("email = %s")
+            check_params.append(email)
+        if phone:
+            conditions.append("phone = %s")
+            check_params.append(phone)
+            
+        if not conditions:
+            # If neither email nor phone provided (already handled by validation but safe to check)
+            pass
+        else:
+            check_sql += " OR ".join(conditions) + ")"
+            cursor.execute(check_sql, tuple(check_params))
+            existing = cursor.fetchone()
+            if existing:
+                return jsonify({'error': f'A contact named "{existing[1]}" already exists with this email/phone.'}), 409
+
+        # Insert into contacts with UPSERT capability
         cursor.execute(
-            """INSERT INTO contacts (id, name, company_id, role, owner_id, email, phone, last_touch, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO contacts (id, name, company_id, role, owner_id, email, phone, last_touch, status, created_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE 
+                name = VALUES(name), 
+                company_id = VALUES(company_id), 
+                role = VALUES(role),
+                email = VALUES(email),
+                phone = VALUES(phone),
+                status = VALUES(status)""",
             (
                 data['id'],
                 data['name'],
                 data.get('companyId'),
                 data.get('role'),
-                data.get('ownerId'),
+                owner_id,
                 data.get('email'),
                 data.get('phone'),
                 data.get('lastTouch') or None,
                 data.get('status', 'Active'),
+                date.today()
             ),
         )
-        log_audit(conn, 'contact', data['id'], 'contact_created', None, data['name'], get_jwt_identity())
+        
+        # Optional: Sync primary contact number back to lead if lead's number is missing
+        if data.get('companyId') and data.get('phone'):
+            # Find the customer name to apply this to "all accounts" (all leads with the same name)
+            cursor.execute("SELECT customer_name FROM leads WHERE id = %s", (data['companyId'],))
+            name_row = cursor.fetchone()
+            if name_row:
+                cust_name = name_row[0]
+                cursor.execute(
+                    "UPDATE leads SET contact_num = %s WHERE customer_name = %s AND (contact_num IS NULL OR contact_num = '')",
+                    (data['phone'], cust_name)
+                )
+        
+        log_audit(conn, 'contact', data['id'], 'contact_created', None, data['name'], user_id)
         conn.commit()
-        return jsonify({'message': 'Contact created', 'id': data['id']}), 201
+
+        return jsonify({
+            'id': data['id'],
+            'name': data['name'],
+            'companyId': data.get('companyId'),
+            'role': data.get('role'),
+            'ownerId': owner_id,
+            'email': data.get('email'),
+            'phone': data.get('phone'),
+            'status': data.get('status', 'Active'),
+            'createdAt': date.today().isoformat(),
+            'lastTouch': data.get('lastTouch')
+        }), 201
     finally:
         close_connection(conn)
 
@@ -793,6 +906,29 @@ def update_contact(contact_id):
             return jsonify({'error': 'Contact not found'}), 404
 
         old_name, old_role, old_email, old_phone = row
+
+        # Duplicate check if name/email/phone changed
+        if name != old_name or email != old_email or phone != old_phone:
+            check_name = (name or old_name).strip().lower()
+            check_email = (email or old_email).strip() or None
+            check_phone = (phone or old_phone).strip() or None
+
+            check_sql = "SELECT id, name FROM contacts WHERE id != %s AND LOWER(TRIM(name)) = %s AND ("
+            check_params = [contact_id, check_name]
+            conditions = []
+            if check_email:
+                conditions.append("email = %s")
+                check_params.append(check_email)
+            if check_phone:
+                conditions.append("phone = %s")
+                check_params.append(check_phone)
+            
+            if conditions:
+                check_sql += " OR ".join(conditions) + ")"
+                cursor.execute(check_sql, tuple(check_params))
+                existing = cursor.fetchone()
+                if existing:
+                    return jsonify({'error': f'A contact named "{existing[1]}" already exists with this email/phone.'}), 409
 
         updates = []
         params = []
@@ -857,9 +993,12 @@ def get_leads():
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('l.owner_id = %s')
+            where_parts.append('(l.owner_id = %s OR l.owner_id IS NULL)')
             params.append(user_id)
         where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+
+
+
         cursor.execute(f'''
             SELECT l.id, l.customer_name AS customerName, l.contact_num AS contactNum,
                    l.address, l.region, t.name AS sr, l.owner_id AS ownerId, l.branch, l.status, l.created_at AS createdAt
@@ -941,15 +1080,27 @@ def create_lead():
             (lead_id, customer_name, data.get('region'), owner_id, 'Active')
         )
         
-        # 3. Automatically create a Contact record
+        # 3. Automatically create a Contact record (with duplicate prevention)
         import uuid
         contact_id = str(uuid.uuid4())
-        cursor.execute(
-            """INSERT INTO contacts (id, name, company_id, owner_id, phone, status)
-               VALUES (%s, %s, %s, %s, %s, %s)""",
-            (contact_id, customer_name, lead_id, owner_id, contact_num, 'Active')
-        )
+        
+        # Global duplicate check: Name + Phone
+        contact_exists = False
+        if contact_num:
+            cursor.execute(
+                "SELECT id FROM contacts WHERE LOWER(TRIM(name)) = %s AND TRIM(phone) = %s",
+                (customer_name.lower().strip(), contact_num.strip())
+            )
+            if cursor.fetchone():
+                contact_exists = True
 
+        if not contact_exists:
+            cursor.execute(
+                """INSERT INTO contacts (id, name, company_id, owner_id, phone, status)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (contact_id, customer_name, lead_id, owner_id, contact_num, 'Active')
+            )
+        
         # 4. Add the contact to the deal if it's created via pipeline sync (not applicable here, but good for consistency)
         # For now, we just ensure the join table exists for many-to-many.
         
@@ -1062,8 +1213,8 @@ def get_deals():
         where_parts = list(scope_parts) + ['l.branch IS NOT NULL']
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('d.owner_id = %s')
-            params.append(user_id)
+            where_parts.append('(d.owner_id = %s OR (d.owner_id IS NULL AND (l.owner_id = %s OR l.owner_id IS NULL)))')
+            params.extend([user_id, user_id])
         where_sql = 'WHERE ' + ' AND '.join(where_parts)
         cursor.execute(f'''
             SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
@@ -1213,12 +1364,12 @@ def update_deal_stage(deal_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability, probability_manual FROM deals WHERE id = %s', (deal_id,))
+        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability, probability_manual, lost_reason FROM deals WHERE id = %s', (deal_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'error': 'Deal not found'}), 404
 
-        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability, old_probability_manual = row
+        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability, old_probability_manual, old_lost_reason = row
 
         claims = get_jwt()
         user_id = get_jwt_identity()
@@ -1235,7 +1386,7 @@ def update_deal_stage(deal_id):
             updates.append('probability_manual = TRUE')
             log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability), get_jwt_identity())
         
-        if new_stage:
+        if new_stage and new_stage != old_stage:
             if probability is not None:
                 # Both probability and stage sent — stage updated, probability already set above
                 updates.append('stage = %s')
@@ -1264,20 +1415,21 @@ def update_deal_stage(deal_id):
 
         if data.get('ownerId'):
             new_owner_id = data.get('ownerId')
-            cursor.execute('SELECT role FROM team WHERE id = %s', (new_owner_id,))
-            target_row = cursor.fetchone()
-            if target_row and not can_assign(claims, user_id, new_owner_id, target_row[0]):
-                return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({target_row[0]})'}), 403
+            if str(new_owner_id) != str(old_owner_id):
+                cursor.execute('SELECT name, role FROM team WHERE id = %s', (new_owner_id,))
+                target_row = cursor.fetchone()
+                if target_row and not can_assign(claims, user_id, new_owner_id, target_row[1]):
+                    return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({target_row[1]})'}), 403
 
-            updates.append('owner_id = %s')
-            params.append(new_owner_id)
-            log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(new_owner_id), get_jwt_identity())
+                updates.append('owner_id = %s')
+                params.append(new_owner_id)
+                log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(new_owner_id), get_jwt_identity())
 
         lost_reason = data.get('lostReason')
-        if new_stage == 'Closed Lost' and lost_reason:
+        if new_stage == 'Closed Lost' and lost_reason and lost_reason != old_lost_reason:
             updates.append('lost_reason = %s')
             params.append(lost_reason)
-            log_audit(conn, 'deal', deal_id, 'lost_reason', None, lost_reason, get_jwt_identity())
+            log_audit(conn, 'deal', deal_id, 'lost_reason', old_lost_reason, lost_reason, get_jwt_identity())
 
         if not updates:
             return jsonify({'message': 'No updates provided'}), 400
@@ -1365,7 +1517,7 @@ def get_activities():
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('a.owner_id = %s')
+            where_parts.append('(a.owner_id = %s OR a.owner_id IS NULL)')
             params.append(user_id)
         where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else 'WHERE 1=1'
         cursor.execute(f'''
@@ -1460,22 +1612,18 @@ def update_activity_status(activity_id):
             return jsonify({'error': 'Activity not found'}), 404
 
         old_status = row[0]
-        cursor.execute('UPDATE activities SET status = %s WHERE id = %s', (new_status, activity_id))
-        log_audit(conn, 'activity', activity_id, 'status_change', old_status, new_status, get_jwt_identity())
+        if new_status != old_status:
+            cursor.execute('UPDATE activities SET status = %s WHERE id = %s', (new_status, activity_id))
+            log_audit(conn, 'activity', activity_id, 'status_change', old_status, new_status, get_jwt_identity())
 
-        # Trigger deal lastTouch update by logging a deal audit entry
-        cursor.execute('SELECT deal_id, subject FROM activities WHERE id = %s', (activity_id,))
-        d_row = cursor.fetchone()
-        deal_id = d_row[0] if d_row else None
-        task_name = d_row[1] if d_row else 'task'
+            # Trigger deal lastTouch update by logging a deal audit entry
+            cursor.execute('SELECT deal_id, subject FROM activities WHERE id = %s', (activity_id,))
+            d_row = cursor.fetchone()
+            deal_id = d_row[0] if d_row else None
+            task_name = d_row[1] if d_row else 'task'
 
-        if deal_id:
-            # We use task_name as the entity_type or pass it in notes if schema allowed, 
-            # but since we want it on the frontend, let's include it in old_value or similar?
-            # Actually, the cleanest way without schema change is to put it in a specific format in the audit log.
-            # However, the frontend currently expects old_value/new_value to be the statuses.
-            # Let's change the action name or similar? No, let's just use the task name.
-            log_audit(conn, 'deal', deal_id, f'task_status:{task_name}', old_status, new_status, get_jwt_identity())
+            if deal_id:
+                log_audit(conn, 'deal', deal_id, f'task_status:{task_name}', old_status, new_status, get_jwt_identity())
 
         conn.commit()
         return jsonify({'message': 'Activity status updated', 'dealId': deal_id})
@@ -1530,14 +1678,14 @@ def get_dashboard():
         deal_where = list(scope_parts) + ['l.branch IS NOT NULL']
         deal_params = list(scope_params)
         if restrict_owner:
-            deal_where.append('d.owner_id = %s')
-            deal_params.append(user_id)
+            deal_where.append('(d.owner_id = %s OR (d.owner_id IS NULL AND (l.owner_id = %s OR l.owner_id IS NULL)))')
+            deal_params.extend([user_id, user_id])
         deal_where_sql = 'WHERE ' + ' AND '.join(deal_where)
 
         lead_where = ["DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"] + list(direct_parts)
         lead_params = list(direct_params)
         if restrict_owner:
-            lead_where.append('owner_id = %s')
+            lead_where.append('(owner_id = %s OR owner_id IS NULL)')
             lead_params.append(user_id)
 
         cursor.execute(
@@ -1565,7 +1713,7 @@ def get_dashboard():
         total_leads_where = ['1=1'] + list(direct_parts)
         total_leads_params = list(direct_params)
         if restrict_owner:
-            total_leads_where.append('owner_id = %s')
+            total_leads_where.append('(owner_id = %s OR owner_id IS NULL)')
             total_leads_params.append(user_id)
 
         cursor.execute(
@@ -2008,7 +2156,9 @@ def add_deal_contact(deal_id):
     try:
         cursor = conn.cursor()
         cursor.execute(
-            'INSERT INTO deal_contacts (deal_id, contact_id, role) VALUES (%s, %s, %s)',
+            '''INSERT INTO deal_contacts (deal_id, contact_id, role) 
+               VALUES (%s, %s, %s)
+               ON DUPLICATE KEY UPDATE role = VALUES(role)''',
             (deal_id, contact_id, role),
         )
         conn.commit()
