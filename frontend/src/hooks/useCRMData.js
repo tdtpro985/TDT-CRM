@@ -440,6 +440,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       fetchTasks()
       fetchDeals()
       fetchCompanies()
+      fetchCustomers()
     } catch {
       setNotice(`${newTask.title} was added locally — backend not reachable.`)
     }
@@ -481,6 +482,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         throw new Error(errData.error || `Server error: ${res.status}`)
       }
       fetchDeals()
+      fetchCustomers()
       setNotice('Pipeline stage updated successfully.')
     } catch (err) {
       console.error('updateDealStage failed:', err)
@@ -511,6 +513,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         throw new Error(errData.error || `Server error: ${res.status}`)
       }
       fetchDeals()
+      fetchCustomers()
       setNotice('Deal updated successfully.')
     } catch (err) {
       console.error('updateDeal failed:', err)
