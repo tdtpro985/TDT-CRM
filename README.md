@@ -40,29 +40,14 @@ The application is built with a modern, decoupled architecture:
 ### Quick Start (Windows)
 Double-click `START-HERE.bat` at the repo root. It opens two terminal windows — one for the backend and one for the frontend.
 
-Default login credentials:
-- **Admin**: `admin.tdtpowersteel` / `TDTpowersteel2024`
-- **Branch (SR)**: `manila.tdtpowersteel` / `TDTpowersteel2024`
+Default login credentials are provided separately by your administrator.
 
 ### Manual Setup
 
 #### 1. Environment & Database
 
 - Ensure a MySQL server is running.
-- Create `backend/.env` with the following variables:
-  ```ini
-  DB_HOST=localhost
-  DB_USER=your_username
-  DB_PASSWORD=your_password
-  DB_NAME=tdt_crm
-  JWT_SECRET_KEY=generate_a_random_string
-  FLASK_PORT=5001
-  FLASK_DEBUG=True
-  FRONTEND_URL=http://localhost:5173
-  DEFAULT_BRANCH_PASSWORD=TDTpowersteel2024
-  DEFAULT_ADMIN_PASSWORD=TDTpowersteel2024
-  GOOGLE_CREDENTIALS_JSON_PATH=credentials.json
-  ```
+- Create `backend/.env` from the provided template — ask your administrator for the correct values.
   > We use `FLASK_PORT=5001` to avoid common conflicts on port 5000.
 
 #### 2. Database Initialization (run from `backend/`)
