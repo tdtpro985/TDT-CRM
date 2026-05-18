@@ -85,7 +85,7 @@ export default function LoginPage({ onLogin }) {
 
       <div className="login-form-panel">
         <div className="login-card fade-in">
-          <div className="login-id-badge">CRM-ST-2024</div>
+          <div className="login-id-badge">CRM-TDT-2024</div>
           <div className="login-brand">
             <img src="/Logo_tdt.png" alt="TDT Powersteel" className="login-logo" />
             <p className="login-subtitle">Sales CRM — Branch Portal</p>
