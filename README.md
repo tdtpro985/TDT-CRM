@@ -1,99 +1,139 @@
 # TDT Powersteel CRM
-A fully functional Customer Relationship Management (CRM) system designed and tailored for the TDT Powersteel sales team. 
+A fully functional Customer Relationship Management (CRM) system designed and tailored for the TDT Powersteel sales team.
 This project empowers the sales organization by providing a unified workspace to track leads, manage pipeline deals, log daily activities, and analyze performance through real-time dashboards.
+
 ---
+
 ## Architecture & Tech Stack
+
 The application is built with a modern, decoupled architecture:
+
 ### Frontend
-- **Framework**: React 18 + Vite
-- **Styling**: Custom CSS mapped to the TDT Powersteel brand palette (dark mode with high-contrast accent colors).
-- **Structure**: Highly modular, component-driven design located in `frontend/src/`
-  - `components/`: Reusable UI elements (`Panel`, `MetricCard`, `ReportChart`, `EmptyState`).
-  - `pages/`: Dedicated views for Dashboard, Deals, Contacts, Activities, and Reports.
-  - `utils.js` / `constants.js`: Helper functions and standardized dictionaries.
+- **Framework**: React 19 + Vite
+- **Routing**: React Router v7
+- **Styling**: Custom CSS with dark mode and orange accent palette (TDT brand)
+- **Structure**: Component-driven design in `frontend/src/`
+  - `views/`: Page-level components (Dashboard, Pipeline, Customers, Tasks, Admin)
+  - `components/`: Reusable UI elements (`Panel`, `MetricCard`, `Modal`, `EmptyState`, forms)
+  - `hooks/useCRMData.js`: Central data-fetching hook — all API state lives here
+  - `utils.js` / `constants.js`: Formatting helpers, stage definitions, branch/region mapping
+
 ### Backend
-- **Framework**: Python / Flask (`backend/app.py`)
-- **Database**: MySQL
-- **API**: RESTful JSON endpoints (GET, POST, PUT) handling all database CRUD operations.
-- **Environment Management**: `python-dotenv` for managing database credentials securely.
+- **Framework**: Python / Flask (`backend/app.py` — all routes and logic in one file)
+- **Database**: MySQL; `backend/database/schema.sql` is the source of truth
+- **Auth**: JWT (flask-jwt-extended), 8-hour tokens stored in `sessionStorage`
+- **API**: RESTful JSON endpoints with role-based access control
+- **Rate Limiting**: 1000/day, 200/hour globally; 5/min on login, 2/min on Google Sheets sync
+
+### Role Hierarchy
+| Role | Scope |
+|------|-------|
+| Admin | All branches |
+| Head of Sales | All branches/regions |
+| Regional Sales Manager | Own region's branches |
+| Sales Representative | Own branch only |
+
 ---
+
 ## Getting Started
-Follow these steps to run the CRM locally on your machine.
-### 1. Database & Secret Environment Setup
-- Ensure you have a MySQL server running.
-- Copy `.env.example` to `.env` and set all required variables:
-  ```ini
-  DB_HOST=localhost
-  DB_USER=your_username
-  DB_PASSWORD=your_password
-  DB_NAME=tdt_crm
-  JWT_SECRET_KEY=generate_a_random_string
-  FLASK_PORT=5001
-  FLASK_DEBUG=True
-  ```
-- **Port Convention**: We use `FLASK_PORT=5001` to avoid common Windows/macOS conflicts on port 5000.
-- **Security**: Never commit your `.env` or any real secret credentials to version control.
 
-#### Database Initialization
-1. Navigate to the `backend/` directory.
-2. Run the schema rebuild script to create the authoritative tables:
-   ```bash
-   python -m database.rebuild_db
-   ```
-   *Note: This creates the tables based on `backend/database/schema.sql`.*
-3. Ensure login users are created consistently:
-   ```bash
-   python -m database.bootstrap_users
-   ```
-   - To reset default passwords: `python -m database.bootstrap_users --reset-passwords`
+### Quick Start (Windows)
+Double-click `START-HERE.bat` at the repo root. It opens two terminal windows — one for the backend and one for the frontend.
 
-4. Sync Pipeline Data (The "Agos" Flow):
-   ```bash
-   python -m database.sync_pipeline
-   ```
-   *Note: This script tops up your Kanban board to 20 active deals by pulling from your latest leads. Run this whenever you close deals and want the next batch to flow in.*
-   > **⚠️ Flagged**: Running this will convert "New" leads into deals and create associated follow-up tasks. On databases with many unprocessed leads, this can create hundreds of auto-generated entries. Only run if you intentionally want to populate the pipeline. Skip this step during initial setup if you want to keep lead data untouched.
+Default login credentials are provided separately by your administrator.
 
-### 2. Start the Backend Server (Flask)
+### Manual Setup
+
+#### 1. Environment & Database
+
+- Ensure a MySQL server is running.
+- Create `backend/.env` from the provided template — ask your administrator for the correct values.
+  > We use `FLASK_PORT=5001` to avoid common conflicts on port 5000.
+
+#### 2. Database Initialization (run from `backend/`)
+
+```bash
+# Create all tables from schema.sql
+python -m database.rebuild_db
+
+# Create default branch and admin users
+python -m database.bootstrap_users
+
+# (Optional) Reset passwords for existing default users
+python -m database.bootstrap_users --reset-passwords
+```
+
+#### 3. Populate the Pipeline — "Agos" Flow (optional)
+
+```bash
+python -m database.sync_pipeline
+```
+
+> **⚠️ Warning**: This converts "New" leads into deals and auto-creates follow-up tasks. On databases with many unprocessed leads this can generate hundreds of entries. Only run intentionally.
+
+#### 4. Start the Backend
+
 ```bash
 cd backend
 python app.py
 ```
-The server will run on http://127.0.0.1:5001.
 
-### 3. Start the Frontend Server (Vite)
+Backend runs at `http://127.0.0.1:5001`.
+
+#### 5. Start the Frontend
+
 ```bash
-cd frontend
+# From the repo root
 npm install
 npm run dev
 ```
-*Vite will start the local server on http://localhost:5173 and proxy `/api` requests to port 5001.*
+
+Frontend runs at `http://localhost:5173`. Vite proxies all `/api` requests to port 5001.
 
 ---
 
 ## Google Sheets Synchronization
 
-The CRM can automatically sync data with a centralized Google Sheet. For this to work on your local machine:
+The CRM syncs lead data with a centralized Google Sheet. To enable it:
 
-1. **Obtain Credentials**: Ask your administrator for the `credentials.json` file.
+1. **Obtain Credentials**: Ask your administrator for the `credentials.json` service account file.
 2. **Place the File**: Save `credentials.json` in the `backend/` directory.
-3. **Configure .env**: Ensure your `backend/.env` file contains the path to the credentials:
-   ```ini
-   GOOGLE_CREDENTIALS_JSON_PATH=credentials.json
-   ```
-4. **Auto-Sync**: The system will now automatically sync new leads to Google Sheets in the background.
+3. **Configure `.env`**: Ensure `GOOGLE_CREDENTIALS_JSON_PATH=credentials.json` is set.
+4. **Trigger Sync**: Hit `POST /api/sync/gsheets` (Admin only) or create a lead — sync runs automatically in the background.
 
-Core Features
-- Dashboard: Live aggregate views on Weighted Forecast, Revenue Readiness, and Team Activity.
-- Sales Workspace: Customizable reporting layouts to track specific KPIs like Deal closed vs goal and Team activity totals.
-- Deals Pipeline: Track opportunity values, close probabilities, and pipeline stages (Lead → Qualified → Proposal → Negotiation → Closed Won).
-- Contact Directory: Consolidate client owners and statuses.
-- Activity Logging: Track phone calls, quotes, meetings, and site visits to hold sales reps accountable.
- Development & Maintenance
-This CRM was originally developed as a mock frontend and progressively refactored into a full-stack application. The frontend was explicitly decoupled into single-responsibility components, enabling easy extension without risking layout breakage.
 ---
-Security Note
-- Never commit .env or any file with secrets or credentials. Refer to .env.example only.
+
+## Core Features
+
+- **Dashboard**: Live KPIs — weighted forecast, active deals, conversion rate, pipeline value, and deals by stage.
+- **Sales Pipeline**: Kanban and table view of deals across stages: Qualified → New Opp → Proposal → Negotiation → Closed Won/Lost. Tracks value, probability, and close date.
+- **Customer Database**: Company and contact records with full deal and activity history.
+- **Activity Logging**: Tasks and follow-ups linked to deals. Tracks calls, quotes, meetings, and site visits with urgency scoring.
+- **Admin Panel**: User management, branch assignment, org-wide analytics, and Google Sheets sync trigger.
+- **Audit Trail**: Every entity change is logged with old/new values, timestamp, and the user who made the change.
+
+---
+
+## Development & Maintenance
+
+This CRM started as a mock frontend and was progressively refactored into a full-stack application. The frontend uses single-responsibility components to allow safe extension without layout breakage.
+
+**Useful commands:**
+
+```bash
+npm run lint              # ESLint check — run after every frontend change
+npm run build             # Production build
+
+# Health check
+py -c "import requests; print(requests.get('http://127.0.0.1:5001/api/health').status_code)"
+```
+
+---
+
+## Security Note
+
+- Never commit `.env`, `credentials.json`, or any file containing secrets.
 - All sensitive configuration must reside in environment variables.
-- Audit your repo before pushing to ensure no sensitive files or secrets are included.
+- Audit your repo before pushing to ensure no sensitive files are included.
+
 ---

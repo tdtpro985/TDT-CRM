@@ -48,14 +48,19 @@
     linear-gradient(160deg, rgba(255,255,255,0.03) 0%, transparent 60%),
     var(--bg-card);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-strong);
 }
 
 .sidebar::-webkit-scrollbar { display: none; }
 
 .sidebar.is-open {
   transform: translateX(0);
-  box-shadow: 4px 0 32px rgba(0,0,0,0.5);
+}
+
+.sidebar::-webkit-scrollbar { display: none; }
+
+.sidebar.is-open {
+  transform: translateX(0);
+  
 }
 
 /* ── 2. Sidebar & Brand ─────────────────────────────────────── */
@@ -182,14 +187,12 @@
   color: var(--text);
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .nav-item:hover:not(.is-active),
 .nav-item:focus-visible:not(.is-active) {
   background: rgba(255,255,255,0.06);
-  border-color: rgba(255,255,255,0.14);
-  box-shadow: 0 0 0 1px rgba(255,255,255,0.08);
   border-color: rgba(255, 152, 0, 0.34);
   background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
   outline: none;
@@ -396,17 +399,21 @@
   display: block;
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.55);
-  backdrop-filter: blur(2px);
   z-index: 299;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s ease;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .sidebar-overlay.is-open {
   opacity: 1;
   pointer-events: auto;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .hamburger-btn {

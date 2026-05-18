@@ -70,7 +70,7 @@ export default function App() {
 
   const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
   const { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch, activeRegion } = data
-  const { setActiveBranch, setActiveRegion } = actions
+  const { setActiveBranch, setActiveRegion, fetchCompanies, fetchContacts } = actions
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
@@ -279,6 +279,8 @@ export default function App() {
             dealStages={DEAL_STAGES}
             companies={companies}
             onCreateTask={handleCreateTask}
+            fetchCompanies={fetchCompanies}
+            fetchContacts={fetchContacts}
             showCustomerForm={showLeadForm}
             setShowCustomerForm={setShowLeadForm}
             currentUser={currentUser}
@@ -550,6 +552,8 @@ export default function App() {
           dealStages={DEAL_STAGES}
           currentUser={currentUser}
           fetchDealContacts={fetchDealContacts}
+          fetchCompanies={fetchCompanies}
+          fetchContacts={fetchContacts}
           onCancel={() => setShowTaskForm(false)}
           onSubmit={(form) => {
             handleCreateTask(form)

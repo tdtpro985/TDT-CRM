@@ -27,6 +27,8 @@ export default function CustomersView({
   setShowCustomerForm,
   onCreateCustomer,
   onCreateTask,
+  fetchCompanies,
+  fetchContacts,
   currentUser,
   page,
   setPage
@@ -92,8 +94,15 @@ export default function CustomersView({
   }, [selectedCustomer?.id])
 
   useEffect(() => {
-    setCompanyContacts(customerDetail?.contacts || [])
-  }, [customerDetail?.contacts])
+    const globalMatches = contacts.filter(c => c.companyId === selectedCustomer?.id)
+    const detailContacts = customerDetail?.contacts || []
+    
+    // Merge: Detail contacts from API take priority, but global matches fill the gap immediately
+    const combined = [...detailContacts, ...globalMatches]
+    const unique = Array.from(new Map(combined.map(c => [c.id, c])).values())
+    
+    setCompanyContacts(unique.sort((a, b) => (a.name || '').localeCompare(b.name || '')))
+  }, [customerDetail?.contacts, selectedCustomer?.id, contacts])
 
   async function fetchDetail(id) {
     setLoadingDetail(true)
@@ -151,8 +160,9 @@ export default function CustomersView({
     return wonCount / lostCount
   }, [wonCount, lostCount])
 
-  const hasHistory = (customerDeals.length > 0) || 
-                     (customerDetail?.auditLogs?.length > 0)
+  const hasActiveDeal = useMemo(() => 
+    customerDeals.some(d => !['Closed Won', 'Closed Lost'].includes(d.stage))
+  , [customerDeals])
 
   const paginatedCustomers = getPaginatedData(filteredCustomers, page, ITEMS_PER_PAGE)
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE)
@@ -238,7 +248,7 @@ export default function CustomersView({
               <div className="customer-detail-view">
                 {loadingDetail ? (
                   <p style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading records...</p>
-                ) : !hasHistory ? (
+                ) : !hasActiveDeal ? (
                   <div style={{ 
                     display: 'flex', 
                     flexDirection: 'column', 
@@ -247,16 +257,16 @@ export default function CustomersView({
                     padding: '64px 24px',
                     textAlign: 'center' 
                   }}>
-                    <h4 style={{ margin: '0 0 8px', color: 'var(--text-strong)' }}>No history found</h4>
+                    <h4 style={{ margin: '0 0 8px', color: 'var(--text-strong)' }}>No active deals</h4>
                     <p style={{ margin: '0 0 24px', fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', maxWidth: '240px' }}>
-                      Start by logging a task or update for {selectedCustomer.name}.
+                      Transactional history and contacts are only visible for companies with at least one active deal.
                     </p>
                     <button 
                       type="button" 
                       className="primary-button"
                       onClick={() => setShowQuickTaskForm(true)}
                     >
-                      Add Task
+                      Add Task / New Deal
                     </button>
                   </div>
                 ) : (
@@ -300,14 +310,25 @@ export default function CustomersView({
 
                     <div className="timeline">
                       {(customerDetail?.auditLogs || [])
-                      .filter(l => !l.action.startsWith('task_status:') && l.action !== 'task_status_change' && l.action !== 'value_change')
+                      .filter(l => {
+                        // 1. Filter out technical/noisy logs
+                        if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change') return false
+                        
+                        // 2. Filter out no-change logs (where old == new)
+                        if (l.oldValue === l.newValue && l.oldValue !== null) return false
+                        
+                        return true
+                      })
                       .sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt))
                       .map((item, idx) => {
                         const linkedDeal = deals.find(d => d.id === item.entityId)
                         const linkedContact = (customerDetail?.contacts || []).find(c => c.id === item.entityId)
                         
-                        const stage = item.stage || linkedDeal?.stage
-                        const dotColor = item.entityType === 'contact' ? 'var(--text-muted)' : (STAGE_COLORS[stage] || 'var(--accent)')
+                        const stageContext = (item.action === 'stage_change' || item.action === 'deal_created')
+                          ? parseAuditValue(item.newValue)
+                          : (item.stage || linkedDeal?.stage)
+                        
+                        const dotColor = item.entityType === 'contact' ? 'var(--text-muted)' : (STAGE_COLORS[stageContext] || 'var(--accent)')
 
                         const ACTION_LABELS = {
                           'stage_change': 'Stage changed',
@@ -355,6 +376,16 @@ export default function CustomersView({
                                           {item.oldValue && ' → '}
                                           <span className={`tone-pill ${getToneClass(item.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.newValue}</span>
                                         </>
+                                      ) : item.action === 'owner_id_change' ? (
+                                        <>
+                                          <span className="timeline-old">
+                                            {teamMembers.find(m => String(m.id) === String(item.oldValue))?.name || `User ${item.oldValue}`}
+                                          </span>
+                                          {' → '}
+                                          <strong>
+                                            {teamMembers.find(m => String(m.id) === String(item.newValue))?.name || `User ${item.newValue}`}
+                                          </strong>
+                                        </>
                                       ) : (
                                         <>
                                           <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
@@ -394,6 +425,8 @@ export default function CustomersView({
           dealStages={dealStages}
           currentUser={currentUser}
           prefilledCompanyId={selectedCustomer?.id}
+          fetchCompanies={fetchCompanies}
+          fetchContacts={fetchContacts}
           onCancel={() => setShowQuickTaskForm(false)}
           onSubmit={async (form) => {
             await onCreateTask(form)
@@ -430,9 +463,7 @@ export default function CustomersView({
       >
         <div style={{ padding: '0 24px 24px' }}>
           <div className="detail-list">
-            {(['Admin', 'Head of Sales', 'Regional Sales Manager'].includes(currentUser?.role)) && (
-              <div><span>SR Owner</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>
-            )}
+            <div><span>SR</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>
             <div><span>Region</span><strong>{selectedCustomer?.city || selectedCustomer?.region || '—'}</strong></div>
             <div><span>Branch</span><strong>{selectedCustomer?.branch ?? '—'}</strong></div>
             <div><span>Address</span><strong>{selectedCustomer?.address ?? '—'}</strong></div>
@@ -440,190 +471,204 @@ export default function CustomersView({
             <div><span>Website</span><strong>{selectedCustomer?.website ?? '—'}</strong></div>
           </div>
 
-          <div className="section-header" style={{ marginTop: '24px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Contacts</h4>
-            <button
-              type="button"
-              title="Add contact"
-              onClick={() => {
-                setCompanyContacts(prev => [{
-                  id: createRecordId('contact'),
-                  name: '',
-                  role: '',
-                  email: '',
-                  phone: '',
-                  isEditing: true,
-                  isNew: true,
-                }, ...prev])
-              }}
-              style={{
-                width: '28px', height: '28px', borderRadius: '50%',
-                border: '1px solid var(--accent)', background: 'transparent',
-                color: 'var(--accent)', fontSize: '16px', lineHeight: 1,
-                cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
-                justifyContent: 'center', padding: 0,
-              }}
-            >+</button>
-          </div>
+          {hasActiveDeal && (
+            <>
+              <div className="section-header" style={{ marginTop: '24px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Contacts</h4>
+                <button
+                  type="button"
+                  title="Add contact"
+                  onClick={() => {
+                    setCompanyContacts(prev => [{
+                      id: createRecordId('contact'),
+                      name: '',
+                      role: '',
+                      email: '',
+                      phone: '',
+                      isEditing: true,
+                      isNew: true,
+                    }, ...prev])
+                  }}
+                  style={{
+                    width: '28px', height: '28px', borderRadius: '50%',
+                    border: '1px solid var(--accent)', background: 'transparent',
+                    color: 'var(--accent)', fontSize: '16px', lineHeight: 1,
+                    cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
+                    justifyContent: 'center', padding: 0,
+                  }}
+                >+</button>
+              </div>
 
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Role</th>
-                  <th>Email</th>
-                  <th>Number</th>
-                  <th style={{ width: '60px' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {companyContacts.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="admin-table__muted" style={{ textAlign: 'center', padding: '16px' }}>
-                      No contacts for this company.
-                    </td>
-                  </tr>
-                ) : (
-                  companyContacts.map((contact, idx) => (
-                    <tr key={contact.id}>
-                      {contact.isEditing ? (
-                        <>
-                          <td>
-                            <input
-                              name="name"
-                              value={contact.name}
-                              onChange={e => {
-                                const val = e.target.value
-                                setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, name: val } : c))
-                              }}
-                              placeholder="Name *"
-                              style={{ width: '100%', boxSizing: 'border-box' }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              name="role"
-                              value={contact.role}
-                              onChange={e => {
-                                const val = e.target.value
-                                setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, role: val } : c))
-                              }}
-                              placeholder="Role"
-                              style={{ width: '100%', boxSizing: 'border-box' }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              name="email"
-                              value={contact.email}
-                              onChange={e => {
-                                const val = e.target.value
-                                setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, email: val } : c))
-                              }}
-                              placeholder="Email"
-                              style={{ width: '100%', boxSizing: 'border-box' }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              name="phone"
-                              value={contact.phone}
-                              onChange={e => {
-                                const val = e.target.value.replace(/[^0-9+\s()-]/g, '')
-                                setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c))
-                              }}
-                              placeholder="Number"
-                              style={{ width: '100%', boxSizing: 'border-box' }}
-                            />
-                          </td>
-                          <td style={{ whiteSpace: 'nowrap' }}>
-                            <button
-                              type="button"
-                              className="ghost-button"
-                              style={{ fontSize: '11px', padding: '2px 6px', marginRight: '4px' }}
-                              onClick={async () => {
-                                const c = companyContacts[idx]
-                                if (!c.name) return
-                                if (!c.email && !c.phone) return
-
-                                const payload = {
-                                  ...(c.isNew ? {
-                                    id: c.id,
-                                    companyId: selectedCustomer?.id,
-                                    ownerId: currentUser?.id || null,
-                                    lastTouch: new Date().toISOString().split('T')[0],
-                                    status: 'Active',
-                                  } : {}),
-                                  name: c.name,
-                                  role: c.role,
-                                  email: c.email,
-                                  phone: c.phone,
-                                }
-
-                                try {
-                                  if (c.isNew) {
-                                    const res = await apiFetch('/api/contacts', {
-                                      method: 'POST',
-                                      body: JSON.stringify(payload),
-                                    })
-                                    if (!res.ok) return
-                                  } else {
-                                    await apiFetch(`/api/contacts/${c.id}`, {
-                                      method: 'PUT',
-                                      body: JSON.stringify({ name: c.name, role: c.role, email: c.email, phone: c.phone }),
-                                    })
-                                  }
-                                  setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false, isNew: false } : c2))
-                                  fetchDetail(selectedCustomer.id)
-                                } catch (e) {
-                                  console.error('Failed to save contact:', e)
-                                }
-                              }}
-                            >
-                              Save
-                            </button>
-                            <button
-                              type="button"
-                              className="ghost-button"
-                              style={{ fontSize: '11px', padding: '2px 6px' }}
-                              onClick={() => {
-                                if (contact.isNew) {
-                                  setCompanyContacts(prev => prev.filter((_, i) => i !== idx))
-                                } else {
-                                  setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false } : c2))
-                                }
-                              }}
-                            >
-                              Cancel
-                            </button>
-                          </td>
-                        </>
-                      ) : (
-                        <>
-                          <td className="admin-table__name">{contact.name}</td>
-                          <td className="admin-table__muted">{contact.role || '—'}</td>
-                          <td className="admin-table__muted">{contact.email || '—'}</td>
-                          <td className="admin-table__muted">{contact.phone || '—'}</td>
-                          <td>
-                            <button
-                              type="button"
-                              className="ghost-button"
-                              title="Edit"
-                              style={{ fontSize: '11px', padding: '2px 6px' }}
-                              onClick={() => setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: true } : c2))}
-                            >
-                              Edit
-                            </button>
-                          </td>
-                        </>
-                      )}
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Role</th>
+                      <th>Email</th>
+                      <th>Number</th>
+                      <th style={{ width: '60px' }}></th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {companyContacts.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="admin-table__muted" style={{ textAlign: 'center', padding: '16px' }}>
+                          No contacts for this company.
+                        </td>
+                      </tr>
+                    ) : (
+                      companyContacts.map((contact, idx) => (
+                        <tr key={contact.id}>
+                          {contact.isEditing ? (
+                            <>
+                              <td>
+                                <input
+                                  name="name"
+                                  value={contact.name}
+                                  onChange={e => {
+                                    const val = e.target.value
+                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, name: val } : c))
+                                  }}
+                                  placeholder="Name *"
+                                  style={{ width: '100%', boxSizing: 'border-box' }}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  name="role"
+                                  value={contact.role}
+                                  onChange={e => {
+                                    const val = e.target.value
+                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, role: val } : c))
+                                  }}
+                                  placeholder="Role"
+                                  style={{ width: '100%', boxSizing: 'border-box' }}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  name="email"
+                                  value={contact.email}
+                                  onChange={e => {
+                                    const val = e.target.value
+                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, email: val } : c))
+                                  }}
+                                  placeholder="Email"
+                                  style={{ width: '100%', boxSizing: 'border-box' }}
+                                />
+                              </td>
+                              <td>
+                                <input
+                                  name="phone"
+                                  value={contact.phone}
+                                  onChange={e => {
+                                    const val = e.target.value.replace(/[^0-9+\s()-]/g, '')
+                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c))
+                                  }}
+                                  placeholder="Number"
+                                  style={{ width: '100%', boxSizing: 'border-box' }}
+                                />
+                              </td>
+                              <td style={{ whiteSpace: 'nowrap' }}>
+                                <button
+                                  type="button"
+                                  className="ghost-button"
+                                  style={{ fontSize: '11px', padding: '2px 6px', marginRight: '4px' }}
+                                  onClick={async () => {
+                                    const c = companyContacts[idx]
+                                    if (!c.name) return
+                                    if (!c.email && !c.phone) return
+
+                                    const payload = {
+                                      ...(c.isNew ? {
+                                        id: c.id,
+                                        companyId: selectedCustomer?.id,
+                                        ownerId: currentUser?.id || null,
+                                        lastTouch: new Date().toISOString().split('T')[0],
+                                        status: 'Active',
+                                      } : {}),
+                                      name: c.name,
+                                      role: c.role,
+                                      email: c.email,
+                                      phone: c.phone,
+                                    }
+
+                                    try {
+                                      if (c.isNew) {
+                                        const res = await apiFetch('/api/contacts', {
+                                          method: 'POST',
+                                          body: JSON.stringify(payload),
+                                        })
+                                        if (res.status === 409) {
+                                          const errData = await res.json()
+                                          alert(errData.error || 'This contact already exists.')
+                                          return
+                                        }
+                                        if (!res.ok) return
+                                      } else {
+                                        const res = await apiFetch(`/api/contacts/${c.id}`, {
+                                          method: 'PUT',
+                                          body: JSON.stringify({ name: c.name, role: c.role, email: c.email, phone: c.phone }),
+                                        })
+                                        if (res.status === 409) {
+                                          const errData = await res.json()
+                                          alert(errData.error || 'This contact already exists.')
+                                          return
+                                        }
+                                      }
+                                      setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false, isNew: false } : c2))
+                                      fetchDetail(selectedCustomer.id)
+                                    } catch (e) {
+                                      console.error('Failed to save contact:', e)
+                                    }
+                                  }}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ghost-button"
+                                  style={{ fontSize: '11px', padding: '2px 6px' }}
+                                  onClick={() => {
+                                    if (contact.isNew) {
+                                      setCompanyContacts(prev => prev.filter((_, i) => i !== idx))
+                                    } else {
+                                      setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false } : c2))
+                                    }
+                                  }}
+                                >
+                                  Cancel
+                                </button>
+                              </td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="admin-table__name">{contact.name}</td>
+                              <td className="admin-table__muted">{contact.role || '—'}</td>
+                              <td className="admin-table__muted">{contact.email || '—'}</td>
+                              <td className="admin-table__muted">{contact.phone || '—'}</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="ghost-button"
+                                  title="Edit"
+                                  style={{ fontSize: '11px', padding: '2px 6px' }}
+                                  onClick={() => setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: true } : c2))}
+                                >
+                                  Edit
+                                </button>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
 
           <div style={{ marginTop: '24px' }}>
             <button 
