@@ -11,14 +11,15 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from database.database import get_db_connection, close_connection
-from database.sync_pipeline import fill_pipeline
-from gsheets_sync import sync_from_sheets, sync_to_sheets
 from datetime import timedelta, date, datetime
 import json
 from dotenv import load_dotenv
 
 load_dotenv()
+
+from database.database import get_db_connection, close_connection
+from database.sync_pipeline import fill_pipeline
+from gsheets_sync import sync_from_sheets
 
 def ensure_schema():
     conn = get_db_connection()
@@ -952,12 +953,6 @@ def create_lead():
         
         conn.commit()
         
-        # Sync to Google Sheets
-        try:
-            sync_to_sheets(data)
-        except Exception as e:
-            print(f"Failed to sync to Google Sheets: {e}")
-            
         return jsonify({'message': 'Lead, Company, and Contact created', 'id': lead_id}), 201
     finally:
         close_connection(conn)
