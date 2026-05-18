@@ -3,7 +3,7 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData } from '../utils'
+import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch } from '../utils'
 import { STAGE_COLORS, ITEMS_PER_PAGE } from '../constants'
 import LeadForm from '../components/forms/LeadForm'
 import TaskForm from '../components/forms/TaskForm'
@@ -11,7 +11,6 @@ import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
 
 export default function CustomersView({
-  filteredCustomers,
   customers,
   contacts,
   deals,
@@ -21,8 +20,6 @@ export default function CustomersView({
   setSelectedCustomerId,
   customerStatuses,
   dealStages,
-  statusFilter,
-  setStatusFilter,
   showCustomerForm,
   setShowCustomerForm,
   onCreateCustomer,
@@ -30,14 +27,47 @@ export default function CustomersView({
   fetchCompanies,
   fetchContacts,
   currentUser,
-  page,
-  setPage
+  searchQuery
 }) {
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = useState(1)
   const [showQuickTaskForm, setShowQuickTaskForm] = useState(false)
   const [customerDetail, setCustomerDetail] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [companyContacts, setCompanyContacts] = useState([])
   const [detailModalOpen, setDetailModalOpen] = useState(false)
+
+  // Reset page on search change (adjusting state during render)
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
+  if (searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(searchQuery)
+    setPage(1)
+  }
+
+  const filteredCustomers = useMemo(() => {
+    return customers.filter((c) => {
+      // Handle deal-based status filtering
+      if (statusFilter !== 'all') {
+        const companyDeals = deals.filter(d => d.companyId === c.id)
+        
+        if (statusFilter === 'New') {
+          // New: No active deals (only Closed or no deals at all)
+          if (companyDeals.some(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost')) return false
+        } else if (statusFilter === 'Prospect') {
+          // Prospect: At least one deal in "New Opportunity"
+          if (!companyDeals.some(d => d.stage === 'New Opportunity')) return false
+        } else if (statusFilter === 'Negotiation') {
+          // Negotiation: At least one deal in "Proposal" or "Negotiation"
+          if (!companyDeals.some(d => d.stage === 'Proposal' || d.stage === 'Negotiation')) return false
+        } else if (statusFilter === 'Converted') {
+          // Converted: At least one deal is Closed (Won or Lost) and owned by current user
+          if (!companyDeals.some(d => (d.stage === 'Closed Won' || d.stage === 'Closed Lost') && d.ownerId === currentUser?.id)) return false
+        }
+      }
+
+      return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
+    })
+  }, [customers, searchQuery, statusFilter, deals, currentUser])
 
   const renderContactDiff = (item, linkedContact) => {
     const ACTION_LABELS = {

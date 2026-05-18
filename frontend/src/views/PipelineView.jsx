@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO } from '../utils'
+import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch } from '../utils'
 import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP } from '../constants'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
@@ -24,32 +24,45 @@ function getStageTone(stage) {
 }
 
 export default function PipelineView({
-  filteredDeals,
   deals,
   tasks,
   leads,
   contacts,
+  companies,
   activeDeals,
   pipelineValue,
   averageDealSize,
   dealStages,
   stageWorkflow,
-  stageFilter,
-  setStageFilter,
   setNotice,
-  companyMap,
   handleDealStageChange,
   handleDealUpdate,
   handleTaskStatusToggle,
-  currentPage,
-  setCurrentPage,
   onViewTasks,
   currentUser,
   teamMembers,
   activeBranch,
+  searchQuery
 }) {
-  const contactMap = Object.fromEntries((contacts ?? []).map((c) => [c.id, c]))
-  const leadMap    = Object.fromEntries((leads    ?? []).map((l) => [l.id, l]))
+  const [stageFilter, setStageFilter] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
+  const contactMap = useMemo(() => Object.fromEntries((contacts  ?? []).map((c) => [c.id, c])), [contacts])
+  const leadMap    = useMemo(() => Object.fromEntries((leads     ?? []).map((l) => [l.id, l])), [leads])
+
+  // Reset page on search change (adjusting state during render)
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
+  if (searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(searchQuery)
+    setCurrentPage(1)
+  }
+
+  const filteredDeals = useMemo(() => deals.filter(
+    (d) =>
+      (stageFilter === 'all' || d.stage === stageFilter) &&
+      matchesSearch(searchQuery, [d.name, companyMap[d.companyId]?.name, contactMap[d.contactId]?.name, d.owner, d.stage]),
+  ), [deals, stageFilter, searchQuery, companyMap, contactMap])
 
   const [selectedDeal, setSelectedDeal] = useState(null)
   const [dealContacts, setDealContacts] = useState([])

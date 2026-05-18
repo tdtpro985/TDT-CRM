@@ -1,14 +1,12 @@
 import { useState, useMemo } from 'react'
-import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import './App.css'
-import { formatCurrencyCompact, matchesSearch, displayRole, shortStageLabel, getTodayISO } from './utils'
+import { formatCurrencyCompact, displayRole, shortStageLabel, getTodayISO } from './utils'
 import { clearToken, getUser, saveUser, apiFetch } from './api'
 import {
-  LEAD_STATUSES,
   CUSTOMER_STATUSES,
   TASK_TYPES,
   TASK_PRIORITIES,
-  LEAD_SOURCES,
   STAGE_WORKFLOW,
   DEAL_STAGES,
   SHORT_STAGE_LABEL,
@@ -33,16 +31,8 @@ export default function App() {
   const location = useLocation()
   const activeView = location.pathname.substring(1) || 'dashboard'
 
-  const [searchQuery, setSearchQuery]       = useState('')
-  const [stageFilter, setStageFilter]       = useState('all')
-  const [leadStatusFilter, setLeadStatusFilter] = useState('all')
-  const [taskFilter, setTaskFilter]         = useState('open')
-
-  const [leadPage, setLeadPage]             = useState(1)
-  const [pipelinePage, setPipelinePage]     = useState(1)
-  const [tasksPage, setTasksPage]           = useState(1)
-
-  const [selectedLeadId,    setSelectedLeadId]    = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedLeadId, setSelectedLeadId] = useState(null)
 
   const [notice, setNotice] = useState('TDT Powersteel CRM is focused on clean data, pipeline visibility, activity tracking, and a 5 KPI dashboard.')
   const [showLeadForm, setShowLeadForm] = useState(false)
@@ -74,12 +64,10 @@ export default function App() {
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
-  const companyMap   = useMemo(() => Object.fromEntries(companies.map((c) => [c.id, c])), [companies])
-  const contactMap   = useMemo(() => Object.fromEntries(contacts.map((c) => [c.id, c])), [contacts])
   const activeDeals  = deals.filter((d) => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost')
   const pipelineValue = activeDeals.reduce((sum, d) => sum + Number(d.value || 0), 0)
   const openTasks    = tasks.filter((t) => t.status !== 'Completed')
-    const dueToday     = openTasks.filter((t) => t.dueDate === getTodayISO())
+  const dueToday     = openTasks.filter((t) => t.dueDate === getTodayISO())
 
 
   const currentMonth     = getTodayISO().slice(0, 7)
@@ -95,7 +83,7 @@ export default function App() {
     return { stage, count: stageDeals.length, value: stageDeals.reduce((sum, d) => sum + Number(d.value || 0), 0) }
   })
 
-    const stageBreakdown = stageSummary
+  const stageBreakdown = stageSummary
     .map((s) => `${shortStageLabel(s.stage, SHORT_STAGE_LABEL)} ${s.count}`)
     .join(' | ')
 
@@ -107,54 +95,6 @@ export default function App() {
     { label: 'Conversion Rate', value: `${conversionRate}%`,                meta: `${convertedLeads.length} of ${leads.length} customers converted`,  accent: 'surface' },
     { label: 'Pipeline Value',  value: formatCurrencyCompact(pipelineValue), meta: 'Expected revenue across active deals',                        accent: 'accent'  },
   ], [newLeads.length, activeDeals.length, stageSummary, stageBreakdown, conversionRate, convertedLeads.length, leads.length, pipelineValue])
-
-  // ─── Filtered lists ─────────────────────────────────────────────────────────
-
-  const filteredCustomers = useMemo(() => {
-    return customers.filter((c) => {
-      // Handle deal-based status filtering
-      if (leadStatusFilter !== 'all') {
-        const companyDeals = deals.filter(d => d.companyId === c.id)
-        
-        if (leadStatusFilter === 'New') {
-          // New: No active deals (only Closed or no deals at all)
-          if (companyDeals.some(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost')) return false
-        } else if (leadStatusFilter === 'Prospect') {
-          // Prospect: At least one deal in "New Opportunity"
-          if (!companyDeals.some(d => d.stage === 'New Opportunity')) return false
-        } else if (leadStatusFilter === 'Negotiation') {
-          // Negotiation: At least one deal in "Proposal" or "Negotiation"
-          if (!companyDeals.some(d => d.stage === 'Proposal' || d.stage === 'Negotiation')) return false
-        } else if (leadStatusFilter === 'Converted') {
-          // Converted: At least one deal is Closed (Won or Lost) and owned by current user
-          if (!companyDeals.some(d => (d.stage === 'Closed Won' || d.stage === 'Closed Lost') && d.ownerId === currentUser?.id)) return false
-        }
-      }
-
-      return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
-    })
-  }, [customers, searchQuery, leadStatusFilter, deals, currentUser])
-
-  const filteredDeals = useMemo(() => deals.filter(
-    (d) =>
-      (stageFilter === 'all' || d.stage === stageFilter) &&
-      matchesSearch(searchQuery, [d.name, companyMap[d.companyId]?.name, contactMap[d.contactId]?.name, d.owner, d.stage]),
-  ), [deals, stageFilter, searchQuery, companyMap, contactMap])
-
-  const filteredTasks = useMemo(() => tasks.filter(
-    (t) => {
-      const deal = deals.find((d) => d.id === t.dealId)
-      const companyName = t.companyName || companyMap[deal?.companyId]?.name || ''
-      
-      return (
-        (taskFilter === 'all' || 
-         (taskFilter === 'open' && t.status === 'Open') || 
-         (taskFilter === 'completed' && t.status === 'Completed') ||
-         (taskFilter === 'reopened' && t.status === 'Reopened')) &&
-        matchesSearch(searchQuery, [t.title, t.type, t.owner, deal?.name, companyName])
-      )
-    }
-  ), [tasks, taskFilter, searchQuery, deals, companyMap])
 
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
 
@@ -194,9 +134,6 @@ export default function App() {
   function handleViewChange(viewId) {
     navigate(`/${viewId}`)
     setSearchQuery('')
-    setLeadPage(1)
-    setPipelinePage(1)
-    setTasksPage(1)
     setShowLeadForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId]?.title || viewId} is active.`)
@@ -264,15 +201,12 @@ export default function App() {
         <Route path="/database" element={
           <CustomersView
             setNotice={setNotice}
-            filteredCustomers={filteredCustomers}
             customers={customers}
             contacts={contacts}
             teamMembers={teamMembers}
             selectedCustomerId={selectedLeadId}
             setSelectedCustomerId={setSelectedLeadId}
             customerStatuses={CUSTOMER_STATUSES}
-            statusFilter={leadStatusFilter}
-            setStatusFilter={setLeadStatusFilter}
             onCreateCustomer={handleCreateLead}
             linkHealth={linkHealth}
             deals={deals}
@@ -285,13 +219,10 @@ export default function App() {
             setShowCustomerForm={setShowLeadForm}
             currentUser={currentUser}
             searchQuery={searchQuery}
-            page={leadPage}
-            setPage={setLeadPage}
           />
         } />
         <Route path="/pipeline" element={
           <PipelineView
-            filteredDeals={filteredDeals}
             deals={deals}
             tasks={tasks}
             leads={leads}
@@ -305,44 +236,28 @@ export default function App() {
             averageDealSize={averageDealSize}
             dealStages={DEAL_STAGES}
             stageWorkflow={STAGE_WORKFLOW}
-            stageFilter={stageFilter}
-            setStageFilter={setStageFilter}
             setNotice={setNotice}
-            companyMap={companyMap}
             handleDealStageChange={actions.updateDealStage}
             handleDealUpdate={actions.updateDeal}
             handleTaskStatusToggle={actions.toggleTaskStatus}
-            currentPage={pipelinePage}
-            setCurrentPage={setPipelinePage}
-            onViewTasks={(filter) => {
-              setTaskFilter(filter)
-              setTasksPage(1)
+            onViewTasks={() => {
               navigate('/tasks')
             }}
+            searchQuery={searchQuery}
           />
         } />
         <Route path="/tasks" element={
           <TasksView
-            filteredTasks={filteredTasks}
             tasks={tasks}
             contacts={contacts}
             openTasks={openTasks}
             dueToday={dueToday}
             deals={deals}
             companies={companies}
-            companyMap={companyMap}
-            taskTypes={TASK_TYPES}
-            taskPriorities={TASK_PRIORITIES}
-            dealStages={DEAL_STAGES}
             teamMembers={teamMembers}
-            taskFilter={taskFilter}
-            setTaskFilter={setTaskFilter}
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
-            showTaskForm={showTaskForm}
-            setShowTaskForm={setShowTaskForm}
-            currentPage={tasksPage}
-            setCurrentPage={setTasksPage}
+            searchQuery={searchQuery}
           />
         } />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -498,12 +413,7 @@ export default function App() {
                 name="searchQuery"
                 type="search"
                 value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value)
-                  setLeadPage(1)
-                  setPipelinePage(1)
-                  setTasksPage(1)
-                }}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={currentMeta.searchPlaceholder}
                 aria-label={currentMeta.searchPlaceholder}
               />

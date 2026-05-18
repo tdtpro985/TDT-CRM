@@ -3,7 +3,7 @@ import json
 import html
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from .database.database import get_db_connection, close_connection
+from database.database import get_db_connection, close_connection
 from datetime import datetime
 import uuid
 
