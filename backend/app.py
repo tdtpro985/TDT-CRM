@@ -224,7 +224,7 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
     user_branch = claims.get('branch', '')
 
     if role in ('Sales Representative', 'Sales Rep'):
-        return ([f'{col} = %s'], True, [normalize_branch(user_branch)])
+        return ([f'{col} = %s'], False, [normalize_branch(user_branch)])
 
     if role == 'Regional Sales Manager':
         region_branches = REGION_BRANCHES.get(user_region, [])

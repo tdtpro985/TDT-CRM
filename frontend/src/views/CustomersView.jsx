@@ -463,9 +463,7 @@ export default function CustomersView({
       >
         <div style={{ padding: '0 24px 24px' }}>
           <div className="detail-list">
-            {(['Admin', 'Head of Sales', 'Regional Sales Manager'].includes(currentUser?.role)) && (
-              <div><span>SR Owner</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>
-            )}
+            <div><span>SR</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>
             <div><span>Region</span><strong>{selectedCustomer?.city || selectedCustomer?.region || '—'}</strong></div>
             <div><span>Branch</span><strong>{selectedCustomer?.branch ?? '—'}</strong></div>
             <div><span>Address</span><strong>{selectedCustomer?.address ?? '—'}</strong></div>
