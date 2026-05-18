@@ -1,27 +1,51 @@
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMemo } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
-import { formatDateLabel, getToneClass, getPaginatedData } from '../utils'
+import { formatDateLabel, getToneClass, getPaginatedData, matchesSearch } from '../utils'
 import { ITEMS_PER_PAGE } from '../constants'
 
 import Pagination from '../components/Pagination'
 
 export default function TasksView({
-  filteredTasks,
   tasks,
   contacts,
   openTasks,
   dueToday,
   deals,
-  taskFilter,
-  setTaskFilter,
+  companies,
   handleTaskStatusToggle,
-  currentPage,
-  setCurrentPage
+  searchQuery
 }) {
   const navigate = useNavigate()
+  const [taskFilter, setTaskFilter] = useState('open')
+  const [currentPage, setCurrentPage] = useState(1)
+
+  const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
+
+  // Reset page on search change (adjusting state during render)
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
+  if (searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(searchQuery)
+    setCurrentPage(1)
+  }
+
+  const filteredTasks = useMemo(() => tasks.filter(
+    (t) => {
+      const deal = deals.find((d) => d.id === t.dealId)
+      const companyName = t.companyName || companyMap[deal?.companyId]?.name || ''
+      
+      return (
+        (taskFilter === 'all' || 
+         (taskFilter === 'open' && t.status === 'Open') || 
+         (taskFilter === 'completed' && t.status === 'Completed') ||
+         (taskFilter === 'reopened' && t.status === 'Reopened')) &&
+        matchesSearch(searchQuery, [t.title, t.type, t.owner, deal?.name, companyName])
+      )
+    }
+  ), [tasks, taskFilter, searchQuery, deals, companyMap])
+
   const totalPages = Math.ceil(filteredTasks.length / ITEMS_PER_PAGE)
 
   const paginatedTasks = useMemo(() => getPaginatedData(filteredTasks, currentPage, ITEMS_PER_PAGE), [filteredTasks, currentPage])
