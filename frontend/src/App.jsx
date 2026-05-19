@@ -23,6 +23,8 @@ import TasksView     from './views/TasksView'
 import useCRMData    from './hooks/useCRMData'
 import LoginPage     from './components/LoginPage'
 import Modal         from './components/Modal'
+import AboutContent  from './components/AboutContent'
+import PageSkeleton  from './components/SkeletonLoader'
 import LeadForm      from './components/forms/LeadForm'
 import TaskForm      from './components/forms/TaskForm'
 
@@ -47,6 +49,7 @@ export default function App() {
   const [notice, setNotice] = useState('TDT Powersteel CRM is focused on clean data, pipeline visibility, activity tracking, and a 5 KPI dashboard.')
   const [showLeadForm, setShowLeadForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
+  const [showAbout, setShowAbout]       = useState(false)
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -469,6 +472,7 @@ export default function App() {
             <span>Open tasks still waiting on follow-through</span>
           </div>
           <div className="sidebar-user">
+            <button type="button" className="about-button" onClick={() => setShowAbout(true)}>About this system</button>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
         </div>
@@ -490,6 +494,7 @@ export default function App() {
             <h2 className="page-title">{currentMeta.title}</h2>
             <p className="page-description">{currentMeta.description}</p>
           </div>
+          {loading && <div className="top-bar-loader" aria-hidden="true" />}
           <div className="top-bar-actions">
             <label className="search-field" htmlFor="global-search-input">
               <span className="search-icon" aria-hidden="true">Search</span>
@@ -521,7 +526,9 @@ export default function App() {
         </div>
 
         {loading ? (
-          <p style={{ padding: '2rem' }}>Loading data…</p>
+          <div className="view-content">
+            <PageSkeleton view={activeView} />
+          </div>
         ) : (
           <div className="view-content">
             {renderRoutes()}
@@ -560,6 +567,15 @@ export default function App() {
             setShowTaskForm(false)
           }}
         />
+      </Modal>
+
+      <Modal
+        isOpen={showAbout}
+        onClose={() => setShowAbout(false)}
+        title="Meet the Team"
+        kicker="Internship Project · TDT Powersteel CRM"
+      >
+        <AboutContent />
       </Modal>
 
       <Modal
