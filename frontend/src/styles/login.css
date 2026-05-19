@@ -48,7 +48,10 @@
 }
 
 .brand-hero-logo {
-  height: 120px;
+  display: block;
+  max-width: 280px;
+  width: 100%;
+  height: auto;
   margin-bottom: 24px;
 }
 
@@ -116,9 +119,11 @@
   gap: 8px; 
 }
 
-.login-logo { 
-  height: 80px;
-  width: auto;
+.login-logo {
+  display: block;
+  max-width: 200px;
+  width: 100%;
+  height: auto;
   margin-bottom: 16px;
 }
 
