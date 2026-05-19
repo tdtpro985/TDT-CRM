@@ -57,6 +57,16 @@ def ensure_schema():
             cursor.execute("ALTER TABLE audit_log ADD COLUMN user_id INT NULL")
             cursor.execute("ALTER TABLE audit_log ADD FOREIGN KEY (user_id) REFERENCES team(id) ON DELETE SET NULL")
             conn.commit()
+
+        # Ensure owner_name column exists in leads table (stores raw SR name from GSheets)
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'leads' AND COLUMN_NAME = 'owner_name'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'owner_name' column to 'leads' table...")
+            cursor.execute("ALTER TABLE leads ADD COLUMN owner_name VARCHAR(255)")
+            conn.commit()
     except Exception as e:
         print(f"Error during schema verification: {e}")
     finally:
@@ -395,15 +405,15 @@ def get_customers():
             SELECT 
                 c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
                 c.status AS companyStatus, c.created_at AS createdAt,
-                l.contact_num AS contactNum, l.address, l.region, t_lead.name AS sr, l.branch,
+                l.contact_num AS contactNum, l.address, l.region, COALESCE(l.owner_name, t_lead.name, t.name) AS sr, l.branch,
                 COALESCE(deal_stats.totalDealCount, 0) AS totalDealCount,
                 COALESCE(deal_stats.activeDealCount, 0) AS activeDealCount,
                 COALESCE(deal_stats.closedWonCount, 0) AS closedWonCount,
                 COALESCE(deal_stats.closedLostCount, 0) AS closedLostCount,
                 COALESCE(deal_stats.closedWonValue, 0) AS closedWonValue,
                 COALESCE(deal_stats.closedLostValue, 0) AS closedLostValue,
-                CASE 
-                    WHEN COALESCE(deal_stats.closedLostCount, 0) = 0 THEN 
+                CASE
+                    WHEN COALESCE(deal_stats.closedLostCount, 0) = 0 THEN
                         CASE WHEN COALESCE(deal_stats.closedWonCount, 0) > 0 THEN 'Win Only' ELSE 'No History' END
                     ELSE ROUND(COALESCE(deal_stats.closedWonCount, 0) / COALESCE(deal_stats.closedLostCount, 0), 2)
                 END AS winLossRatio,
@@ -468,7 +478,7 @@ def get_customer_detail(customer_id):
             SELECT 
                 c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
                 c.status AS companyStatus, c.created_at AS createdAt,
-                l.contact_num AS contactNum, l.address, l.region, t_lead.name AS sr, l.branch,
+                l.contact_num AS contactNum, l.address, l.region, COALESCE(l.owner_name, t_lead.name, t.name) AS sr, l.branch,
                 COALESCE(deal_stats.totalDealCount, 0) AS totalDealCount,
                 COALESCE(deal_stats.activeDealCount, 0) AS activeDealCount,
                 COALESCE(deal_stats.closedWonCount, 0) AS closedWonCount,
