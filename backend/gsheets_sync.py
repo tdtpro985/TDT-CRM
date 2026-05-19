@@ -45,9 +45,17 @@ def sync_from_sheets():
     try:
         cursor = conn.cursor()
         total_synced = 0
-        
+
+        # Only process tabs that correspond to a known branch — skip master/summary tabs
+        cursor.execute(
+            "SELECT DISTINCT LOWER(TRIM(branch)) FROM team WHERE branch IS NOT NULL AND branch != ''"
+        )
+        known_branches = {row[0] for row in cursor.fetchall()}
+
         for sheet in sheets:
-            title = sheet.get('properties', {}).get('title')
+            title = sheet.get('properties', {}).get('title', '')
+            if not any(b in title.lower() for b in known_branches):
+                continue  # skip master/summary/unrecognised tabs
             # Fetch all rows from this sheet
             result = service.spreadsheets().values().get(
                 spreadsheetId=SPREADSHEET_ID,
@@ -72,27 +80,39 @@ def sync_from_sheets():
                 
                 if not customer_name: continue
                 
-                # Find owner_id from team table
-                cursor.execute("SELECT id FROM team WHERE name = %s OR username = %s", (sr, sr))
+                # Find owner_id from team table (case-insensitive, trimmed)
+                cursor.execute(
+                    "SELECT id FROM team WHERE LOWER(TRIM(name)) = LOWER(TRIM(%s)) OR LOWER(TRIM(username)) = LOWER(TRIM(%s))",
+                    (sr, sr)
+                )
                 team_member = cursor.fetchone()
                 owner_id = team_member[0] if team_member else None
+                owner_name = sr or None  # Always store the raw SR name from the sheet
 
-                # Check if lead already exists (by name and contact to be safe)
+                # Check if lead already exists; COALESCE handles NULL vs '' mismatch
                 cursor.execute(
-                    "SELECT id FROM leads WHERE customer_name = %s AND contact_num = %s",
+                    "SELECT id FROM leads WHERE customer_name = %s AND COALESCE(contact_num, '') = %s",
                     (customer_name, contact_num)
                 )
-                if cursor.fetchone():
-                    continue  # Lead already exists
-                
+                existing = cursor.fetchone()
+                if existing:
+                    # Update owner info for existing leads that are missing it
+                    if owner_name:
+                        cursor.execute(
+                            """UPDATE leads SET owner_name = %s, owner_id = COALESCE(owner_id, %s)
+                               WHERE id = %s""",
+                            (owner_name, owner_id, existing[0])
+                        )
+                    continue
+
                 # 1. Insert new lead
                 lead_id = str(uuid.uuid4())
                 created_at = datetime.now()
-                
+
                 cursor.execute(
-                    """INSERT INTO leads (id, customer_name, contact_num, address, region, owner_id, branch, status, created_at)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    (lead_id, customer_name, contact_num, address, region, owner_id, branch, 'New', created_at)
+                    """INSERT INTO leads (id, customer_name, contact_num, address, region, owner_id, owner_name, branch, status, created_at)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (lead_id, customer_name, contact_num, address, region, owner_id, owner_name, branch, 'New', created_at)
                 )
                 
                 # 2. Automatically create a Company record

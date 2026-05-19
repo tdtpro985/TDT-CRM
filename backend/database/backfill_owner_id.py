@@ -19,14 +19,16 @@ def backfill_all_owner_ids():
         ''')
         leads_from_companies = cursor.rowcount
 
-        # 2. Backfill leads/companies from team using name/branch strings (Legacy GSheets data)
+        # 2. Backfill leads/companies by matching branch to the SR team member
+        #    (c.owner text column no longer exists; use branch-based team lookup instead)
         cursor.execute('''
             UPDATE leads l
             JOIN companies c ON c.id = l.id
-            JOIN team t ON LOWER(TRIM(t.name)) = LOWER(TRIM(c.owner))
-                       AND LOWER(TRIM(t.branch)) = LOWER(TRIM(l.branch))
-            SET l.owner_id = t.id, c.owner_id = t.id
-            WHERE l.owner_id IS NULL OR c.owner_id IS NULL
+            JOIN team t ON LOWER(TRIM(t.branch)) = LOWER(TRIM(l.branch))
+                AND t.role IN ('Sales Rep', 'Sales Representative')
+            SET l.owner_id = t.id, l.owner_name = t.name, c.owner_id = t.id
+            WHERE (l.owner_id IS NULL OR c.owner_id IS NULL)
+              AND l.branch IS NOT NULL AND l.branch != ''
         ''')
         string_match_updated = cursor.rowcount
 
