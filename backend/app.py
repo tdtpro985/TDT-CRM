@@ -67,6 +67,14 @@ def ensure_schema():
             print("Adding missing 'owner_name' column to 'leads' table...")
             cursor.execute("ALTER TABLE leads ADD COLUMN owner_name VARCHAR(255)")
             conn.commit()
+        # Add indexes on high-frequency filter/join columns
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_branch     ON leads(branch)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_owner_id   ON leads(owner_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_deals_stage      ON deals(stage)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_contacts_company ON contacts(company_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_team_username    ON team(username)")
+        conn.commit()
+
     except Exception as e:
         print(f"Error during schema verification: {e}")
     finally:
@@ -755,6 +763,9 @@ def create_company():
             'branch': branch,
             'status': data.get('status', 'Active')
         }), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 
@@ -1118,14 +1129,17 @@ def create_lead():
         # For now, we just ensure the join table exists for many-to-many.
         
         conn.commit()
-        
-        # Sync to Google Sheets
+
+        # Sync to Google Sheets (non-fatal — runs after commit)
         try:
             sync_to_sheets(data)
         except Exception as e:
             print(f"Failed to sync to Google Sheets: {e}")
-            
+
         return jsonify({'message': 'Lead, Company, and Contact created', 'id': lead_id}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 
@@ -1359,6 +1373,9 @@ def create_deal():
         log_audit(conn, 'deal', data['id'], 'deal_created', None, stage, get_jwt_identity())
         conn.commit()
         return jsonify({'message': 'Deal created', 'id': data['id']}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 

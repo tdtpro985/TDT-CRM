@@ -26,7 +26,7 @@ def backfill_all_owner_ids():
             JOIN companies c ON c.id = l.id
             JOIN team t ON LOWER(TRIM(t.branch)) = LOWER(TRIM(l.branch))
                 AND t.role IN ('Sales Rep', 'Sales Representative')
-            SET l.owner_id = t.id, l.owner_name = t.name, c.owner_id = t.id
+            SET l.owner_id = t.id, l.owner_name = COALESCE(l.owner_name, t.name), c.owner_id = t.id
             WHERE (l.owner_id IS NULL OR c.owner_id IS NULL)
               AND l.branch IS NOT NULL AND l.branch != ''
         ''')
