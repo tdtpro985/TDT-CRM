@@ -1554,3 +1554,135 @@
   padding: 8px 12px;
 }
 
+/* ── Admin Analytics — Branch Cards ─────────────────────────── */
+
+.branch-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  padding: 4px 0 16px;
+}
+
+.branch-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+.branch-card:hover {
+  border-color: rgba(255, 152, 0, 0.35);
+  transform: translateY(-2px);
+}
+
+.branch-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.branch-card__name {
+  font-weight: 700;
+  font-size: var(--fs-base);
+  color: var(--text-strong);
+}
+
+.branch-card__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+}
+
+.branch-card__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.branch-card__stat-label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.branch-card__stat-value {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+/* ── Admin Analytics — SR Rank List ─────────────────────────── */
+
+.sr-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 16px;
+}
+
+.sr-rank-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  transition: border-color 0.15s;
+}
+
+.sr-rank-item--top {
+  border-color: rgba(255, 152, 0, 0.4);
+  background: rgba(255, 152, 0, 0.04);
+}
+
+.sr-rank-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-full);
+  background: rgba(255, 152, 0, 0.12);
+  color: var(--accent-strong);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.sr-rank-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sr-rank-name {
+  font-weight: 700;
+  font-size: var(--fs-sm);
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sr-rank-branch {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+
+.sr-rank-stats {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ── Admin Analytics — Audit log action accents ──────────────── */
+
+.analytics-audit-row--stage  { border-left: 3px solid var(--accent); }
+.analytics-audit-row--status { border-left: 3px solid #7eb8ff; }
+.analytics-audit-row--create { border-left: 3px solid var(--positive); }
+.analytics-audit-row--delete { border-left: 3px solid var(--alert); }
+
