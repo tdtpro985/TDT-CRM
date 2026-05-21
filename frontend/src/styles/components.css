@@ -1009,3 +1009,346 @@ section.content-grid--primary {
   animation: toastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: none;
 }
+
+/* ── About Modal ─────────────────────────────────────────────── */
+
+.about-button {
+  width: 100%;
+  padding: var(--pad-control);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+  text-align: center;
+  margin-bottom: 8px;
+}
+.about-button:hover {
+  color: var(--text-strong);
+  border-color: var(--accent);
+}
+
+.about-content {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 4px 0 8px;
+}
+.about-school-label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+.dev-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dev-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.dev-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  color: #000;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.dev-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.dev-name {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+.dev-role {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.about-footer {
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  margin-top: 4px;
+}
+
+/* ── About Modal – Design Enhancements ──────────────────────── */
+
+/* Hero header */
+.about-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 0 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.about-hero-logo {
+  max-width: 180px;
+  height: auto;
+  display: block;
+}
+.about-hero-sub {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+/* Staggered card animation */
+@keyframes aboutFadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
+}
+.dev-card {
+  animation: aboutFadeUp 0.35s ease both;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* Hover glow */
+.dev-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 4px 12px rgba(255, 152, 0, 0.12);
+}
+
+/* ── Loading Indicators ──────────────────────────────────────── */
+
+/* Give top-bar a stacking context for the loader bar */
+.top-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Indeterminate sliding bar at the bottom edge of the top bar */
+.top-bar-loader {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 40%;
+  background: var(--accent);
+  border-radius: 0 2px 2px 0;
+  animation: topBarSlide 1.4s ease-in-out infinite;
+}
+@keyframes topBarSlide {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+
+/* ── Skeleton Loaders ────────────────────────────────────────── */
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.sk {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface) 25%,
+    rgba(255, 255, 255, 0.06) 50%,
+    var(--bg-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: var(--r-sm);
+}
+
+.sk--line     { height: 14px; margin-bottom: 10px; }
+.sk--line-sm  { height: 10px; margin-bottom: 8px; }
+.sk--value    { height: 28px; }
+.sk--avatar   { width: 36px; height: 36px; border-radius: var(--r-full); flex-shrink: 0; }
+
+/* Page wrapper */
+.sk-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Metrics row */
+.sk-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(max(200px, 18%), 1fr));
+  gap: 10px;
+}
+.sk-metric-card {
+  padding: 18px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+/* Generic panel */
+.sk-panel {
+  padding: var(--pad-panel);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  flex: 1;
+}
+
+/* Lines block */
+.sk-lines {
+  display: flex;
+  flex-direction: column;
+}
+
+/* List rows */
+.sk-list-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.sk-list-row__lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Two-column layout */
+.sk-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  flex: 1;
+}
+
+/* Kanban */
+.sk-kanban {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.sk-kanban-col {
+  padding: var(--pad-panel);
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+.sk-kanban-card {
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+
+.sk-contact-card {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sk-two-col--45-55 {
+  grid-template-columns: 45fr 55fr;
+}
+
+.sk-hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  padding: 24px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  min-height: 120px;
+  align-items: center;
+}
+.sk-hero__left,
+.sk-hero__right {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sk--pill {
+  height: 22px;
+  width: 80px;
+  border-radius: var(--r-full);
+}
+
+.sk-pipeline-layout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.sk-stage-totals {
+  width: 100%;
+}
+.sk-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+.sk-stage-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  min-height: 80px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+.sk-stage-card__left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sk-lane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.sk-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0;
+}
+.sk-info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.sk--btn {
+  height: 32px;
+  width: 100%;
+  border-radius: var(--r-md);
+  margin-top: 10px;
+}
+
+.sk-activity-card {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
