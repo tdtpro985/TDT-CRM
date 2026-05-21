@@ -1365,13 +1365,17 @@ def create_deal():
         owner_id = data.get('ownerId')
         # Validation for owner_id branch mismatch
         if owner_id:
+            cursor.execute('SELECT branch, region, role FROM team WHERE id = %s', (owner_id,))
+            team_row = cursor.fetchone()
+            if not team_row:
+                return jsonify({'error': 'Assigned owner not found in team'}), 400
 
             token_claims = get_jwt()
             user_id = get_jwt_identity()
 
             # Role hierarchy check
-            if not can_assign(token_claims, user_id, owner_id, team_row[1]):
-                return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({team_row[1]})'}), 403
+            if not can_assign(token_claims, user_id, owner_id, team_row[2]):
+                return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({team_row[2]})'}), 403
 
             # If leadId is provided, check branch against lead's branch
             lead_id = data.get('leadId')
@@ -1387,7 +1391,6 @@ def create_deal():
                                 rsm_region = token_claims.get('region', '')
                                 allowed = [normalize_branch(b) for b in REGION_BRANCHES.get(rsm_region, [])]
                                 if normalize_branch(lead_row[0]) not in allowed:
-
                                     return jsonify({'error': f'Lead branch ({lead_row[0]}) is outside your region scope'}), 403
                             else:
                                 return jsonify({'error': f'Owner branch ({team_row[0]}) mismatch with lead/deal branch ({lead_row[0]})'}), 400
