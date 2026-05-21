@@ -278,7 +278,7 @@
   }
 
   .page-title {
-    font-size: var(--fs-base);
+    font-size: var(--fs-sm);
   }
 
   .panel {
@@ -295,7 +295,7 @@
 
   .admin-table {
     min-width: 500px;
-    font-size: 0.72rem;
+    font-size: var(--fs-xs);
   }
 
   .admin-table th,
@@ -304,10 +304,12 @@
   }
 
   .toast {
-    bottom: 16px;
-    left: 12px;
-    right: 12px;
+    bottom: 24px;
+    left: 24px;
+    right: 24px;
     transform: none;
     border-radius: var(--r-lg);
+    justify-content: center;
   }
 }
+

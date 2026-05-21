@@ -164,6 +164,7 @@ export default function DashboardView({
                     />
                   </div>
                 )}
+
               </div>
             ))}
           </div>
@@ -210,12 +211,12 @@ export default function DashboardView({
             {focusTasks.map((task) => {
               const priorityClass = `is-priority-${task.priority.toLowerCase()}`
               return (
-                <article key={task.id} className={`simple-list__item ${priorityClass}`} style={{ borderLeft: '3px solid transparent' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <strong style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <article key={task.id} className={`simple-list__item ${priorityClass} u-border-l-3-transparent`}>
+                  <div className="u-flex-1 u-min-w-0">
+                    <strong className="u-truncate u-block">
                       {task.title}
                     </strong>
-                    <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    <p className="u-margin-t-4 u-fs-11 u-text-muted">
                       {!isSr ? `${task.owner} | ` : ''}due {formatDateLabel(task.dueDate)}
                     </p>
                   </div>
