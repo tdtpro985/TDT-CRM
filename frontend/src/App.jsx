@@ -281,7 +281,7 @@ export default function App() {
   // ─── Shell ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="crm-shell">
+    <div className={`crm-shell ${sidebarOpen ? 'sidebar-is-open' : ''}`}>
       {/* Invisible hover trigger zone for sidebar */}
       <div 
         className="sidebar-hover-trigger" 
