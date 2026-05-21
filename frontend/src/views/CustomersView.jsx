@@ -3,7 +3,7 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole } from '../utils'
+import { formatDateTimePHT, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole } from '../utils'
 import { STAGE_COLORS, ITEMS_PER_PAGE } from '../constants'
 import LeadForm from '../components/forms/LeadForm'
 import TaskForm from '../components/forms/TaskForm'
@@ -343,7 +343,7 @@ export default function CustomersView({
                       {(customerDetail?.auditLogs || [])
                       .filter(l => {
                         // 1. Filter out technical/noisy logs
-                        if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change') return false
+                        if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change' || l.action === 'stage_change' || l.action === 'probability_change') return false
                         
                         // 2. Filter out no-change logs (where old == new)
                         if (l.oldValue === l.newValue && l.oldValue !== null) return false
@@ -382,7 +382,7 @@ export default function CustomersView({
                             <div className="timeline-dot" style={{ backgroundColor: dotColor }}></div>
                             <div className="timeline-content">
                               <div className="timeline-header">
-                                <span className="timeline-time">{formatDateLabel(item.changedAt)}</span>
+                                <span className="timeline-time">{formatDateTimePHT(item.changedAt)}</span>
                                 {item.changedBy && (
                                   <span className="timeline-user u-fs-10 u-text-muted u-ml-8">
                                     by {item.changedBy}
