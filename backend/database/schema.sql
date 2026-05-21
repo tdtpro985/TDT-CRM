@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS leads (
     address       TEXT,
     region        VARCHAR(100),
     owner_id      INT,
+    owner_name    VARCHAR(255),
     branch        VARCHAR(100),
     status        VARCHAR(50)  DEFAULT 'New',
     created_at    DATE         DEFAULT (CURRENT_DATE),
