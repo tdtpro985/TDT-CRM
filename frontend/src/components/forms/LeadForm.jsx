@@ -1,13 +1,15 @@
 import { useState } from 'react'
+import { isSrRole } from '../../utils'
 
-export default function LeadForm({ onSubmit, onCancel, teamMembers, branch }) {
+export default function LeadForm({ onSubmit, onCancel, teamMembers, branch, currentUser }) {
+  const isSr = isSrRole(currentUser?.role)
   const [leadForm, setLeadForm] = useState({
     customerName: '',
     contactNum: '',
     address: '',
     region: '',
-    sr: '',
-    ownerId: '',
+    sr: isSr ? currentUser?.name || '' : '',
+    ownerId: isSr ? currentUser?.id || '' : '',
   })
 
   function handleChange(e) {
@@ -81,25 +83,37 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, branch }) {
         />
       </label>
 
-      <label className="field">
-        <span>SR (Sales Representative)</span>
-        <select
-          name="ownerId"
-          value={leadForm.ownerId}
-          onChange={handleChange}
-          required
-        >
-          <option value="">Select Representative</option>
-          {teamMembers
-            .filter(m => m.branch === branch || branch === 'Headquarters')
-            .map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name} ({m.region})
-              </option>
-            ))
-          }
-        </select>
-      </label>
+      {isSr ? (
+        <label className="field">
+          <span>SR (Sales Representative)</span>
+          <input
+            value={leadForm.sr || currentUser?.name || ''}
+            readOnly
+            className="input--readonly"
+            title="Assigned to you automatically"
+          />
+        </label>
+      ) : (
+        <label className="field">
+          <span>SR (Sales Representative)</span>
+          <select
+            name="ownerId"
+            value={leadForm.ownerId}
+            onChange={handleChange}
+            required
+          >
+            <option value="">Select Representative</option>
+            {teamMembers
+              .filter(m => m.branch === branch || branch === 'Headquarters')
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} ({m.region})
+                </option>
+              ))
+            }
+          </select>
+        </label>
+      )}
 
       <label className="field">
         <span>Branch</span>

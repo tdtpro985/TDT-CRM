@@ -59,7 +59,7 @@ export default function App() {
   }
 
   const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
-  const { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch, activeRegion } = data
+  const { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion } = data
   const { setActiveBranch, setActiveRegion, fetchCompanies, fetchContacts } = actions
 
   // ─── Derived data ───────────────────────────────────────────────────────────
@@ -104,15 +104,17 @@ export default function App() {
   }
 
   const handleCreateTask = async (form) => {
-    await actions.createTask(form, DEAL_STAGES);
+    return await actions.createTask(form, DEAL_STAGES);
   }
 
   async function fetchDealContacts(dealId) {
     try {
       const res = await apiFetch(`/api/deals/${dealId}/contacts`)
       if (res.ok) return res.json()
+      console.error('Failed to fetch deal contacts:', res.status)
       return []
-    } catch {
+    } catch (err) {
+      console.error('Error fetching deal contacts:', err)
       return []
     }
   }
@@ -196,6 +198,7 @@ export default function App() {
             companies={companies}
             openTasks={openTasks}
             linkHealth={linkHealth}
+            currentUser={currentUser}
           />
         } />
         <Route path="/database" element={
@@ -255,9 +258,11 @@ export default function App() {
             deals={deals}
             companies={companies}
             teamMembers={teamMembers}
+            dealContactMap={dealContactMap}
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
             searchQuery={searchQuery}
+            currentUser={currentUser}
           />
         } />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -465,9 +470,14 @@ export default function App() {
           fetchCompanies={fetchCompanies}
           fetchContacts={fetchContacts}
           onCancel={() => setShowTaskForm(false)}
-          onSubmit={(form) => {
-            handleCreateTask(form)
-            setShowTaskForm(false)
+          onSubmit={async (form) => {
+            try {
+              await handleCreateTask(form)
+              setShowTaskForm(false)
+            } catch (err) {
+              console.error('Task creation error:', err)
+              showToast(`Failed to create task: ${err.message}`)
+            }
           }}
         />
       </Modal>
@@ -481,6 +491,7 @@ export default function App() {
         <LeadForm
           teamMembers={teamMembers}
           branch={currentUser?.branch}
+          currentUser={currentUser}
           onCancel={() => setShowLeadForm(false)}
           onSubmit={(form) => {
             handleCreateLead(form)

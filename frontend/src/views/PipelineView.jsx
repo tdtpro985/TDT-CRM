@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch } from '../utils'
+import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole } from '../utils'
 import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP } from '../constants'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
@@ -46,6 +46,7 @@ export default function PipelineView({
 }) {
   const [stageFilter, setStageFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
+  const isSr = isSrRole(currentUser?.role)
 
   const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
   const contactMap = useMemo(() => Object.fromEntries((contacts  ?? []).map((c) => [c.id, c])), [contacts])
@@ -401,10 +402,10 @@ export default function PipelineView({
                             </div>
                             
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
+                              {!isSr && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
                                 <span style={{ color: 'var(--text-muted)' }}>Owner:</span>
                                 <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{deal.owner}</span>
-                              </div>
+                              </div>}
                               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
                                 <span style={{ color: 'var(--text-muted)' }}>Close:</span>
                                 <span style={{ color: 'var(--text-secondary)' }}>{formatDateLabel(deal.expectedClose)}</span>
@@ -487,10 +488,10 @@ export default function PipelineView({
                   <span className="deal-modal__label">Company</span>
                   <strong className="deal-modal__value">{companyMap[selectedDeal.companyId]?.name ?? '—'}</strong>
                 </div>
-                <div className="deal-modal__field">
+                {!isSr && <div className="deal-modal__field">
                   <span className="deal-modal__label">Owner</span>
                   <strong className="deal-modal__value">{selectedDeal.owner || '—'}</strong>
-                </div>
+                </div>}
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Deal Value</span>
                   {isEditing ? (

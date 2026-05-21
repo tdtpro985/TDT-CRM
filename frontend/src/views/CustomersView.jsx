@@ -3,12 +3,14 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch } from '../utils'
+import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole } from '../utils'
 import { STAGE_COLORS, ITEMS_PER_PAGE } from '../constants'
 import LeadForm from '../components/forms/LeadForm'
 import TaskForm from '../components/forms/TaskForm'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
+
+const CUSTOMER_ITEMS_PER_PAGE = 10
 
 export default function CustomersView({
   customers,
@@ -26,6 +28,7 @@ export default function CustomersView({
   onCreateTask,
   fetchCompanies,
   fetchContacts,
+  setNotice,
   currentUser,
   searchQuery
 }) {
@@ -35,7 +38,9 @@ export default function CustomersView({
   const [customerDetail, setCustomerDetail] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [companyContacts, setCompanyContacts] = useState([])
+  const [contactErrors, setContactErrors] = useState({})
   const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const isSr = isSrRole(currentUser?.role)
 
   // Reset page on search change (adjusting state during render)
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
@@ -119,6 +124,8 @@ export default function CustomersView({
 
   useEffect(() => {
     if (selectedCustomer?.id) {
+      setCustomerDetail(null)
+      setCompanyContacts([])
       fetchDetail(selectedCustomer.id)
     }
   }, [selectedCustomer?.id])
@@ -194,8 +201,8 @@ export default function CustomersView({
     customerDeals.some(d => !['Closed Won', 'Closed Lost'].includes(d.stage))
   , [customerDeals])
 
-  const paginatedCustomers = getPaginatedData(filteredCustomers, page, ITEMS_PER_PAGE)
-  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE)
+  const paginatedCustomers = getPaginatedData(filteredCustomers, page, CUSTOMER_ITEMS_PER_PAGE)
+  const totalPages = Math.ceil(filteredCustomers.length / CUSTOMER_ITEMS_PER_PAGE)
 
   return (
     <>
@@ -318,7 +325,7 @@ export default function CustomersView({
                             <th>Deal</th>
                             <th>Stage</th>
                             <th>Value</th>
-                            <th>Owner</th>
+                            {!isSr && <th>Owner</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -327,7 +334,7 @@ export default function CustomersView({
                               <td className="admin-table__name">{deal.name}</td>
                               <td>{deal.stage}</td>
                               <td>{formatCurrencyCompact(deal.value)}</td>
-                              <td className="admin-table__muted">{deal.owner}</td>
+                              {!isSr && <td className="admin-table__muted">{deal.owner}</td>}
                             </tr>
                           ))}
                         </tbody>
@@ -346,6 +353,9 @@ export default function CustomersView({
                         
                         // 2. Filter out no-change logs (where old == new)
                         if (l.oldValue === l.newValue && l.oldValue !== null) return false
+                        
+                        // 3. SRs should not see owner reassignments
+                        if (isSr && l.action === 'owner_id_change') return false
                         
                         return true
                       })
@@ -459,10 +469,14 @@ export default function CustomersView({
           fetchContacts={fetchContacts}
           onCancel={() => setShowQuickTaskForm(false)}
           onSubmit={async (form) => {
-            await onCreateTask(form)
-            setShowQuickTaskForm(false)
-            if (selectedCustomer?.id) {
-              fetchDetail(selectedCustomer.id)
+            try {
+              await onCreateTask(form)
+              setShowQuickTaskForm(false)
+              if (selectedCustomer?.id) {
+                fetchDetail(selectedCustomer.id)
+              }
+            } catch {
+              // Error handled in useCRMData
             }
           }}
         />
@@ -477,6 +491,7 @@ export default function CustomersView({
         <LeadForm
           teamMembers = {teamMembers}
           branch = {currentUser?.branch ?? ''}
+          currentUser = {currentUser}
           onCancel = {() => setShowCustomerForm(false)}
           onSubmit = {(form) =>{
             onCreateCustomer(form)
@@ -493,7 +508,7 @@ export default function CustomersView({
       >
         <div style={{ padding: '0 24px 24px' }}>
           <div className="detail-list">
-            <div><span>SR</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>
+            {!isSr && <div><span>SR</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>}
             <div><span>Region</span><strong>{selectedCustomer?.city || selectedCustomer?.region || '—'}</strong></div>
             <div><span>Branch</span><strong>{selectedCustomer?.branch ?? '—'}</strong></div>
             <div><span>Address</span><strong>{selectedCustomer?.address ?? '—'}</strong></div>
@@ -501,8 +516,7 @@ export default function CustomersView({
             <div><span>Website</span><strong>{selectedCustomer?.website ?? '—'}</strong></div>
           </div>
 
-          {hasActiveDeal && (
-            <>
+          <>
               <div className="section-header" style={{ marginTop: '24px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Contacts</h4>
                 <button
@@ -548,58 +562,64 @@ export default function CustomersView({
                         </td>
                       </tr>
                     ) : (
-                      companyContacts.map((contact, idx) => (
-                        <tr key={contact.id}>
-                          {contact.isEditing ? (
-                            <>
-                              <td>
-                                <input
-                                  name="name"
-                                  value={contact.name}
-                                  onChange={e => {
-                                    const val = e.target.value
-                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, name: val } : c))
-                                  }}
-                                  placeholder="Name *"
-                                  style={{ width: '100%', boxSizing: 'border-box' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  name="role"
-                                  value={contact.role}
-                                  onChange={e => {
-                                    const val = e.target.value
-                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, role: val } : c))
-                                  }}
-                                  placeholder="Role"
-                                  style={{ width: '100%', boxSizing: 'border-box' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  name="email"
-                                  value={contact.email}
-                                  onChange={e => {
-                                    const val = e.target.value
-                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, email: val } : c))
-                                  }}
-                                  placeholder="Email"
-                                  style={{ width: '100%', boxSizing: 'border-box' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  name="phone"
-                                  value={contact.phone}
-                                  onChange={e => {
-                                    const val = e.target.value.replace(/[^0-9+\s()-]/g, '')
-                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c))
-                                  }}
-                                  placeholder="Number"
-                                  style={{ width: '100%', boxSizing: 'border-box' }}
-                                />
-                              </td>
+                      companyContacts.map((contact, idx) => {
+                        const errors = contactErrors[contact.id] || {}
+                        return (
+                          <tr key={contact.id}>
+                            {contact.isEditing ? (
+                              <>
+                                <td>
+                                  <input
+                                    name="name"
+                                    value={contact.name}
+                                    onChange={e => {
+                                      const val = e.target.value
+                                      setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, name: val } : c))
+                                    }}
+                                    placeholder="Name *"
+                                    style={{ width: '100%', boxSizing: 'border-box', borderColor: errors.name ? 'var(--alert)' : undefined }}
+                                  />
+                                  {errors.name && <div style={{ color: 'var(--alert)', fontSize: '10px', marginTop: '4px' }}>{errors.name}</div>}
+                                </td>
+                                <td>
+                                  <input
+                                    name="role"
+                                    value={contact.role}
+                                    onChange={e => {
+                                      const val = e.target.value
+                                      setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, role: val } : c))
+                                    }}
+                                    placeholder="Role"
+                                    style={{ width: '100%', boxSizing: 'border-box' }}
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    name="email"
+                                    value={contact.email}
+                                    onChange={e => {
+                                      const val = e.target.value
+                                      setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, email: val } : c))
+                                    }}
+                                    placeholder="Email"
+                                    style={{ width: '100%', boxSizing: 'border-box', borderColor: errors.email ? 'var(--alert)' : undefined }}
+                                  />
+                                  {errors.email && <div style={{ color: 'var(--alert)', fontSize: '10px', marginTop: '4px' }}>{errors.email}</div>}
+                                </td>
+                                <td>
+                                  <input
+                                    name="phone"
+                                    value={contact.phone}
+                                    onChange={e => {
+                                      const val = e.target.value.replace(/[^0-9+\s()-]/g, '')
+                                      setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c))
+                                    }}
+                                    placeholder="Number"
+                                    style={{ width: '100%', boxSizing: 'border-box', borderColor: errors.phone ? 'var(--alert)' : undefined }}
+                                  />
+                                  {errors.phone && <div style={{ color: 'var(--alert)', fontSize: '10px', marginTop: '4px' }}>{errors.phone}</div>}
+                                  {errors.global && <div style={{ color: 'var(--alert)', fontSize: '10px', marginTop: '4px', fontWeight: 700 }}>{errors.global}</div>}
+                                </td>
                               <td style={{ whiteSpace: 'nowrap' }}>
                                 <button
                                   type="button"
@@ -607,8 +627,27 @@ export default function CustomersView({
                                   style={{ fontSize: '11px', padding: '2px 6px', marginRight: '4px' }}
                                   onClick={async () => {
                                     const c = companyContacts[idx]
-                                    if (!c.name) return
-                                    if (!c.email && !c.phone) return
+                                    const errors = {}
+                                    if (!c.name?.trim()) errors.name = 'Name is required'
+                                    if (!c.email?.trim() && !c.phone?.trim()) {
+                                      errors.email = 'Need phone or email'
+                                      errors.phone = 'Need phone or email'
+                                    }
+                                    if (c.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) {
+                                      errors.email = 'Invalid email'
+                                    }
+
+                                    if (Object.keys(errors).length > 0) {
+                                      setContactErrors(prev => ({ ...prev, [c.id]: errors }))
+                                      setNotice('Please correct the highlighted errors.')
+                                      return
+                                    }
+
+                                    setContactErrors(prev => {
+                                      const next = { ...prev }
+                                      delete next[c.id]
+                                      return next
+                                    })
 
                                     const payload = {
                                       ...(c.isNew ? {
@@ -632,10 +671,16 @@ export default function CustomersView({
                                         })
                                         if (res.status === 409) {
                                           const errData = await res.json()
-                                          alert(errData.error || 'This contact already exists.')
+                                          setNotice(errData.error || 'This contact already exists.')
+                                          setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Duplicate contact' } }))
                                           return
                                         }
-                                        if (!res.ok) return
+                                        if (!res.ok) {
+                                          const errData = await res.json().catch(() => ({}))
+                                          setNotice(errData.error || 'Failed to create contact.')
+                                          setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Create failed' } }))
+                                          return
+                                        }
                                       } else {
                                         const res = await apiFetch(`/api/contacts/${c.id}`, {
                                           method: 'PUT',
@@ -643,14 +688,25 @@ export default function CustomersView({
                                         })
                                         if (res.status === 409) {
                                           const errData = await res.json()
-                                          alert(errData.error || 'This contact already exists.')
+                                          setNotice(errData.error || 'This contact already exists.')
+                                          setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Duplicate contact' } }))
+                                          return
+                                        }
+                                        if (!res.ok) {
+                                          const errData = await res.json().catch(() => ({}))
+                                          setNotice(errData.error || 'Failed to update contact.')
+                                          setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Update failed' } }))
                                           return
                                         }
                                       }
                                       setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false, isNew: false } : c2))
+                                      setNotice('Contact saved successfully.')
                                       fetchDetail(selectedCustomer.id)
+                                      fetchContacts()
                                     } catch (e) {
                                       console.error('Failed to save contact:', e)
+                                      setNotice('A network error occurred while saving the contact.')
+                                      setContactErrors(prev => ({ ...prev, [c.id]: { global: 'Network error' } }))
                                     }
                                   }}
                                 >
@@ -666,6 +722,11 @@ export default function CustomersView({
                                     } else {
                                       setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false } : c2))
                                     }
+                                    setContactErrors(prev => {
+                                      const next = { ...prev }
+                                      delete next[contact.id]
+                                      return next
+                                    })
                                   }}
                                 >
                                   Cancel
@@ -692,13 +753,13 @@ export default function CustomersView({
                             </>
                           )}
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
               </div>
             </>
-          )}
 
           <div style={{ marginTop: '24px' }}>
             <button 
