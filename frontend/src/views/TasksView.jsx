@@ -28,7 +28,7 @@ const IconQuote = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
 )
 const IconChevronDown = ({ expanded }) => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9"/></svg>
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`u-transition-transform ${expanded ? 'u-rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
 )
 
 function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatusToggle, isHighlighted }) {
@@ -52,13 +52,13 @@ function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatus
     <article id={`task-card-${task.id}`} className={`activity-card ${priorityClass} ${isHighlighted ? 'is-highlighted' : ''}`}>
       <div className="activity-card__header">
         <div className="activity-card__main-content">
-          <strong className="activity-card__title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ color: 'var(--accent)', display: 'flex' }}>{TypeIcon}</span>
+          <strong className="activity-card__title u-flex-center-gap-sm">
+            <span className="u-accent u-flex">{TypeIcon}</span>
             {task.title}
           </strong>
         </div>
         {linkedDeal?.stage && (
-          <span className={`tone-pill ${getToneClass(linkedDeal.stage)}`} style={{ fontSize: '9px', padding: '1px 6px' }}>
+          <span className={`tone-pill ${getToneClass(linkedDeal.stage)} u-fs-9 u-pad-1-6`}>
             {linkedDeal.stage}
           </span>
         )}
@@ -78,16 +78,16 @@ function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatus
               const displayRole = c.role
               
               return (
-                <div key={c.id} style={{ marginBottom: '8px' }}>
+                <div key={c.id} className="u-margin-b-8">
                   <div className="activity-card__contact-primary">
                     <IconUser />
                     <span>{displayName}{displayRole ? ` - ${displayRole}` : ''}</span>
                   </div>
                   <div className="activity-card__contact-details">
-                    <span className="activity-card__contact-item" style={!c.phone ? { color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.6, fontSize: '10px' } : {}}>
+                    <span className={`activity-card__contact-item ${!c.phone ? 'u-text-muted u-italic u-opacity-06 u-fs-10' : ''}`}>
                       <IconPhone /> {c.phone || 'No phone on file'}
                     </span>
-                    <span className="activity-card__contact-item" style={!c.email ? { color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.6, fontSize: '10px' } : {}}>
+                    <span className={`activity-card__contact-item ${!c.email ? 'u-text-muted u-italic u-opacity-06 u-fs-10' : ''}`}>
                       <IconMail /> {c.email || 'No email on file'}
                     </span>
                   </div>
@@ -308,7 +308,7 @@ export default function TasksView({
                   return (
                     <div key={task.id}>
                       {showHeader && (
-                        <div className="activity-group-header" style={{ marginTop: idx > 0 ? '24px' : '0' }}>
+                        <div className={`activity-group-header ${idx > 0 ? 'u-margin-t-24' : ''}`}>
                           {task.resolvedCompanyName}
                         </div>
                       )}
@@ -345,28 +345,26 @@ export default function TasksView({
                 return (
                   <article 
                     key={task.id} 
-                    className={`simple-list__item ${priorityClass}`} 
-                    style={{ borderLeft: '3px solid transparent', cursor: 'pointer' }}
+                    className={`simple-list__item ${priorityClass} u-border-l-3-transparent u-cursor-pointer`}
                     onClick={() => handleFocusTaskClick(task)}
                   >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <strong style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div className="u-flex-1 u-min-w-0">
+                      <strong className="u-block u-truncate">
                         {task.title}
                       </strong>
-                      <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
+                      <p className="u-margin-t-4 u-fs-11 u-text-muted">
                         {!isSr ? `${task.owner} | ` : ''}due {formatDueDate(task.dueDate)}
                         {linkedDeal?.stage && (
-                          <span className={`tone-pill ${getToneClass(linkedDeal.stage)}`} style={{ fontSize: '9px', padding: '1px 6px', marginLeft: '6px' }}>
+                          <span className={`tone-pill ${getToneClass(linkedDeal.stage)} u-fs-9 u-pad-1-6 u-ml-6`}>
                             {linkedDeal.stage}
                           </span>
                         )}
                       </p>
                     </div>
-                    <div style={{ flexShrink: 0, marginLeft: '12px' }}>
+                    <div className="u-shrink-0 u-ml-12">
                       <button 
                         type="button" 
-                        className="ghost-button" 
-                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                        className="ghost-button u-fs-11 u-pad-4-8" 
                         onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
                       >
                         View

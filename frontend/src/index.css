@@ -2,25 +2,62 @@
 
 :root {
   --bg: #1a1a2e;
+  --bg-app: #0a0e17;
   --bg-card: #16213e;
   --bg-card-alt: #0f3460;
+  --bg-surface: #1e293b;
   --bg-input: #1e2a45;
   --bg-soft: #202b4a;
   --accent: #ff9800;
   --accent-strong: #ffb547;
   --accent-soft: rgba(255, 152, 0, 0.16);
   --text-strong: #f8fafc;
-  --text: #d0d7e3;
-  --text-muted: #97a3b6;
+  --text: #e2e8f0;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
   --border: rgba(255, 255, 255, 0.15);
   --border-strong: rgba(255, 255, 255, 0.25);
   --positive: #34d399;
   --warning: #ffb547;
+  --caution: #fbbf24;
   --alert: #fb7185;
   --shadow-soft: none;
   --shadow-strong: none;
   --font-body: 'Manrope', 'Segoe UI', sans-serif;
   --font-heading: 'Sora', 'Segoe UI', sans-serif;
+
+  /* Font Sizes */
+  --fs-3xs: 0.5625rem;
+  --fs-2xs: 0.625rem;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.5rem;
+  --fs-xxl: 2rem;
+  --fs-3xl: 2.5rem;
+
+  /* Spacing */
+  --pad-xs: 4px;
+  --pad-sm: 8px;
+  --pad-md: 12px;
+  --pad-lg: 16px;
+  --pad-control: 8px 14px;
+  --pad-card: 16px;
+  --pad-panel: 20px;
+  --pad-item: 10px 14px;
+  --pad-pill: 4px 10px;
+  --pad-fluid: clamp(16px, 2.5vw, 24px);
+
+  /* Border Radius */
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-full: 9999px;
+
+  /* Gap */
+  --gap-fluid: clamp(12px, 2vw, 24px);
 }
 
 *,
@@ -104,6 +141,17 @@ p {
 ::selection {
   color: #10131f;
   background: rgba(255, 181, 71, 0.9);
+}
+
+@keyframes revealUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.u-reveal-up {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: revealUp 0.5s ease forwards;
 }
 
 /* Priority Signaling */
