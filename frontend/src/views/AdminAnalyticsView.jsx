@@ -30,7 +30,64 @@ async function downloadCSV(url, filename) {
 const PAGE_SIZE = 5
 const AUDIT_PAGE_SIZE = 20
 
-export default function AdminAnalyticsView({ activeBranch = '' }) {
+const DONUT_COLORS = {
+  New: '#7eb8ff',
+  Contacted: '#ff9800',
+  Converted: '#34d399',
+  Lost: '#fb7185',
+}
+
+function DonutChart({ data }) {
+  const r = 65, cx = 85, cy = 85, sw = 22
+  const circumference = 2 * Math.PI * r
+  const total = data.reduce((sum, d) => sum + d.count, 0)
+  const { slices } = data.reduce(
+    ({ slices: acc, cum }, s) => {
+      const pct = total ? s.count / total : 0
+      return { slices: [...acc, { ...s, pct, startPct: cum }], cum: cum + pct }
+    },
+    { slices: [], cum: 0 }
+  )
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '20px', padding: '8px 0 16px' }}>
+      <svg viewBox="0 0 170 170" width="150" height="150" style={{ flexShrink: 0 }}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
+        {slices.map((s) => s.pct > 0 && (
+          <circle
+            key={s.status}
+            cx={cx} cy={cy} r={r}
+            fill="none"
+            stroke={DONUT_COLORS[s.status] || 'rgba(255,255,255,0.2)'}
+            strokeWidth={sw}
+            strokeDasharray={`${s.pct * circumference} ${circumference}`}
+            transform={`rotate(${s.startPct * 360 - 90}, ${cx}, ${cy})`}
+            style={{ transition: 'stroke-dasharray 0.5s ease' }}
+          />
+        ))}
+        <text x={cx} y={cy - 6} textAnchor="middle" fill="white" fontSize="20" fontWeight="800" fontFamily="inherit">
+          {total.toLocaleString()}
+        </text>
+        <text x={cx} y={cy + 12} textAnchor="middle" fill="rgba(148,163,184,0.9)" fontSize="9.5" fontFamily="inherit">
+          Total Leads
+        </text>
+      </svg>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+        {slices.map((s) => (
+          <div key={s.status} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: DONUT_COLORS[s.status] || '#888', flexShrink: 0 }} />
+            <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', flex: 1 }}>{s.status}</span>
+            <span style={{ fontSize: 'var(--fs-sm)', fontWeight: 700, color: 'var(--text-strong)' }}>{s.count.toLocaleString()}</span>
+            <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', minWidth: '30px', textAlign: 'right' }}>
+              {Math.round(s.pct * 100)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '' }) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
@@ -43,18 +100,24 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
   const [auditEntity, setAuditEntity] = useState('')
   const [auditFrom, setAuditFrom]     = useState('')
   const [auditLoading, setAuditLoading] = useState(false)
+  const [srSort, setSrSort]           = useState('deals_won')
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    let isCurrent = true
     setLoading(true)
-    const url = activeBranch
-      ? `/api/admin/analytics?branch=${encodeURIComponent(activeBranch)}`
-      : `/api/admin/analytics`
-    apiFetch(url)
+    setData(null)
+    setError('')
+    const params = new URLSearchParams()
+    if (activeBranch)      params.set('branch', activeBranch)
+    else if (activeRegion) params.set('region', activeRegion)
+    const qs = params.toString()
+    apiFetch(`/api/admin/analytics${qs ? '?' + qs : ''}`)
       .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false) })
-      .catch(() => { setError('Failed to load analytics.'); setLoading(false) })
-  }, [activeBranch])
+      .then((d) => { if (isCurrent) { setData(d); setLoading(false) } })
+      .catch(() => { if (isCurrent) { setError('Failed to load analytics.'); setLoading(false) } })
+    return () => { isCurrent = false }
+  }, [activeBranch, activeRegion])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const fetchAuditLog = useCallback(() => {
@@ -75,7 +138,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
   useEffect(() => { fetchAuditLog() }, [fetchAuditLog])
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const { totals, usersPerBranch, roleDistribution, leadsPerBranch, dealsPerBranch, topSRs } = data || {}
+  const { totals, usersPerBranch, roleDistribution, leadsPerBranch, dealsPerBranch, topSRs, leadStatusDist } = data || {}
 
   const branchMap = {}
   if (usersPerBranch) {
@@ -105,6 +168,10 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
   const totalPages   = Math.ceil(branchRows.length / PAGE_SIZE)
   const pagedRows    = useMemo(() => getPaginatedData(branchRows, page, PAGE_SIZE), [branchRows, page])
   const auditTotalPages = Math.ceil(auditTotal / AUDIT_PAGE_SIZE)
+  const sortedSRs    = useMemo(
+    () => (topSRs ? [...topSRs].sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0)).slice(0, 10) : []),
+    [topSRs, srSort]
+  )
 
   const ratesWithData = branchRows.filter((r) => r.win_rate != null)
   const overallWinRate = ratesWithData.length
@@ -127,6 +194,14 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
 
   return (
     <>
+      {/* Scope indicator */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>Viewing</span>
+        <span className="admin-role-pill admin-role-pill--surface" style={{ fontSize: 'var(--fs-xs)' }}>
+          {activeBranch ? activeBranch : activeRegion ? `${activeRegion} region` : 'All Branches'}
+        </span>
+      </div>
+
       {/* KPI row */}
       <section className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(max(160px,14%),1fr))' }}>
         <MetricCard label="Total Users"    value={totals.users.toLocaleString()}                  meta="Accounts across all branches"    accent="accent"  />
@@ -137,7 +212,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
         <MetricCard label="Avg Win Rate"   value={overallWinRate != null ? `${overallWinRate}%` : '—'} meta="Across branches with history" accent="surface" />
       </section>
 
-      <section className="content-grid content-grid--primary" style={{ gridTemplateColumns: '2fr 1fr' }}>
+      <section className="content-grid content-grid--primary" style={{ gridTemplateColumns: '2fr 1fr', flex: 'none', gridTemplateRows: 'auto' }}>
 
         {/* Branch performance cards */}
         <Panel
@@ -231,9 +306,31 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
 
           {/* Top SRs */}
           {topSRs && topSRs.length > 0 && (
-            <Panel kicker="Top performers" title="Top Sales Reps">
+            <Panel
+              kicker="Top performers"
+              title="Top Sales Reps"
+              action={
+                <div style={{ display: 'flex', gap: '2px' }}>
+                  {[['Won', 'deals_won'], ['Conv.', 'converted'], ['Leads', 'leads_count']].map(([label, key]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className="ghost-button u-fs-xs"
+                      style={{
+                        padding: '2px 8px',
+                        opacity: srSort === key ? 1 : 0.45,
+                        background: srSort === key ? 'rgba(255,152,0,0.12)' : 'transparent',
+                      }}
+                      onClick={() => setSrSort(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              }
+            >
               <div className="sr-rank-list">
-                {topSRs.map((sr, i) => (
+                {sortedSRs.map((sr, i) => (
                   <div key={sr.name} className={`sr-rank-item${i === 0 ? ' sr-rank-item--top' : ''}`}>
                     <div className="sr-rank-badge">{i + 1}</div>
                     <div className="sr-rank-info">
@@ -241,8 +338,12 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
                       <div className="sr-rank-branch">{sr.branch}</div>
                     </div>
                     <div className="sr-rank-stats">
-                      <span className="admin-role-pill admin-role-pill--surface">{sr.leads_count} leads</span>
-                      <span className="admin-role-pill admin-role-pill--accent">{sr.converted} won</span>
+                      {srSort !== 'leads_count' && (
+                        <span className="admin-role-pill admin-role-pill--surface">{sr.leads_count} leads</span>
+                      )}
+                      {srSort === 'deals_won'   && <span className="admin-role-pill admin-role-pill--accent">{sr.deals_won} won</span>}
+                      {srSort === 'converted'   && <span className="admin-role-pill admin-role-pill--accent">{sr.converted} conv.</span>}
+                      {srSort === 'leads_count' && <span className="admin-role-pill admin-role-pill--accent">{sr.leads_count} leads</span>}
                     </div>
                   </div>
                 ))}
@@ -253,8 +354,9 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
         </div>
       </section>
 
-      {/* Audit log — full width */}
-      <section className="u-margin-t-16">
+      {/* Bottom row: Audit Log + Lead Status Donut */}
+      <section className="analytics-bottom-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px', marginTop: '16px', alignItems: 'start' }}>
+
         <Panel
           kicker="Activity"
           title="Audit Log"
@@ -285,7 +387,6 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
             </label>
             {(auditEntity || auditFrom) && (
               <button
-                className="ghost-button"
                 className="ghost-button u-fs-sm u-pad-4-10"
                 onClick={() => { setAuditEntity(''); setAuditFrom(''); setAuditPage(1) }}
               >
@@ -329,6 +430,13 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
             className="analytics-pagination"
           />
         </Panel>
+
+        {leadStatusDist && leadStatusDist.length > 0 && (
+          <Panel kicker="Lead Pipeline" title="Status Breakdown">
+            <DonutChart data={leadStatusDist} />
+          </Panel>
+        )}
+
       </section>
     </>
   )

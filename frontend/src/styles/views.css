@@ -990,7 +990,7 @@
 .analytics-audit-row {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  align-items: center;
+  align-items: start;
   gap: 10px;
   padding: 10px 20px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
@@ -1036,15 +1036,17 @@
 
 .analytics-audit-change {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 4px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .analytics-audit-old {
   color: var(--text-muted);
   text-decoration: line-through;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .analytics-audit-arrow {
@@ -1054,7 +1056,8 @@
 .analytics-audit-new {
   color: var(--text-strong);
   font-weight: 600;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .analytics-audit-time {
@@ -1413,6 +1416,18 @@
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
   border: 1px solid var(--border);
+}
+
+.admin-role-pill--positive {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+.admin-role-pill--alert {
+  background: rgba(251, 113, 133, 0.12);
+  color: #fb7185;
+  border: 1px solid rgba(251, 113, 133, 0.25);
 }
 
 /* Action buttons */
@@ -1813,6 +1828,9 @@
 .analytics-audit-row--status { border-left: 3px solid #7eb8ff; }
 .analytics-audit-row--create { border-left: 3px solid var(--positive); }
 .analytics-audit-row--delete { border-left: 3px solid var(--alert); }
+
+.analytics-right-col > .panel { height: auto; }
+.analytics-bottom-row > .panel { height: auto; min-height: 0; }
 
 /* ── Pipeline View Refinements ─────────────────────────────────── */
 
