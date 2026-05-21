@@ -127,6 +127,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   async function loadAll() {
     if (!currentUser) return
+    setLoading(true)
     try {
       const responses = await Promise.all([
         apiFetch(`/api/companies${buildQuery()}`),
