@@ -13,7 +13,7 @@ async function downloadCSV(url, filename) {
   link.click()
   URL.revokeObjectURL(link.href)
 }
-import { formatCurrencyCompact, formatTimeAgo, getPaginatedData } from '../utils'
+import { formatCurrencyCompact, formatDateTimePHT, getPaginatedData } from '../utils'
 import Pagination from '../components/Pagination'
 
 const PAGE_SIZE = 5
@@ -304,7 +304,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
                       <span className="analytics-audit-new">{entry.new_value}</span>
                     </span>
                   </div>
-                  <span className="analytics-audit-time">{formatTimeAgo(entry.changed_at)}</span>
+                  <span className="analytics-audit-time">{formatDateTimePHT(entry.changed_at)}</span>
                 </div>
               ))}
             </div>
