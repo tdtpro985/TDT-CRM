@@ -116,6 +116,12 @@ jwt = JWTManager(app)
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+REGION_BRANCHES = {
+    'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
+    'North Luzon': ['Ilocos', 'Isabela'],
+    'Vis&Min':     ['Gensan', 'Iloilo', 'Cebu', 'Davao', 'CDO'],
+}
+
 @jwt.unauthorized_loader
 def unauthorized_response(callback):
     return jsonify({'error': 'Missing Authorization Header', 'details': callback}), 401
@@ -1923,7 +1929,9 @@ def update_admin_profile():
 @jwt_required()
 @admin_required
 def admin_analytics():
-    branch_filter = request.args.get('branch', '').strip()
+    branch_filter  = request.args.get('branch', '').strip()
+    region_filter  = request.args.get('region', '').strip()
+    region_branches = REGION_BRANCHES.get(region_filter, []) if (not branch_filter and region_filter) else []
     audit_limit   = min(int(request.args.get('auditLimit',  20)), 100)
     audit_offset  = int(request.args.get('auditOffset', 0))
     audit_entity  = request.args.get('auditEntity', '').strip()
@@ -1938,6 +1946,9 @@ def admin_analytics():
         # Users per branch (exclude Headquarters — admin-only, not a sales branch)
         if branch_filter:
             cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch = %s GROUP BY branch ORDER BY branch", (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f"SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch IN ({in_ph}) GROUP BY branch ORDER BY branch", region_branches)
         else:
             cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY branch ORDER BY branch")
         users_per_branch = rows_to_list(cursor)
@@ -1945,6 +1956,9 @@ def admin_analytics():
         # Role distribution
         if branch_filter:
             cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch = %s GROUP BY role ORDER BY role", (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f"SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch IN ({in_ph}) GROUP BY role ORDER BY role", region_branches)
         else:
             cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY role ORDER BY role")
         role_distribution = rows_to_list(cursor)
@@ -1952,9 +1966,30 @@ def admin_analytics():
         # Leads per branch
         if branch_filter:
             cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads WHERE branch = %s GROUP BY branch ORDER BY branch', (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f'SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads WHERE branch IN ({in_ph}) GROUP BY branch ORDER BY branch', region_branches)
         else:
             cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads GROUP BY branch ORDER BY branch')
         leads_per_branch = rows_to_list(cursor)
+
+        # Lead status distribution
+        if branch_filter:
+            cursor.execute(
+                'SELECT status, COUNT(*) AS count FROM leads WHERE branch = %s GROUP BY status ORDER BY count DESC',
+                (branch_filter,)
+            )
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(
+                f'SELECT status, COUNT(*) AS count FROM leads WHERE branch IN ({in_ph}) GROUP BY status ORDER BY count DESC',
+                region_branches
+            )
+        else:
+            cursor.execute(
+                'SELECT status, COUNT(*) AS count FROM leads GROUP BY status ORDER BY count DESC'
+            )
+        lead_status_dist = rows_to_list(cursor)
 
         # Deals per branch — active deal_count + pipeline_value, plus win_rate and avg_deal_value across all deals
         deals_sql = '''
@@ -1974,46 +2009,74 @@ def admin_analytics():
         '''
         if branch_filter:
             cursor.execute(deals_sql.format(where='WHERE l.branch = %s'), (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(deals_sql.format(where=f'WHERE l.branch IN ({in_ph})'), region_branches)
         else:
             cursor.execute(deals_sql.format(where=''))
         deals_per_branch = rows_to_list(cursor)
 
-        # Top SRs by converted leads
+        # Top SRs — leads, converted, deals won
         if branch_filter:
             cursor.execute('''
                 SELECT t.name, t.branch,
-                       COUNT(l.id)                          AS leads_count,
-                       COALESCE(SUM(l.status = 'Converted'), 0) AS converted
+                       COUNT(DISTINCT l.id)                                            AS leads_count,
+                       COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
+                       COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
                 FROM team t
                 JOIN leads l ON l.owner_id = t.id
+                LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE t.role IN ('Sales Representative', 'Sales Rep') AND t.branch = %s
                 GROUP BY t.id, t.name, t.branch
-                ORDER BY converted DESC
-                LIMIT 10
+                ORDER BY leads_count DESC
+                LIMIT 20
             ''', (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f'''
+                SELECT t.name, t.branch,
+                       COUNT(DISTINCT l.id)                                            AS leads_count,
+                       COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
+                       COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
+                FROM team t
+                JOIN leads l ON l.owner_id = t.id
+                LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE t.role IN ('Sales Representative', 'Sales Rep') AND t.branch IN ({in_ph})
+                GROUP BY t.id, t.name, t.branch
+                ORDER BY leads_count DESC
+                LIMIT 20
+            ''', region_branches)
         else:
             cursor.execute('''
                 SELECT t.name, t.branch,
-                       COUNT(l.id)                          AS leads_count,
-                       COALESCE(SUM(l.status = 'Converted'), 0) AS converted
+                       COUNT(DISTINCT l.id)                                            AS leads_count,
+                       COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
+                       COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
                 FROM team t
                 JOIN leads l ON l.owner_id = t.id
+                LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE t.role IN ('Sales Representative', 'Sales Rep')
                 GROUP BY t.id, t.name, t.branch
-                ORDER BY converted DESC
-                LIMIT 10
+                ORDER BY leads_count DESC
+                LIMIT 20
             ''')
         top_srs = rows_to_list(cursor)
 
         # Totals
         if branch_filter:
             cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters' AND branch = %s", (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f"SELECT COUNT(*) FROM team WHERE branch != 'Headquarters' AND branch IN ({in_ph})", region_branches)
         else:
             cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters'")
         total_users = cursor.fetchone()[0]
 
         if branch_filter:
             cursor.execute("SELECT COUNT(*) FROM leads WHERE branch = %s", (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f"SELECT COUNT(*) FROM leads WHERE branch IN ({in_ph})", region_branches)
         else:
             cursor.execute("SELECT COUNT(*) FROM leads")
         total_leads = cursor.fetchone()[0]
@@ -2025,6 +2088,14 @@ def admin_analytics():
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
             ''', (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f'''
+                SELECT COUNT(*)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch IN ({in_ph})
+            ''', region_branches)
         else:
             cursor.execute('''
                 SELECT COUNT(*)
@@ -2041,6 +2112,14 @@ def admin_analytics():
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
             ''', (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f'''
+                SELECT COALESCE(SUM(d.value),0)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch IN ({in_ph})
+            ''', region_branches)
         else:
             cursor.execute('''
                 SELECT COALESCE(SUM(d.value),0)
@@ -2057,6 +2136,14 @@ def admin_analytics():
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage = 'Closed Won' AND l.branch = %s
             ''', (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f'''
+                SELECT COUNT(*)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage = 'Closed Won' AND l.branch IN ({in_ph})
+            ''', region_branches)
         else:
             cursor.execute("SELECT COUNT(*) FROM deals WHERE stage = 'Closed Won'")
         closed_won = cursor.fetchone()[0]
@@ -2087,6 +2174,7 @@ def admin_analytics():
             'leadsPerBranch':   leads_per_branch,
             'dealsPerBranch':   deals_per_branch,
             'topSRs':           top_srs,
+            'leadStatusDist':   lead_status_dist,
             'totals': {
                 'users':         total_users,
                 'leads':         total_leads,
