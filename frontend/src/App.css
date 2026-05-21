@@ -4,7 +4,6 @@
    Main entry point that imports all modular CSS sections.
    ============================================================ */
 
-@import url('./styles/tokens.css');
 @import url('./styles/base.css');
 @import url('./styles/layout.css');
 @import url('./styles/components.css');

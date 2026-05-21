@@ -21,10 +21,11 @@
 
 .page-title {
   margin: 0;
-  font-size: var(--fs-md);
+  font-size: var(--fs-lg);
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1.1;
   color: var(--text-strong);
+  font-family: var(--font-heading);
 }
 
 .page-description { display: none; }
@@ -274,7 +275,7 @@
   display: block;
   margin-top: 10px;
   color: var(--text-strong);
-  font-size: 2rem;
+  font-size: var(--fs-xxl);
   font-weight: 900;
   line-height: 1;
   letter-spacing: -0.02em;
@@ -347,11 +348,14 @@ section.content-grid--primary {
   align-items: stretch;
 }
 
+.form-body {
+  padding: 0 24px 24px;
+}
+
 .form-grid {
-  margin-top: 14px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
 
 .form-actions {
@@ -595,6 +599,8 @@ section.content-grid--primary {
 .tone-pill.is-open { background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.25); }
 .tone-pill.is-converted { background: rgba(139, 92, 246, 0.1); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.25); }
 .tone-pill.is-caution { background: rgba(255,181,71,0.1); color: var(--caution); border: 1px solid rgba(255,181,71,0.2); }
+.tone-pill.is-compact { font-size: 10px; padding: 2px 6px; }
+.tone-pill.is-strong { font-size: var(--fs-sm); font-weight: 700; }
 
 
 .brand-branch-badge {
@@ -630,19 +636,21 @@ section.content-grid--primary {
 .deal-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.65);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 16px;
+  padding: 20px;
+  backdrop-filter: blur(4px);
 }
 
 .deal-modal {
-  background: #111827;
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   border-radius: var(--r-lg);
-  width: min(680px, 100%);
+  width: min(840px, 96vw);
   max-height: 90vh;
   overflow: hidden;
   display: flex;
@@ -654,15 +662,15 @@ section.content-grid--primary {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 28px 28px 22px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 24px 28px;
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   background: rgba(255,255,255,0.02);
 }
 
 .deal-modal__kicker {
   display: block;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -672,7 +680,7 @@ section.content-grid--primary {
 
 .deal-modal__header h2 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: var(--fs-lg);
   font-weight: 800;
   color: var(--text-strong);
   line-height: 1.25;
@@ -731,7 +739,7 @@ section.content-grid--primary {
   border: 1px solid rgba(255,255,255,0.1);
   background: rgba(255,255,255,0.05);
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--fs-sm);
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
@@ -775,7 +783,7 @@ section.content-grid--primary {
 
 .deal-modal__stage-pip span {
   display: block;
-  font-size: 9px;
+  font-size: var(--fs-3xs);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -840,7 +848,7 @@ section.content-grid--primary {
 }
 
 .deal-modal__label {
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -848,7 +856,7 @@ section.content-grid--primary {
 }
 
 .deal-modal__value {
-  font-size: 0.9rem;
+  font-size: var(--fs-sm);
   font-weight: 600;
   color: var(--text-strong);
   word-break: break-word;
@@ -884,7 +892,7 @@ section.content-grid--primary {
 
 .deal-modal__footer-label {
   margin: 0 0 12px;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1030,6 +1038,12 @@ section.content-grid--primary {
   border-color: var(--accent);
 }
 
+.primary-button.is-compact,
+.secondary-button.is-compact {
+  font-size: 11px;
+  padding: 6px 12px;
+}
+
 .about-content {
   display: flex;
   flex-direction: column;
@@ -1138,11 +1152,6 @@ section.content-grid--primary {
 /* ── Loading Indicators ──────────────────────────────────────── */
 
 /* Give top-bar a stacking context for the loader bar */
-.top-bar {
-  position: relative;
-  overflow: hidden;
-}
-
 /* Indeterminate sliding bar at the bottom edge of the top bar */
 .top-bar-loader {
   position: absolute;
@@ -1157,6 +1166,129 @@ section.content-grid--primary {
 @keyframes topBarSlide {
   0%   { left: -40%; }
   100% { left: 100%; }
+}
+
+.form-section-header {
+  grid-column: span 2;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0 8px;
+  margin: 4px 0;
+}
+
+.form-section-header.is-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form-section-label {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-strong);
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+}
+
+.pagination-jump {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pagination-jump span {
+  font-size: var(--fs-sm);
+  color: var(--text-secondary);
+}
+
+.pagination-jump input {
+  width: 40px;
+  text-align: center;
+  padding: 4px 0;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-strong);
+  font-weight: 700;
+  outline: none;
+}
+
+.custom-select-container {
+  position: relative;
+  width: 100%;
+}
+
+.custom-select-trigger {
+  width: 100%;
+  padding: var(--pad-control);
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-strong);
+  font-size: var(--fs-sm);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 38px;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.custom-select-trigger.input--readonly {
+  cursor: not-allowed;
+}
+
+.custom-select-trigger:hover:not(.input--readonly) {
+  border-color: var(--border-strong);
+}
+
+.custom-select-trigger span:last-child {
+  font-size: var(--fs-2xs);
+  opacity: 0.5;
+}
+
+.custom-select-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  margin-top: 4px;
+  box-shadow: var(--shadow-strong);
+  overflow: hidden;
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.custom-select-option {
+  padding: 10px 14px;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.custom-select-option:hover:not(.is-selected) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.custom-select-option.is-selected {
+  color: var(--accent-strong);
+  background: rgba(255, 152, 0, 0.1);
 }
 
 /* ── Skeleton Loaders ────────────────────────────────────────── */

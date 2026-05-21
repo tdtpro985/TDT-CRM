@@ -51,7 +51,7 @@ export default function DealForm({ onSubmit, onCancel, companies, contacts, team
   }
 
   return (
-    <form className="form-grid" style={{ padding: '0 24px 24px' }} onSubmit={handleSubmit}>
+    <form className="form-grid form-body" onSubmit={handleSubmit}>
       <label className="field field--span-2">
         <span>Deal name</span>
         <input name="name" value={dealForm.name} onChange={handleChange} placeholder="Enter opportunity name" required autoFocus />
