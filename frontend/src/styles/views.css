@@ -158,7 +158,7 @@
 
 .kanban-column,
 .pipeline-lane {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
   border-radius: var(--r-lg);
   border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
@@ -202,7 +202,7 @@
 
 .kanban-column,
 .pipeline-lane {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
   border-radius: var(--r-lg);
   border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
@@ -303,9 +303,10 @@
   position: relative;
   padding: 12px;
   border-radius: var(--r-md);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, background 0.2s ease;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0.15));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -648,6 +649,105 @@
 
 /* ── Activity Card ───────────────────────────────────────────── */
 
+.activity-group-header {
+  display: inline-block;
+  padding: 2px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  margin-bottom: 8px;
+  border-radius: 100px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.activity-card {
+  position: relative;
+  border-left: 3px solid transparent;
+}
+
+.activity-card.is-highlighted {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 16px rgba(255, 152, 0, 0.35);
+  transition: box-shadow 0.3s ease;
+}
+
+.activity-card__deal-line {
+  margin: 4px 0 8px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.activity-card__separator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 12px 0;
+  border: none;
+}
+
+.activity-card__contact-line {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.activity-card__contact-primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--text-strong);
+  font-weight: 500;
+}
+
+.activity-card__contact-details {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding-left: 24px;
+}
+
+.activity-card__contact-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.activity-card__notes-line {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.activity-card__expand-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  padding: 8px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+.activity-card__details-panel {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
 .activity-card__header {
   display: flex;
   justify-content: space-between;
@@ -673,14 +773,6 @@
   margin: 0;
   color: var(--text-muted);
   font-size: var(--fs-xs);
-}
-
-.activity-card__badges {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-shrink: 0;
-  flex-wrap: wrap;
 }
 
 .activity-card__footer {

@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS activities (
     notes      TEXT,
     stage      VARCHAR(100),
     contact_name VARCHAR(255),
+    metadata     TEXT,
     created_at DATE         DEFAULT (CURRENT_DATE),
     FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL,
     FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE SET NULL

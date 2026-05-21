@@ -1,12 +1,140 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
-import { formatDateLabel, getToneClass, getPaginatedData, matchesSearch } from '../utils'
+import { formatDueDate, getToneClass, getPaginatedData, matchesSearch, isSrRole } from '../utils'
 import { ITEMS_PER_PAGE } from '../constants'
 
 import Pagination from '../components/Pagination'
+
+// Inline SVG Icons
+const IconPhone = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+)
+const IconCalendar = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+)
+const IconMail = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+)
+const IconClipboard = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+)
+const IconUser = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+)
+const IconQuote = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+)
+const IconChevronDown = ({ expanded }) => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}><polyline points="6 9 12 15 18 9"/></svg>
+)
+
+function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatusToggle, isHighlighted }) {
+  const [expanded, setExpanded] = useState(false)
+  
+  const TypeIcon = useMemo(() => {
+    switch(task.type) {
+      case 'Call': return <IconPhone />
+      case 'Meeting': return <IconCalendar />
+      case 'Email': return <IconMail />
+      default: return <IconClipboard />
+    }
+  }, [task.type])
+
+  const priorityClass = useMemo(() => {
+    const p = task.priority.toLowerCase()
+    return `is-priority-${p}`
+  }, [task.priority])
+
+  return (
+    <article id={`task-card-${task.id}`} className={`activity-card ${priorityClass} ${isHighlighted ? 'is-highlighted' : ''}`}>
+      <div className="activity-card__header">
+        <div className="activity-card__main-content">
+          <strong className="activity-card__title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ color: 'var(--accent)', display: 'flex' }}>{TypeIcon}</span>
+            {task.title}
+          </strong>
+        </div>
+        {linkedDeal?.stage && (
+          <span className={`tone-pill ${getToneClass(linkedDeal.stage)}`} style={{ fontSize: '9px', padding: '1px 6px' }}>
+            {linkedDeal.stage}
+          </span>
+        )}
+      </div>
+
+      <div className="activity-card__deal-line">
+        <span>{linkedDeal?.name ?? task.dealName ?? 'Manual Task'}</span>
+      </div>
+
+      <hr className="activity-card__separator" />
+
+      {task.type !== 'Internal' && (
+        <div className="activity-card__contact-line">
+          {contactObjects.length > 0 ? (
+            contactObjects.map(c => {
+              const displayName = c.name || 'Unknown Contact'
+              const displayRole = c.role
+              
+              return (
+                <div key={c.id} style={{ marginBottom: '8px' }}>
+                  <div className="activity-card__contact-primary">
+                    <IconUser />
+                    <span>{displayName}{displayRole ? ` - ${displayRole}` : ''}</span>
+                  </div>
+                  <div className="activity-card__contact-details">
+                    <span className="activity-card__contact-item" style={!c.phone ? { color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.6, fontSize: '10px' } : {}}>
+                      <IconPhone /> {c.phone || 'No phone on file'}
+                    </span>
+                    <span className="activity-card__contact-item" style={!c.email ? { color: 'var(--text-muted)', fontStyle: 'italic', opacity: 0.6, fontSize: '10px' } : {}}>
+                      <IconMail /> {c.email || 'No email on file'}
+                    </span>
+                  </div>
+                </div>
+              )
+            })
+          ) : task.contact ? (
+            <div className="activity-card__contact-primary">
+              <IconUser />
+              <span>{task.contact}</span>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {task.notes && (
+        <div className="activity-card__notes-line">
+          <IconQuote />
+          <span>"{task.notes}"</span>
+        </div>
+      )}
+
+      {(metadata.location || metadata.emailSubject) && (
+        <>
+          <button type="button" className="activity-card__expand-btn" onClick={() => setExpanded(!expanded)}>
+            <IconChevronDown expanded={expanded} />
+            {expanded ? 'Hide details' : 'Show details'}
+          </button>
+          
+          {expanded && (
+            <div className="activity-card__details-panel">
+              {metadata.location && <p className="activity-card__metadata-item"><strong>📍 Location:</strong> {metadata.location}</p>}
+              {metadata.emailSubject && <p className="activity-card__metadata-item"><strong>✉️ Subject:</strong> {metadata.emailSubject}</p>}
+            </div>
+          )}
+        </>
+      )}
+
+      <div className="activity-card__footer">
+        <span>{formatDueDate(task.dueDate)}</span>
+        <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id, task.status)}>
+          {task.status === 'Completed' ? 'Reopen task' : 'Mark complete'}
+        </button>
+      </div>
+    </article>
+  )
+}
 
 export default function TasksView({
   tasks,
@@ -15,12 +143,17 @@ export default function TasksView({
   dueToday,
   deals,
   companies,
+  dealContactMap,
   handleTaskStatusToggle,
-  searchQuery
+  searchQuery,
+  currentUser
 }) {
   const navigate = useNavigate()
   const [taskFilter, setTaskFilter] = useState('open')
   const [currentPage, setCurrentPage] = useState(1)
+  const [highlightedTaskId, setHighlightedTaskId] = useState(null)
+  const [pinnedTaskId, setPinnedTaskId] = useState(null)
+  const isSr = isSrRole(currentUser?.role)
 
   const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
 
@@ -29,29 +162,88 @@ export default function TasksView({
   if (searchQuery !== prevSearchQuery) {
     setPrevSearchQuery(searchQuery)
     setCurrentPage(1)
+    setPinnedTaskId(null)
   }
 
-  const filteredTasks = useMemo(() => tasks.filter(
-    (t) => {
+  const filteredTasks = useMemo(() => {
+    const enriched = tasks.map(t => {
       const deal = deals.find((d) => d.id === t.dealId)
-      const companyName = t.companyName || companyMap[deal?.companyId]?.name || ''
+      return {
+        ...t,
+        resolvedCompanyName: t.companyName || companyMap[deal?.companyId]?.name || 'Unknown Company'
+      }
+    })
+
+    return enriched.filter(
+      (t) => {
+        const deal = deals.find((d) => d.id === t.dealId)
+        
+        return (
+          (taskFilter === 'all' || 
+           (taskFilter === 'open' && t.status === 'Open') || 
+           (taskFilter === 'completed' && t.status === 'Completed') ||
+           (taskFilter === 'reopened' && t.status === 'Reopened')) &&
+          matchesSearch(searchQuery, [t.title, t.type, t.owner, deal?.name, t.resolvedCompanyName])
+        )
+      }
+    ).sort((a, b) => {
+      // Pin priority
+      if (a.id === pinnedTaskId) return -1
+      if (b.id === pinnedTaskId) return 1
       
-      return (
-        (taskFilter === 'all' || 
-         (taskFilter === 'open' && t.status === 'Open') || 
-         (taskFilter === 'completed' && t.status === 'Completed') ||
-         (taskFilter === 'reopened' && t.status === 'Reopened')) &&
-        matchesSearch(searchQuery, [t.title, t.type, t.owner, deal?.name, companyName])
-      )
-    }
-  ), [tasks, taskFilter, searchQuery, deals, companyMap])
+      // Sort by createdAt descending (most recent first)
+      return (b.createdAt || '').localeCompare(a.createdAt || '')
+    })
+  }, [tasks, taskFilter, searchQuery, deals, companyMap, pinnedTaskId])
 
   const totalPages = Math.ceil(filteredTasks.length / ITEMS_PER_PAGE)
 
   const paginatedTasks = useMemo(() => getPaginatedData(filteredTasks, currentPage, ITEMS_PER_PAGE), [filteredTasks, currentPage])
 
+  // Scroll to and highlight task
+  useEffect(() => {
+    if (!highlightedTaskId) return
+
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`task-card-${highlightedTaskId}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }, 100)
+
+    const clearTimer = setTimeout(() => {
+      setHighlightedTaskId(null)
+    }, 3000)
+
+    return () => {
+      clearTimeout(timer)
+      clearTimeout(clearTimer)
+    }
+  }, [highlightedTaskId])
+
+  const handleFocusTaskClick = (task) => {
+    setHighlightedTaskId(task.id)
+    setPinnedTaskId(task.id)
+
+    // Ensure filter allows the task to be seen
+    if (taskFilter !== 'all' && taskFilter !== 'open') {
+      setTaskFilter('open')
+    }
+
+    // Task will now be at the top of page 1 due to pinning
+    setCurrentPage(1)
+  }
+
+  const PRIORITY_ORDER = { 'High': 0, 'Medium': 1, 'Low': 2 }
   const focusQueue = [...openTasks]
-    .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+    .sort((a, b) => {
+      // Primary: Due date ascending
+      const dateCompare = (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
+      if (dateCompare !== 0) return dateCompare
+      
+      // Secondary: Priority (High before Medium before Low)
+      return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
+    })
     .slice(0, 4)
 
   const completedCount = tasks.filter((t) => t.status === 'Completed').length
@@ -75,13 +267,15 @@ export default function TasksView({
             <div className="panel-inline-controls">
               <label className="filter-wrap">
                 <span>Status</span>
-                <select 
-                  value={taskFilter} 
-                  onChange={(e) => {
-                    setTaskFilter(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                >
+                  <select 
+                    value={taskFilter} 
+                    onChange={(e) => {
+                      setTaskFilter(e.target.value)
+                      setCurrentPage(1)
+                      setPinnedTaskId(null)
+                    }}
+                  >
+
                   <option value="all">All tasks</option>
                   <option value="open">Open</option>
                   <option value="reopened">Reopened</option>
@@ -96,72 +290,38 @@ export default function TasksView({
           ) : (
             <>
               <div className="activity-list">
-                {paginatedTasks.map((task) => {
+                {paginatedTasks.map((task, idx) => {
                   const linkedDeal = deals.find((d) => d.id === task.dealId)
-                  
-                  // Resolve enriched contact info from task.contact string
-                  const contactObjects = (task.contact || '').split(', ').map(name => {
-                    return contacts.find(c => c.name.toLowerCase() === name.toLowerCase())
-                  }).filter(Boolean)
+                  const prevTask = idx > 0 ? paginatedTasks[idx - 1] : null
+                  const showHeader = !prevTask || prevTask.resolvedCompanyName !== task.resolvedCompanyName
+
+                  // Resolve enriched contact info: Prefer deal_contacts map, fall back to name-string parsing
+                  const dealContacts = linkedDeal ? (dealContactMap[linkedDeal.id] || []) : []
+                  const contactObjects = dealContacts.length > 0
+                    ? dealContacts
+                    : (task.contact || '').split(', ').map(name => {
+                        return contacts.find(c => c.name.toLowerCase() === name.toLowerCase())
+                      }).filter(Boolean)
+
+                  const metadata = typeof task.metadata === 'string' ? JSON.parse(task.metadata || '{}') : (task.metadata || {})
 
                   return (
-                    <article key={task.id} className="activity-card" style={{ position: 'relative' }}>
-                      <div className="activity-card__header">
-                        <div style={{ paddingRight: '110px' }}>
-                          <strong style={{ display: 'block' }}>{task.title}</strong>
-                          <p style={{ margin: '4px 0 0' }}>{task.type} | {task.owner}</p>
-                          
-                          {contactObjects.length > 0 ? (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                              {contactObjects.map(c => (
-                                <div key={c.id} className="tone-pill is-neutral" style={{ fontSize: '10px', padding: '2px 8px', height: 'auto', display: 'flex', flexDirection: 'column' }}>
-                                  <span style={{ fontWeight: 700 }}>{c.name}</span>
-                                  {(c.phone || c.email) && (
-                                    <span style={{ opacity: 0.7, fontSize: '9px' }}>
-                                      {c.phone ? `📞 ${c.phone}` : c.email ? `✉️ ${c.email}` : ''}
-                                    </span>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          ) : task.contact ? (
-                            <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Contact: {task.contact}</p>
-                          ) : null}
+                    <div key={task.id}>
+                      {showHeader && (
+                        <div className="activity-group-header" style={{ marginTop: idx > 0 ? '24px' : '0' }}>
+                          {task.resolvedCompanyName}
                         </div>
-                        <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                          <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
-                          <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
-                          <button 
-                            type="button" 
-                            className="ghost-button" 
-                            style={{ fontSize: '11px', padding: '2px 8px', marginTop: '4px', textDecoration: 'underline' }}
-                            onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
-                          >
-                            View
-                          </button>
-                        </div>
-                      </div>
-                      <p className="activity-notes" style={{ paddingRight: '110px' }}>
-                        Linked to {linkedDeal?.name ?? 'manual task'}
-                        {linkedDeal?.stage && (
-                          <span className={`tone-pill ${getToneClass(linkedDeal.stage)}`} style={{ fontSize: '10px', padding: '1px 8px', marginLeft: '6px' }}>
-                            {linkedDeal.stage}
-                          </span>
-                        )}
-                        {task.companyName && <> for <strong>{task.companyName}</strong></>}.
-                      </p>
-                      {task.notes && (
-                        <p className="activity-notes" style={{ marginTop: '8px', fontSize: '0.875rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                          "{task.notes}"
-                        </p>
                       )}
-                      <div className="activity-card__footer">
-                        <span>Due {formatDateLabel(task.dueDate)}</span>
-                        <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id, task.status)}>
-                          {task.status === 'Completed' ? 'Reopen task' : 'Mark complete'}
-                        </button>
-                      </div>
-                    </article>
+                      
+                      <TaskCard 
+                        task={task}
+                        linkedDeal={linkedDeal}
+                        contactObjects={contactObjects}
+                        metadata={metadata}
+                        handleTaskStatusToggle={handleTaskStatusToggle}
+                        isHighlighted={highlightedTaskId === task.id}
+                      />
+                    </div>
                   )
                 })}
               </div>
@@ -180,12 +340,21 @@ export default function TasksView({
             <div className="simple-list">
               {focusQueue.map((task) => {
                 const linkedDeal = deals.find((d) => d.id === task.dealId)
+                const priorityClass = `is-priority-${task.priority.toLowerCase()}`
+                
                 return (
-                  <article key={task.id} className="simple-list__item" style={{ position: 'relative' }}>
-                    <div style={{ paddingRight: '110px' }}>
-                      <strong style={{ display: 'block' }}>{task.title}</strong>
-                      <p style={{ margin: '4px 0 0' }}>
-                        {task.owner} | due {formatDateLabel(task.dueDate)}
+                  <article 
+                    key={task.id} 
+                    className={`simple-list__item ${priorityClass}`} 
+                    style={{ borderLeft: '3px solid transparent', cursor: 'pointer' }}
+                    onClick={() => handleFocusTaskClick(task)}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <strong style={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {task.title}
+                      </strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {!isSr ? `${task.owner} | ` : ''}due {formatDueDate(task.dueDate)}
                         {linkedDeal?.stage && (
                           <span className={`tone-pill ${getToneClass(linkedDeal.stage)}`} style={{ fontSize: '9px', padding: '1px 6px', marginLeft: '6px' }}>
                             {linkedDeal.stage}
@@ -193,19 +362,15 @@ export default function TasksView({
                         )}
                       </p>
                     </div>
-                    <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <button 
-                          type="button" 
-                          className="ghost-button" 
-                          style={{ fontSize: '11px', padding: '0', textDecoration: 'underline' }}
-                          onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
-                        >
-                          View
-                        </button>
-                        <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
-                      </div>
-                      <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
+                    <div style={{ flexShrink: 0, marginLeft: '12px' }}>
+                      <button 
+                        type="button" 
+                        className="ghost-button" 
+                        style={{ fontSize: '11px', padding: '4px 8px' }}
+                        onClick={() => navigate('/pipeline', { state: { openDealId: task.dealId } })}
+                      >
+                        View
+                      </button>
                     </div>
                   </article>
                 )

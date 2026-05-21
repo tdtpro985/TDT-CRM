@@ -105,3 +105,8 @@ p {
   color: #10131f;
   background: rgba(255, 181, 71, 0.9);
 }
+
+/* Priority Signaling */
+.is-priority-high { border-left-color: #fb7185 !important; }
+.is-priority-medium { border-left-color: #fbbf24 !important; }
+.is-priority-low { border-left-color: #34d399 !important; }

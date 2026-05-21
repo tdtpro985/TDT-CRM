@@ -16,6 +16,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   const [deals, setDeals] = useState([])
   const [tasks, setTasks] = useState([])
   const [teamMembers, setTeamMembers] = useState([])
+  const [dealContactMap, setDealContactMap] = useState({})
   const [loading, setLoading] = useState(true)
 
   const initialBranch = currentUser?.role === 'Head of Sales' ? '' : (currentUser?.branch ?? '')
@@ -102,6 +103,21 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     } catch { /* best-effort background refresh */ }
   }
 
+  async function fetchDealContactMap() {
+    try {
+      const res = await apiFetch(`/api/deal-contacts`)
+      if (res.ok) {
+        const data = await res.json()
+        const map = {}
+        data.forEach((dc) => {
+          if (!map[dc.deal_id]) map[dc.deal_id] = []
+          map[dc.deal_id].push(dc)
+        })
+        setDealContactMap(map)
+      }
+    } catch { /* best-effort */ }
+  }
+
   async function fetchTeam() {
     try {
       const res = await apiFetch(`/api/team${buildQuery()}`)
@@ -120,13 +136,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         apiFetch(`/api/deals${buildQuery()}`),
         apiFetch(`/api/activities${buildQuery()}`),
         apiFetch(`/api/team${buildQuery()}`),
+        apiFetch(`/api/deal-contacts`),
       ])
 
       if (responses.some(r => !r.ok)) {
         throw new Error('API or Database error')
       }
 
-      const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes] = responses
+      const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes, dealContactsRes] = responses
 
       const fetchedLeads = await leadsRes.json()
       const fetchedCompanies = await companiesRes.json()
@@ -134,6 +151,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       const fetchedContacts = await contactsRes.json()
       const fetchedDeals = await dealsRes.json()
       const fetchedActivities = await activitiesRes.json()
+      const fetchedDealContacts = await dealContactsRes.json()
+
+      const dcm = {}
+      fetchedDealContacts.forEach((dc) => {
+        if (!dcm[dc.deal_id]) dcm[dc.deal_id] = []
+        dcm[dc.deal_id].push(dc)
+      })
+      setDealContactMap(dcm)
 
       setLeads(fetchedLeads)
       setCompanies(fetchedCompanies)
@@ -323,13 +348,24 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         method: 'POST',
         body: JSON.stringify({ ...newDeal, closeDate: newDeal.expectedClose }),
       })
-      if (!res.ok) throw new Error('Network error')
-      setNotice(`${newDeal.name} was saved to the database.`)
+      
+      if (!res.ok) {
+        if (res.status === 409) {
+          const errData = await res.json()
+          throw new Error(errData.error || 'Duplicate deal name')
+        }
+        throw new Error('Network error')
+      }
+      
+      showToast(`${newDeal.name} was saved.`)
       fetchDeals()
       fetchCompanies()
       fetchContacts()
-    } catch {
-      setNotice(`${newDeal.name} was added locally — backend not reachable.`)
+    } catch (err) {
+      // Rollback
+      setDeals((current) => current.filter(d => d.id !== newDeal.id))
+      setNotice(`Error: ${err.message}`)
+      throw err // Propagate to UI
     }
     return newDeal
   }
@@ -362,7 +398,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       const newDeal = {
         id: dealIdToUse,
         companyId: companyIdToUse,
-        name: `Deal - ${matchedCompany?.name || taskForm.companyId}`,
+        name: taskForm.dealName || `Deal - ${matchedCompany?.name || taskForm.companyId}`,
         stage: taskForm.dealStage || DEAL_STAGES[0],
         probability: getProbabilityForStage(taskForm.dealStage || DEAL_STAGES[0]),
         value: Number(taskForm.dealValue) || 0,
@@ -370,16 +406,28 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         ownerId: rsm?.id || taskForm.ownerId || currentUser?.id || null,
       }
       setDeals((d) => [newDeal, ...d])
-      await apiFetch(`/api/deals`, { 
-        method: 'POST', 
-        body: JSON.stringify({ ...newDeal, closeDate: newDeal.expectedClose }) 
-      }).catch(() => {})
+      
+      try {
+        const res = await apiFetch(`/api/deals`, { 
+          method: 'POST', 
+          body: JSON.stringify({ ...newDeal, closeDate: newDeal.expectedClose }) 
+        })
+        if (!res.ok) {
+          const err = await res.json()
+          throw new Error(err.error || 'Failed to create deal')
+        }
+      } catch (err) {
+        setDeals((d) => d.filter(item => item.id !== dealIdToUse))
+        setNotice(`Error: ${err.message}`)
+        throw err
+      }
     } else if (existingDeal) {
       // Update existing deal with new values from task form
       const rsm = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
       dealIdToUse = existingDeal.id
       const updatedDeal = {
         ...existingDeal,
+        name: taskForm.dealName || existingDeal.name,
         stage: taskForm.dealStage || existingDeal.stage,
         value: taskForm.dealValue !== '' ? Number(taskForm.dealValue) : existingDeal.value,
         expectedClose: taskForm.expectedClose || existingDeal.expectedClose,
@@ -390,15 +438,26 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       setDeals((current) => current.map(d => d.id === dealIdToUse ? updatedDeal : d))
       
       // Update deal on backend
-      await apiFetch(`/api/deals/${dealIdToUse}/stage`, {
-        method: 'PATCH',
-        body: JSON.stringify({ 
-          stage: updatedDeal.stage,
-          value: updatedDeal.value,
-          closeDate: updatedDeal.expectedClose,
-          ownerId: updatedDeal.ownerId
+      try {
+        const res = await apiFetch(`/api/deals/${dealIdToUse}/stage`, {
+          method: 'PATCH',
+          body: JSON.stringify({ 
+            name: updatedDeal.name,
+            stage: updatedDeal.stage,
+            value: updatedDeal.value,
+            closeDate: updatedDeal.expectedClose,
+            ownerId: updatedDeal.ownerId
+          })
         })
-      }).catch(() => {})
+        if (!res.ok) {
+          const err = await res.json()
+          throw new Error(err.error || 'Failed to update deal')
+        }
+      } catch (err) {
+        setDeals((current) => current.map(d => d.id === dealIdToUse ? existingDeal : d))
+        setNotice(`Error: ${err.message}`)
+        throw err
+      }
     }
 
     const rsmForTask = teamMembers.find(m => m.name === taskForm.owner || m.id === taskForm.ownerId)
@@ -422,30 +481,68 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         body: JSON.stringify({ 
           ...newTask, 
           subject: newTask.title,
-          stage: newTask.stage // Pass stage to backend
+          stage: newTask.stage,
+          metadata: newTask.metadata ? JSON.stringify(newTask.metadata) : null
         }),
       })
-      if (!res.ok) throw new Error('Network error')
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `Server error: ${res.status}`)
+      }
       setNotice(`${newTask.title} was saved to the database.`)
 
-      // If task has linked contacts, associate them with the deal too
-      if (taskForm.contactIds?.length > 0 && dealIdToUse) {
-        for (const cId of taskForm.contactIds) {
-          apiFetch(`/api/deals/${dealIdToUse}/contacts`, {
-            method: 'POST',
-            body: JSON.stringify({ contactId: cId, role: 'Task' })
-          }).catch(err => console.error('Failed to link contact to deal:', err))
+      // Sync deal contacts with form selection
+      if (dealIdToUse) {
+        try {
+          const selectedIds = taskForm.contactIds || []
+          const currentRes = await apiFetch(`/api/deals/${dealIdToUse}/contacts`)
+          if (currentRes.ok) {
+            const currentContacts = await currentRes.json()
+            const currentIds = currentContacts.map(c => c.id)
+
+            const toAdd = selectedIds.filter(id => !currentIds.includes(id))
+            const toRemove = currentIds.filter(id => !selectedIds.includes(id))
+
+            for (const cId of toAdd) {
+              const res = await apiFetch(`/api/deals/${dealIdToUse}/contacts`, {
+                method: 'POST',
+                body: JSON.stringify({ contactId: cId })
+              })
+              if (!res.ok) {
+                const errText = await res.text().catch(() => 'No error text')
+                console.error(`Failed to add contact ${cId} to deal ${dealIdToUse}:`, errText)
+              }
+            }
+            for (const cId of toRemove) {
+              const res = await apiFetch(`/api/deals/${dealIdToUse}/contacts`, {
+                method: 'DELETE',
+                body: JSON.stringify({ contactId: cId })
+              })
+              if (!res.ok) {
+                const errText = await res.text().catch(() => 'No error text')
+                console.error(`Failed to remove contact ${cId} from deal ${dealIdToUse}:`, errText)
+              }
+            }
+          }
+        } catch (syncErr) {
+          console.error('Contact sync failed (non-fatal):', syncErr)
         }
-      }
-      fetchTasks()
-      fetchDeals()
-      fetchCompanies()
-      fetchCustomers()
-    } catch {
-      setNotice(`${newTask.title} was added locally — backend not reachable.`)
+        
+      // Refresh deal contacts map so updates propagate - await it to ensure consistency
+      await fetchDealContactMap()
     }
-    return newTask
+    fetchTasks()
+    fetchDeals()
+    fetchCompanies()
+    fetchCustomers()
+  } catch (err) {
+    setTasks((current) => current.filter(t => t.id !== newTask.id))
+    setNotice(`Error saving task: ${err.message}`)
+    throw err
   }
+  return newTask
+}
+
 
   async function updateLeadStatus(leadId, nextStatus) {
     setLeads((current) => current.map((l) => (l.id === leadId ? { ...l, status: nextStatus } : l)))
@@ -481,20 +578,35 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         const errData = await res.json().catch(() => ({}))
         throw new Error(errData.error || `Server error: ${res.status}`)
       }
+      showToast(`Deal stage updated to ${nextStage}`)
       fetchDeals()
       fetchCustomers()
-      setNotice('Pipeline stage updated successfully.')
     } catch (err) {
-      console.error('updateDealStage failed:', err)
-      if (snapshot) {
-        setDeals((current) => current.map(d => d.id === dealId ? snapshot : d))
-      }
-      setNotice(`Failed to update stage: ${err.message}`)
+      setDeals((current) => current.map((d) => (d.id === dealId ? snapshot : d)))
+      setNotice(`Stage update failed: ${err.message}`)
       throw err
     }
   }
 
+  async function updateContact(contactId, data) {
+    setContacts(current => current.map(c => c.id === contactId ? { ...c, ...data } : c))
+    try {
+      const res = await apiFetch(`/api/contacts/${contactId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+      })
+      if (!res.ok) throw new Error('Network error')
+      showToast('Contact updated successfully')
+      fetchContacts()
+      fetchDealContactMap()
+    } catch (err) {
+      setNotice(`Update failed: ${err.message}`)
+      fetchContacts()
+    }
+  }
+
   async function updateDeal(dealId, fields) {
+
     const snapshot = deals.find(d => d.id === dealId)
     setDeals((current) =>
       current.map((d) => (d.id === dealId ? { ...d, ...fields } : d)),
@@ -581,7 +693,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   return {
 
-    data: { companies, customers, contacts, leads, deals, tasks, teamMembers, loading, activeBranch, activeRegion },
+    data: { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion },
     actions: {
       createLead,
       createContact,
@@ -602,8 +714,11 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       fetchCustomers,
       fetchContacts,
       fetchDeals,
-      fetchTasks,
-      fetchTeam,
-    }
+    fetchTasks,
+    fetchTeam,
+    fetchDealContactMap,
+    updateContact,
+  }
+
   }
 }

@@ -1,7 +1,7 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { createRecordId } from '../../utils'
 import { apiFetch } from '../../api'
-import { TASK_TYPES, TASK_PRIORITIES } from '../../constants'
+import { TASK_TYPES, TASK_PRIORITIES, STAGE_WORKFLOW } from '../../constants'
 import Select from '../Select'
 
 function CompanyCombobox({ companies, companyId, onChange }) {
@@ -35,7 +35,8 @@ function CompanyCombobox({ companies, companyId, onChange }) {
 export default function TaskForm({
   onSubmit, onCancel, deals, companies, contacts = [], teamMembers = [],
   currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES,
-  dealStages = [], prefilledCompanyId = '', fetchCompanies, fetchContacts
+  dealStages = [], prefilledCompanyId = '', fetchCompanies, fetchContacts,
+  fetchDealContacts
 }) {
   const [taskForm, setTaskForm] = useState({
     title: '',
@@ -53,11 +54,27 @@ export default function TaskForm({
   })
 
   const [selectedContactIds, setSelectedContactIds] = useState([])
+  const [hasManuallyInteracted, setHasManuallyInteracted] = useState(false)
+  const hasManuallyInteractedRef = useRef(false)
+  hasManuallyInteractedRef.current = hasManuallyInteracted
+  
+  const [fetchedContacts, setFetchedContacts] = useState([])
+  
+  // UI State
   const [section1Expanded, setSection1Expanded] = useState(false)
   const [addingContact, setAddingContact] = useState(false)
-  const [newContact, setNewContact] = useState({ name: '', email: '', phone: '', role: '' })
+  const [newContact, setNewContact] = useState({ name: '', role: '', email: '', phone: '' })
   const [contactErrors, setContactErrors] = useState({})
-  const [fetchedContacts, setFetchedContacts] = useState([])
+
+
+  // Dynamic Metadata State
+  const [metadata, setMetadata] = useState({
+    location: '',
+    meetingLink: '',
+    phoneNumber: '',
+    emailSubject: '',
+    internalNotes: ''
+  })
 
   const canAssignSR = currentUser?.role === 'Head of Sales' || currentUser?.role === 'Regional Sales Manager'
 
@@ -95,6 +112,34 @@ export default function TaskForm({
     return () => { isMounted = false }
   }, [taskForm.companyId, companies])
 
+  // Fetch deal contacts if deal changes
+  useEffect(() => {
+    if (taskForm.dealId && fetchDealContacts) {
+      let isMounted = true
+      fetchDealContacts(taskForm.dealId).then(data => {
+        if (isMounted) {
+          if (data && data.length > 0) {
+            // If deal has specific contacts, we might want to prioritize them or add them to the list
+            // For now, let's just make sure they are in the selectable list
+            setFetchedContacts(prev => {
+              const combined = [...prev, ...data]
+              return Array.from(new Map(combined.map(c => [c.id, c])).values())
+            })
+            
+            // Overwrite selection with deal contacts when deal changes
+            if (!hasManuallyInteractedRef.current) {
+              setSelectedContactIds(data.map(c => c.id))
+            }
+          } else {
+            // If deal has no specific contacts, don't force clear what might be there from company defaults
+            // But we should probably clear deal-specific selections if they were only there for the old deal
+          }
+        }
+      })
+      return () => { isMounted = false }
+    }
+  }, [taskForm.dealId, fetchDealContacts])
+
   const companyContacts = useMemo(() => {
     const selectedCompany = companies.find(c => c.id === taskForm.companyId || c.name === taskForm.companyId)
     if (!selectedCompany) return []
@@ -109,6 +154,11 @@ export default function TaskForm({
     return unique.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
   }, [taskForm.companyId, companies, contacts, fetchedContacts])
 
+  // Reset interaction flag when company or deal changes
+  useEffect(() => {
+    setHasManuallyInteracted(false)
+  }, [taskForm.companyId, taskForm.dealId])
+
   // Auto-logic when company changes
   useEffect(() => {
     if (taskForm.companyId) {
@@ -116,23 +166,34 @@ export default function TaskForm({
       if (selectedCompany) {
         if (activeDeals.length > 0) {
           const recentDeal = activeDeals[0]
+          
+          // Determine default type based on stage
+          const stageConfig = STAGE_WORKFLOW[recentDeal.stage]
+          const defaultType = stageConfig?.activityType || TASK_TYPES[1] // Default to 'Call'
+
           setTaskForm(prev => ({
             ...prev,
             dealId: recentDeal.id,
             dealStage: recentDeal.stage,
             dealValue: recentDeal.value,
             expectedClose: recentDeal.expectedClose || '',
-            dealName: recentDeal.name
+            dealName: recentDeal.name,
+            type: defaultType
           }))
           setSection1Expanded(false)
         } else {
+          const defaultStage = dealStages[0] || 'New Opportunity'
+          const stageConfig = STAGE_WORKFLOW[defaultStage]
+          const defaultType = stageConfig?.activityType || TASK_TYPES[1]
+
           setTaskForm(prev => ({
             ...prev,
             dealId: '',
-            dealStage: dealStages[0] || 'New Opportunity',
+            dealStage: defaultStage,
             dealValue: '',
             expectedClose: '',
-            dealName: `Deal - ${selectedCompany.name}`
+            dealName: '',
+            type: defaultType
           }))
           setSection1Expanded(true)
         }
@@ -143,14 +204,15 @@ export default function TaskForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskForm.companyId, activeDeals.length, companies, dealStages])
 
-  // Auto-select contact if only 1
+  // Auto-select contact if only 1 (and user hasn't overridden)
   useEffect(() => {
-    if (companyContacts.length === 1) {
+    if (!hasManuallyInteracted && companyContacts.length === 1) {
       setSelectedContactIds([companyContacts[0].id])
-    } else {
+    } else if (!hasManuallyInteracted && companyContacts.length === 0 && !taskForm.dealId) {
       setSelectedContactIds([])
     }
-  }, [companyContacts.length, companyContacts])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyContacts.length, hasManuallyInteracted, taskForm.dealId])
 
   const availableSRs = useMemo(() => {
     if (!canAssignSR) return []
@@ -166,13 +228,22 @@ export default function TaskForm({
     setTaskForm(prev => {
       const next = { ...prev, [name]: value }
       
-      if (name === 'dealId' && value) {
-        const deal = activeDeals.find(d => d.id === value)
-        if (deal) {
-          next.dealStage = deal.stage
-          next.dealValue = deal.value
-          next.expectedClose = deal.expectedClose || ''
-          next.dealName = deal.name
+      if (name === 'dealId') {
+        if (value) {
+          const deal = activeDeals.find(d => d.id === value)
+          if (deal) {
+            next.dealStage = deal.stage
+            next.dealValue = deal.value
+            next.expectedClose = deal.expectedClose || ''
+            next.dealName = deal.name
+          }
+        } else {
+          // Reset deal fields for new deal
+          const defaultStage = dealStages[0] ?? 'New Opportunity'
+          next.dealStage = defaultStage
+          next.dealValue = ''
+          next.expectedClose = ''
+          next.dealName = ''
         }
       }
       return next
@@ -268,10 +339,11 @@ export default function TaskForm({
 
     try {
       const res = await apiFetch('/api/contacts', { method: 'POST', body: JSON.stringify(payload) })
-      if (res.ok) {
-        const saved = await res.json()
-        setFetchedContacts(prev => [...prev, saved])
-        setSelectedContactIds(prev => [...prev, saved.id])
+    if (res.ok) {
+      const saved = await res.json()
+      setHasManuallyInteracted(true)
+      setSelectedContactIds(prev => [...prev, saved.id])
+
         setAddingContact(false)
         setNewContact({ name: '', email: '', phone: '', role: '' })
         if (fetchContacts) fetchContacts()
@@ -288,17 +360,41 @@ export default function TaskForm({
     }
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
+
+    if (taskForm.expectedClose && taskForm.dueDate > taskForm.expectedClose) {
+      alert(`The task due date (${taskForm.dueDate}) cannot be later than the deal's expected close date (${taskForm.expectedClose}).`)
+      return
+    }
+
+    if (taskForm.dealName.trim()) {
+      const selectedCompany = companies.find(c => c.id === taskForm.companyId || c.name === taskForm.companyId)
+      const duplicate = deals.find(d => 
+        d.name.toLowerCase() === taskForm.dealName.trim().toLowerCase() && 
+        (selectedCompany ? d.companyId === selectedCompany.id : false) &&
+        d.id !== taskForm.dealId
+      )
+      if (duplicate) {
+        alert(`A deal named "${taskForm.dealName}" already exists for this company. Please use a unique name or select the existing deal.`)
+        return
+      }
+    }
+
     const contactNames = selectedContactIds
       .map(id => companyContacts.find(c => c.id === id)?.name)
       .filter(Boolean)
       .join(', ')
 
+    const finalMetadata = {
+      ...metadata
+    }
+
     onSubmit({
       ...taskForm,
       contact: contactNames,
-      contactIds: selectedContactIds
+      contactIds: selectedContactIds,
+      metadata: finalMetadata
     })
   }
 
@@ -307,7 +403,7 @@ export default function TaskForm({
   // Common UI segments
   const dealFields = (
     <>
-      {!isNewDeal && activeDeals.length > 0 && (
+      {activeDeals.length > 0 && (
         <label className="field field--span-2">
           <span>Linked Deal</span>
           <Select 
@@ -323,7 +419,14 @@ export default function TaskForm({
 
       <div className="field--span-2">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-          <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>Contacts</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>Contacts</span>
+            {taskForm.dealId && selectedContactIds.length > 0 && (
+              <span className="tone-pill is-active" style={{ fontSize: '10px', padding: '1px 8px', height: 'auto', background: 'rgba(52, 211, 153, 0.1)', color: '#34d399', border: '1px solid rgba(52, 211, 153, 0.2)' }}>
+                Deal contacts accounted for
+              </span>
+            )}
+          </div>
           <button 
             type="button" 
             className="ghost-button" 
@@ -441,6 +544,7 @@ export default function TaskForm({
                     key={c.id} 
                     style={{ cursor: 'pointer', background: selectedContactIds.includes(c.id) ? 'rgba(255,152,0,0.08)' : 'transparent' }}
                     onClick={() => {
+                      setHasManuallyInteracted(true)
                       setSelectedContactIds(prev => 
                         prev.includes(c.id) ? prev.filter(id => id !== c.id) : [...prev, c.id]
                       )
@@ -487,13 +591,59 @@ export default function TaskForm({
       </label>
 
       <label className="field">
-        <span>Type</span>
+        <span>Follow-up</span>
         <Select 
           value={taskForm.type}
           onChange={v => handleChange({ target: { name: 'type', value: v } })}
           options={taskTypes.map(t => ({ value: t, label: t }))}
         />
       </label>
+
+      {/* Dynamic Metadata Fields */}
+      {taskForm.type === 'Call' && (
+        <label className="field">
+          <span>Phone Number</span>
+          <input 
+            value={metadata.phoneNumber || ''} 
+            onChange={e => setMetadata({...metadata, phoneNumber: e.target.value})} 
+            placeholder="+63..." 
+          />
+          {taskForm.dealId && selectedContactIds.length > 0 && (
+            <small style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '4px', display: 'block' }}>
+              Contacts already accounted for — dial number or type to add a new contact
+            </small>
+          )}
+        </label>
+      )}
+
+      {taskForm.type === 'Meeting' && (
+        <>
+          <label className="field">
+            <span>Location / Link</span>
+            <input 
+              value={metadata.location || ''} 
+              onChange={e => setMetadata({...metadata, location: e.target.value})} 
+              placeholder="Address or Meeting URL" 
+            />
+          </label>
+        </>
+      )}
+
+      {taskForm.type === 'Email' && (
+        <label className="field">
+          <span>Email Subject</span>
+          <input 
+            value={metadata.emailSubject || ''} 
+            onChange={e => setMetadata({...metadata, emailSubject: e.target.value})} 
+            placeholder="Re: Opportunity..." 
+          />
+          {taskForm.dealId && selectedContactIds.length > 0 && (
+            <small style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '4px', display: 'block' }}>
+              Contacts already accounted for — write subject or type to add a new contact
+            </small>
+          )}
+        </label>
+      )}
 
       {canAssignSR && (
         <label className="field">
@@ -509,7 +659,14 @@ export default function TaskForm({
 
       <label className="field">
         <span>Due date</span>
-        <input name="dueDate" type="date" value={taskForm.dueDate} onChange={handleChange} required />
+        <input 
+          name="dueDate" 
+          type="date" 
+          value={taskForm.dueDate} 
+          onChange={handleChange} 
+          required 
+          max={taskForm.expectedClose || undefined}
+        />
       </label>
 
       <label className="field">
@@ -522,7 +679,7 @@ export default function TaskForm({
       </label>
 
       <label className="field field--span-2">
-        <span>Description</span>
+        <span>Description / Notes</span>
         <textarea name="notes" value={taskForm.notes} onChange={handleChange} placeholder="Enter task details..." required style={{ minHeight: '80px' }} />
       </label>
     </>
@@ -546,6 +703,7 @@ export default function TaskForm({
           onChange={handleChange} 
           placeholder="Deal name" 
           required 
+          autoComplete="off"
           readOnly={!isNewDeal && !section1Expanded}
           className={!isNewDeal && !section1Expanded ? 'input--readonly' : ''}
         />
