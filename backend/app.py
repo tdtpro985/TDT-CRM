@@ -84,6 +84,16 @@ def ensure_schema():
             )
         """)
         conn.commit()
+
+        # Ensure owner_name column exists in leads table
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'leads' AND COLUMN_NAME = 'owner_name'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'owner_name' column to 'leads' table...")
+            cursor.execute("ALTER TABLE leads ADD COLUMN owner_name VARCHAR(255) NULL")
+            conn.commit()
     except Exception as e:
         print(f"Error during schema verification: {e}")
     finally:
@@ -139,6 +149,9 @@ def admin_required(fn):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
     # Log securely on backend
     print(f"Backend Error: {traceback.format_exc()}")
     return jsonify(error="An internal error occurred"), 500
