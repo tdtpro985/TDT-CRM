@@ -1778,3 +1778,5 @@
 .analytics-audit-row--create { border-left: 3px solid var(--positive); }
 .analytics-audit-row--delete { border-left: 3px solid var(--alert); }
 
+.analytics-right-col > .panel { height: auto; }
+

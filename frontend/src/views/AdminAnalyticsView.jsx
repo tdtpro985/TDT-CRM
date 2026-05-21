@@ -2,19 +2,30 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import MetricCard from '../components/MetricCard'
 import Panel from '../components/Panel'
 import { apiFetch } from '../api'
-
-async function downloadCSV(url, filename) {
-  const res = await apiFetch(url)
-  const text = await res.text()
-  const blob = new Blob([text], { type: 'text/csv' })
-  const link = document.createElement('a')
-  link.href = URL.createObjectURL(blob)
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(link.href)
-}
 import { formatCurrencyCompact, formatDateTimePHT, getPaginatedData } from '../utils'
 import Pagination from '../components/Pagination'
+
+async function downloadCSV(url, filename) {
+  try {
+    const res = await apiFetch(url)
+    if (!res.ok) {
+      const data = await res.json().catch(() => null)
+      alert(data?.error || `Export failed (${res.status}). Please try again.`)
+      return
+    }
+    const text = await res.text()
+    const blob = new Blob([text], { type: 'text/csv' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    setTimeout(() => URL.revokeObjectURL(link.href), 100)
+  } catch {
+    alert('Export failed. Please try again.')
+  }
+}
 
 const PAGE_SIZE = 5
 const AUDIT_PAGE_SIZE = 20
@@ -93,7 +104,6 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
   const branchRows   = Object.values(branchMap).sort((a, b) => a.branch?.localeCompare(b.branch))
   const totalPages   = Math.ceil(branchRows.length / PAGE_SIZE)
   const pagedRows    = useMemo(() => getPaginatedData(branchRows, page, PAGE_SIZE), [branchRows, page])
-  const maxLeads     = Math.max(...branchRows.map((r) => r.leads), 1)
   const auditTotalPages = Math.ceil(auditTotal / AUDIT_PAGE_SIZE)
 
   const ratesWithData = branchRows.filter((r) => r.win_rate != null)
@@ -118,7 +128,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
   return (
     <>
       {/* KPI row */}
-      <section className="metrics-grid metrics-grid--compact">
+      <section className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(max(160px,14%),1fr))' }}>
         <MetricCard label="Total Users"    value={totals.users.toLocaleString()}                  meta="Accounts across all branches"    accent="accent"  />
         <MetricCard label="Total Leads"    value={totals.leads.toLocaleString()}                   meta="Customer records in the system"  accent="surface" />
         <MetricCard label="Active Deals"   value={totals.activeDeals.toLocaleString()}             meta="Open pipeline opportunities"     accent="alt"     />
@@ -127,7 +137,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
         <MetricCard label="Avg Win Rate"   value={overallWinRate != null ? `${overallWinRate}%` : '—'} meta="Across branches with history" accent="surface" />
       </section>
 
-      <section className="content-grid content-grid--primary">
+      <section className="content-grid content-grid--primary" style={{ gridTemplateColumns: '2fr 1fr' }}>
 
         {/* Branch performance cards */}
         <Panel
@@ -142,7 +152,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
           <div className="branch-card-grid">
             {pagedRows.map((r) => {
               const rate = r.leads ? Math.round((r.converted / r.leads) * 100) : 0
-              const barW = Math.round((r.leads / maxLeads) * 100)
+              const barW = rate
               return (
                 <div key={r.branch} className="branch-card">
                   <div className="branch-card__header">
@@ -196,7 +206,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
         </Panel>
 
         {/* Right column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}>
+        <div className="analytics-right-col" style={{ display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}>
 
           {/* Role distribution */}
           <Panel kicker="Access levels" title="Role Distribution">
@@ -255,7 +265,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
           }
         >
           {/* Filter bar */}
-          <div className="panel-inline-controls" style={{ padding: '0 16px 12px', flexWrap: 'wrap', gap: '8px' }}>
+          <div className="panel-inline-controls" style={{ padding: '0 0 12px', flexWrap: 'wrap', gap: '8px' }}>
             <label className="filter-wrap">
               <span>Type</span>
               <select value={auditEntity} onChange={(e) => { setAuditEntity(e.target.value); setAuditPage(1) }}>

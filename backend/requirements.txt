@@ -9,3 +9,4 @@ flask-jwt-extended
 bcrypt
 flask-limiter
 werkzeug
+tzdata
