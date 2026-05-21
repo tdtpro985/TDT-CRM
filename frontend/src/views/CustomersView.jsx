@@ -349,7 +349,7 @@ export default function CustomersView({
                       {(customerDetail?.auditLogs || [])
                       .filter(l => {
                         // 1. Filter out technical/noisy logs
-                        if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change') return false
+                        if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change' || l.action === 'stage_change' || l.action === 'probability_change') return false
                         
                         // 2. Filter out no-change logs (where old == new)
                         if (l.oldValue === l.newValue && l.oldValue !== null) return false
