@@ -26,6 +26,7 @@ export default function CustomersView({
   setShowCustomerForm,
   onCreateCustomer,
   onCreateTask,
+  fetchDealContacts,
   fetchCompanies,
   fetchContacts,
   setNotice,
@@ -104,7 +105,7 @@ export default function CustomersView({
         <>
           <strong>{ACTION_LABELS[item.action] || item.action}</strong>: 
           {changes.length > 0 ? (
-            <span style={{ marginLeft: '4px' }}>
+            <span className="u-ml-4">
               {changes.reduce((prev, curr) => [prev, ', ', curr])}
             </span>
           ) : <span> {linkedContact?.name || 'Contact'} details updated</span>}
@@ -207,19 +208,19 @@ export default function CustomersView({
   return (
     <>
 
-      <section className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <section className="metrics-grid metrics-grid--compact u-grid-3">
         <MetricCard label="Total Customers" value={customers.length.toLocaleString()} meta="Total records" accent="accent" />
         <MetricCard label="Active Deals" value={activeDealSum.toLocaleString()} meta="Currently in pipeline" accent="alt" />
         <MetricCard label="Cold Companies" value={coldCompanyCount.toLocaleString()} meta="No recent deal activity" accent="surface" />
       </section>
 
-      <section className="content-grid content-grid--primary" style={{ gridTemplateColumns: '45fr 55fr' }}>
+      <section className="content-grid content-grid--primary u-grid-45-55">
         <Panel
           kicker="Customer Registry"
           title="Companies"
           detail="Derived from leads and direct company entries."
           action={
-            <div className="panel-inline-controls" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div className="panel-inline-controls u-flex-center-gap-16">
               <label className="filter-wrap">
                 <span>Status</span>
                 <select 
@@ -236,12 +237,12 @@ export default function CustomersView({
             </div>
           }
         >
-          <div style={{ minHeight: '600px', display: 'flex', flexDirection: 'column' }}>
+          <div className="u-min-h-600 u-flex-column">
             {filteredCustomers.length === 0
               ? <EmptyState title="No customers match this filter" copy="Try adjusting your status filter." />
               : (
                 <>
-                  <div className="contact-list" style={{ flex: 1, alignContent: 'start' }}>
+                  <div className="contact-list u-flex-1 u-align-content-start">
                     {paginatedCustomers.map((customer) => (
                       <div
                         key={customer.id}
@@ -250,15 +251,15 @@ export default function CustomersView({
                         onDoubleClick={() => setDetailModalOpen(true)}
                       >
                         <div>
-                          <strong style={{ fontSize: 'var(--fs-md)', color: 'var(--text-strong)', display: 'block' }}>
+                          <strong className="u-fs-md u-text-strong u-block">
                             {customer.name}
                           </strong>
-                          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <div className="u-fs-xs u-text-muted u-margin-t-4 u-flex-center-gap-4">
                             <span>{Number(customer.totalDealCount || 0)} total</span>
                             {Number(customer.activeDealCount) > 0 && (
                               <>
-                                <span style={{ opacity: 0.5 }}>•</span>
-                                <span style={{ color: 'var(--accent-strong)', fontWeight: 600 }}>
+                                <span className="u-opacity-05">•</span>
+                                <span className="u-text-accent u-font-600">
                                   {customer.activeDealCount} active
                                 </span>
                               </>
@@ -284,18 +285,11 @@ export default function CustomersView({
             {selectedCustomer ? (
               <div className="customer-detail-view">
                 {loadingDetail ? (
-                  <p style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading records...</p>
+                  <p className="u-pad-24 u-text-center u-text-muted">Loading records...</p>
                 ) : !hasActiveDeal ? (
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    padding: '64px 24px',
-                    textAlign: 'center' 
-                  }}>
-                    <h4 style={{ margin: '0 0 8px', color: 'var(--text-strong)' }}>No active deals</h4>
-                    <p style={{ margin: '0 0 24px', fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', maxWidth: '240px' }}>
+                  <div className="u-flex-column-center u-pad-64-24 u-text-center">
+                    <h4 className="u-margin-b-8 u-text-strong">No active deals</h4>
+                    <p className="u-margin-b-24 u-fs-sm u-text-muted u-max-w-240">
                       Transactional history and contacts are only visible for companies with at least one active deal.
                     </p>
                     <button 
@@ -308,17 +302,17 @@ export default function CustomersView({
                   </div>
                 ) : (
                   <>
-                    <div className="section-header" style={{ marginBottom: '12px' }}>
-                      <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Deal History</h4>
+                    <div className="section-header u-margin-b-12">
+                      <h4 className="u-margin-0 u-text-strong">Deal History</h4>
                     </div>
 
-                    <div className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '24px' }}>
+                    <div className="metrics-grid metrics-grid--compact u-grid-3 u-flex-gap-sm u-margin-b-24">
                       <MetricCard label="W/L Ratio" value={Number(winLossRatio) ? Number(winLossRatio).toFixed(2) : winLossRatio} meta="Performance" accent="accent" />
                       <MetricCard label="Won Value" value={wonCount === 0 ? '-' : formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
                       <MetricCard label="Lost Value" value={lostCount === 0 ? '-' : formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
                     </div>
 
-                    <div className="admin-table-wrap" style={{ marginBottom: '24px' }}>
+                    <div className="admin-table-wrap u-margin-b-24">
                       <table className="admin-table">
                         <thead>
                           <tr>
@@ -341,8 +335,8 @@ export default function CustomersView({
                       </table>
                     </div>
 
-                    <div className="section-header" style={{ marginBottom: '12px' }}>
-                      <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Activity Log</h4>
+                    <div className="section-header u-margin-b-12">
+                      <h4 className="u-margin-0 u-text-strong">Activity Log</h4>
                     </div>
 
                     <div className="timeline">
@@ -385,12 +379,12 @@ export default function CustomersView({
 
                         return (
                           <div key={idx} className="timeline-item">
-                            <div className="timeline-dot" style={{ background: dotColor }}></div>
+                            <div className="timeline-dot" style={{ backgroundColor: dotColor }}></div>
                             <div className="timeline-content">
                               <div className="timeline-header">
                                 <span className="timeline-time">{formatDateLabel(item.changedAt)}</span>
                                 {item.changedBy && (
-                                  <span className="timeline-user" style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                                  <span className="timeline-user u-fs-10 u-text-muted u-ml-8">
                                     by {item.changedBy}
                                   </span>
                                 )}
@@ -400,7 +394,7 @@ export default function CustomersView({
                                 <p>
                                   {item.action === 'deal_created' ? (
                                     <>
-                                      <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(item.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.newValue}</span>
+                                      <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(item.newValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.newValue}</span>
                                       {linkedDeal && <> for <strong>{linkedDeal.name}</strong></>}
                                     </>
                                   ) : item.entityType === 'contact' ? (
@@ -411,10 +405,10 @@ export default function CustomersView({
                                       {item.action === 'stage_change' ? (
                                         <>
                                           {item.oldValue ? (
-                                            <span className={`tone-pill ${getToneClass(item.oldValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.oldValue}</span>
+                                            <span className={`tone-pill ${getToneClass(item.oldValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.oldValue}</span>
                                           ) : null}
                                           {item.oldValue && ' → '}
-                                          <span className={`tone-pill ${getToneClass(item.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.newValue}</span>
+                                          <span className={`tone-pill ${getToneClass(item.newValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.newValue}</span>
                                         </>
                                       ) : item.action === 'owner_id_change' ? (
                                         <>
@@ -465,6 +459,7 @@ export default function CustomersView({
           dealStages={dealStages}
           currentUser={currentUser}
           prefilledCompanyId={selectedCustomer?.id}
+          fetchDealContacts={fetchDealContacts}
           fetchCompanies={fetchCompanies}
           fetchContacts={fetchContacts}
           onCancel={() => setShowQuickTaskForm(false)}
@@ -506,7 +501,7 @@ export default function CustomersView({
         title={selectedCustomer?.name ?? 'Company Details'}
         kicker="Record Information"
       >
-        <div style={{ padding: '0 24px 24px' }}>
+        <div className="u-pad-0-24-24">
           <div className="detail-list">
             {!isSr && <div><span>SR</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>}
             <div><span>Region</span><strong>{selectedCustomer?.city || selectedCustomer?.region || '—'}</strong></div>
@@ -517,11 +512,12 @@ export default function CustomersView({
           </div>
 
           <>
-              <div className="section-header" style={{ marginTop: '24px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Contacts</h4>
+              <div className="section-header u-margin-t-24 u-margin-b-12 u-flex-between u-flex-center">
+                <h4 className="u-margin-0 u-text-strong">Contacts</h4>
                 <button
                   type="button"
                   title="Add contact"
+                  className="u-btn-circle-plus"
                   onClick={() => {
                     setCompanyContacts(prev => [{
                       id: createRecordId('contact'),
@@ -532,13 +528,6 @@ export default function CustomersView({
                       isEditing: true,
                       isNew: true,
                     }, ...prev])
-                  }}
-                  style={{
-                    width: '28px', height: '28px', borderRadius: '50%',
-                    border: '1px solid var(--accent)', background: 'transparent',
-                    color: 'var(--accent)', fontSize: '16px', lineHeight: 1,
-                    cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
-                    justifyContent: 'center', padding: 0,
                   }}
                 >+</button>
               </div>
@@ -551,13 +540,13 @@ export default function CustomersView({
                       <th>Role</th>
                       <th>Email</th>
                       <th>Number</th>
-                      <th style={{ width: '60px' }}></th>
+                      <th className="col-actions"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {companyContacts.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="admin-table__muted" style={{ textAlign: 'center', padding: '16px' }}>
+                        <td colSpan={5} className="admin-table__muted u-text-center u-pad-16">
                           No contacts for this company.
                         </td>
                       </tr>
@@ -577,9 +566,9 @@ export default function CustomersView({
                                       setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, name: val } : c))
                                     }}
                                     placeholder="Name *"
-                                    style={{ width: '100%', boxSizing: 'border-box', borderColor: errors.name ? 'var(--alert)' : undefined }}
+                                    className={`u-w-100 u-box-border ${errors.name ? 'u-border-alert' : ''}`}
                                   />
-                                  {errors.name && <div style={{ color: 'var(--alert)', fontSize: '10px', marginTop: '4px' }}>{errors.name}</div>}
+                                  {errors.name && <div className="u-fs-10 u-margin-t-4 u-alert">{errors.name}</div>}
                                 </td>
                                 <td>
                                   <input
@@ -590,7 +579,7 @@ export default function CustomersView({
                                       setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, role: val } : c))
                                     }}
                                     placeholder="Role"
-                                    style={{ width: '100%', boxSizing: 'border-box' }}
+                                    className="u-w-100 u-box-border"
                                   />
                                 </td>
                                 <td>
@@ -602,9 +591,9 @@ export default function CustomersView({
                                       setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, email: val } : c))
                                     }}
                                     placeholder="Email"
-                                    style={{ width: '100%', boxSizing: 'border-box', borderColor: errors.email ? 'var(--alert)' : undefined }}
+                                    className={`u-w-100 u-box-border ${errors.email ? 'u-border-alert' : ''}`}
                                   />
-                                  {errors.email && <div style={{ color: 'var(--alert)', fontSize: '10px', marginTop: '4px' }}>{errors.email}</div>}
+                                  {errors.email && <div className="u-fs-10 u-margin-t-4 u-alert">{errors.email}</div>}
                                 </td>
                                 <td>
                                   <input
@@ -615,157 +604,153 @@ export default function CustomersView({
                                       setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c))
                                     }}
                                     placeholder="Number"
-                                    style={{ width: '100%', boxSizing: 'border-box', borderColor: errors.phone ? 'var(--alert)' : undefined }}
+                                    className={`u-w-100 u-box-border ${errors.phone ? 'u-border-alert' : ''}`}
                                   />
-                                  {errors.phone && <div style={{ color: 'var(--alert)', fontSize: '10px', marginTop: '4px' }}>{errors.phone}</div>}
-                                  {errors.global && <div style={{ color: 'var(--alert)', fontSize: '10px', marginTop: '4px', fontWeight: 700 }}>{errors.global}</div>}
+                                  {errors.phone && <div className="u-fs-10 u-margin-t-4 u-alert">{errors.phone}</div>}
+                                  {errors.global && <div className="u-fs-10 u-margin-t-4 u-font-600 u-alert">{errors.global}</div>}
                                 </td>
-                              <td style={{ whiteSpace: 'nowrap' }}>
-                                <button
-                                  type="button"
-                                  className="ghost-button"
-                                  style={{ fontSize: '11px', padding: '2px 6px', marginRight: '4px' }}
-                                  onClick={async () => {
-                                    const c = companyContacts[idx]
-                                    const errors = {}
-                                    if (!c.name?.trim()) errors.name = 'Name is required'
-                                    if (!c.email?.trim() && !c.phone?.trim()) {
-                                      errors.email = 'Need phone or email'
-                                      errors.phone = 'Need phone or email'
-                                    }
-                                    if (c.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) {
-                                      errors.email = 'Invalid email'
-                                    }
-
-                                    if (Object.keys(errors).length > 0) {
-                                      setContactErrors(prev => ({ ...prev, [c.id]: errors }))
-                                      setNotice('Please correct the highlighted errors.')
-                                      return
-                                    }
-
-                                    setContactErrors(prev => {
-                                      const next = { ...prev }
-                                      delete next[c.id]
-                                      return next
-                                    })
-
-                                    const payload = {
-                                      ...(c.isNew ? {
-                                        id: c.id,
-                                        companyId: selectedCustomer?.id,
-                                        ownerId: currentUser?.id || null,
-                                        lastTouch: new Date().toISOString().split('T')[0],
-                                        status: 'Active',
-                                      } : {}),
-                                      name: c.name,
-                                      role: c.role,
-                                      email: c.email,
-                                      phone: c.phone,
-                                    }
-
-                                    try {
-                                      if (c.isNew) {
-                                        const res = await apiFetch('/api/contacts', {
-                                          method: 'POST',
-                                          body: JSON.stringify(payload),
-                                        })
-                                        if (res.status === 409) {
-                                          const errData = await res.json()
-                                          setNotice(errData.error || 'This contact already exists.')
-                                          setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Duplicate contact' } }))
-                                          return
-                                        }
-                                        if (!res.ok) {
-                                          const errData = await res.json().catch(() => ({}))
-                                          setNotice(errData.error || 'Failed to create contact.')
-                                          setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Create failed' } }))
-                                          return
-                                        }
-                                      } else {
-                                        const res = await apiFetch(`/api/contacts/${c.id}`, {
-                                          method: 'PUT',
-                                          body: JSON.stringify({ name: c.name, role: c.role, email: c.email, phone: c.phone }),
-                                        })
-                                        if (res.status === 409) {
-                                          const errData = await res.json()
-                                          setNotice(errData.error || 'This contact already exists.')
-                                          setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Duplicate contact' } }))
-                                          return
-                                        }
-                                        if (!res.ok) {
-                                          const errData = await res.json().catch(() => ({}))
-                                          setNotice(errData.error || 'Failed to update contact.')
-                                          setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Update failed' } }))
-                                          return
-                                        }
+                                <td className="col-actions u-nowrap">
+                                  <button
+                                    type="button"
+                                    className="ghost-button u-fs-11 u-pad-2-6 u-mr-4"
+                                    onClick={async () => {
+                                      const c = companyContacts[idx]
+                                      const errors = {}
+                                      if (!c.name?.trim()) errors.name = 'Name is required'
+                                      if (!c.email?.trim() && !c.phone?.trim()) {
+                                        errors.email = 'Need phone or email'
+                                        errors.phone = 'Need phone or email'
                                       }
-                                      setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false, isNew: false } : c2))
-                                      setNotice('Contact saved successfully.')
-                                      fetchDetail(selectedCustomer.id)
-                                      fetchContacts()
-                                    } catch (e) {
-                                      console.error('Failed to save contact:', e)
-                                      setNotice('A network error occurred while saving the contact.')
-                                      setContactErrors(prev => ({ ...prev, [c.id]: { global: 'Network error' } }))
-                                    }
-                                  }}
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  type="button"
-                                  className="ghost-button"
-                                  style={{ fontSize: '11px', padding: '2px 6px' }}
-                                  onClick={() => {
-                                    if (contact.isNew) {
-                                      setCompanyContacts(prev => prev.filter((_, i) => i !== idx))
-                                    } else {
-                                      setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false } : c2))
-                                    }
-                                    setContactErrors(prev => {
-                                      const next = { ...prev }
-                                      delete next[contact.id]
-                                      return next
-                                    })
-                                  }}
-                                >
-                                  Cancel
-                                </button>
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="admin-table__name">{contact.name}</td>
-                              <td className="admin-table__muted">{contact.role || '—'}</td>
-                              <td className="admin-table__muted">{contact.email || '—'}</td>
-                              <td className="admin-table__muted">{contact.phone || '—'}</td>
-                              <td>
-                                <button
-                                  type="button"
-                                  className="ghost-button"
-                                  title="Edit"
-                                  style={{ fontSize: '11px', padding: '2px 6px' }}
-                                  onClick={() => setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: true } : c2))}
-                                >
-                                  Edit
-                                </button>
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
+                                      if (c.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) {
+                                        errors.email = 'Invalid email'
+                                      }
+
+                                      if (Object.keys(errors).length > 0) {
+                                        setContactErrors(prev => ({ ...prev, [c.id]: errors }))
+                                        setNotice('Please correct the highlighted errors.')
+                                        return
+                                      }
+
+                                      setContactErrors(prev => {
+                                        const next = { ...prev }
+                                        delete next[c.id]
+                                        return next
+                                      })
+
+                                      const payload = {
+                                        ...(c.isNew ? {
+                                          id: c.id,
+                                          companyId: selectedCustomer?.id,
+                                          ownerId: currentUser?.id || null,
+                                          lastTouch: new Date().toISOString().split('T')[0],
+                                          status: 'Active',
+                                        } : {}),
+                                        name: c.name,
+                                        role: c.role,
+                                        email: c.email,
+                                        phone: c.phone,
+                                      }
+
+                                      try {
+                                        if (c.isNew) {
+                                          const res = await apiFetch('/api/contacts', {
+                                            method: 'POST',
+                                            body: JSON.stringify(payload),
+                                          })
+                                          if (res.status === 409) {
+                                            const errData = await res.json()
+                                            setNotice(errData.error || 'This contact already exists.')
+                                            setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Duplicate contact' } }))
+                                            return
+                                          }
+                                          if (!res.ok) {
+                                            const errData = await res.json().catch(() => ({}))
+                                            setNotice(errData.error || 'Failed to create contact.')
+                                            setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Create failed' } }))
+                                            return
+                                          }
+                                        } else {
+                                          const res = await apiFetch(`/api/contacts/${c.id}`, {
+                                            method: 'PUT',
+                                            body: JSON.stringify({ name: c.name, role: c.role, email: c.email, phone: c.phone }),
+                                          })
+                                          if (res.status === 409) {
+                                            const errData = await res.json()
+                                            setNotice(errData.error || 'This contact already exists.')
+                                            setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Duplicate contact' } }))
+                                            return
+                                          }
+                                          if (!res.ok) {
+                                            const errData = await res.json().catch(() => ({}))
+                                            setNotice(errData.error || 'Failed to update contact.')
+                                            setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Update failed' } }))
+                                            return
+                                          }
+                                        }
+                                        setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false, isNew: false } : c2))
+                                        setNotice('Contact saved successfully.')
+                                        fetchDetail(selectedCustomer.id)
+                                        fetchContacts()
+                                      } catch (e) {
+                                        console.error('Failed to save contact:', e)
+                                        setNotice('A network error occurred while saving the contact.')
+                                        setContactErrors(prev => ({ ...prev, [c.id]: { global: 'Network error' } }))
+                                      }
+                                    }}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ghost-button u-fs-11 u-pad-2-6"
+                                    onClick={() => {
+                                      if (contact.isNew) {
+                                        setCompanyContacts(prev => prev.filter((_, i) => i !== idx))
+                                      } else {
+                                        setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false } : c2))
+                                      }
+                                      setContactErrors(prev => {
+                                        const next = { ...prev }
+                                        delete next[contact.id]
+                                        return next
+                                      })
+                                    }}
+                                  >
+                                    Cancel
+                                    </button>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="admin-table__name">{contact.name}</td>
+                                <td className="admin-table__muted">{contact.role || '—'}</td>
+                                <td className="admin-table__muted">{contact.email || '—'}</td>
+                                <td className="admin-table__muted">{contact.phone || '—'}</td>
+                                <td className="col-actions">
+                                  <button
+                                    type="button"
+                                    className="ghost-button u-fs-11 u-pad-2-6"
+                                    title="Edit"
+                                    onClick={() => setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: true } : c2))}
+                                  >
+                                    Edit
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
               </div>
             </>
 
-          <div style={{ marginTop: '24px' }}>
+          <div className="u-margin-t-24">
             <button 
               type="button" 
-              className="secondary-button" 
-              style={{ width: '100%' }}
+              className="secondary-button u-w-100" 
               onClick={() => setDetailModalOpen(false)}
             >
               Close

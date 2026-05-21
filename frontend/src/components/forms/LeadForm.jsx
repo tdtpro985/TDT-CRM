@@ -32,7 +32,7 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, branch, curr
   }
 
   return (
-    <form className="form-grid" style={{ padding: '0 24px 24px' }} onSubmit={handleSubmit}>
+    <form className="form-grid form-body" onSubmit={handleSubmit}>
 
       <label className="field field--span-2">
         <span>Customer Name</span>

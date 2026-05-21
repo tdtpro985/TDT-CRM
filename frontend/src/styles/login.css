@@ -56,7 +56,7 @@
 }
 
 .brand-headline {
-  font-size: 2.5rem;
+  font-size: var(--fs-3xl);
   font-weight: 800;
   color: var(--text-strong);
   line-height: 1.1;
@@ -102,7 +102,7 @@
   top: 20px;
   right: 20px;
   font-family: 'Courier New', Courier, monospace;
-  font-size: 10px;
+  font-size: var(--fs-2xs);
   color: var(--accent);
   opacity: 0.5;
   letter-spacing: 2px;
@@ -134,7 +134,7 @@
 .login-subtitle { 
   margin: 0; 
   color: var(--text-muted); 
-  font-size: var(--fs-base);
+  font-size: var(--fs-sm);
   font-weight: 500;
 }
 
@@ -166,7 +166,7 @@
   border: 1px solid var(--border-strong); 
   background: var(--bg-input); 
   color: var(--text-strong); 
-  font-size: var(--fs-base); 
+  font-size: var(--fs-sm); 
   outline: none; 
   transition: border-color 0.2s, transform 0.1s; 
   box-sizing: border-box; 
@@ -218,7 +218,7 @@
 .login-submit { 
   width: 100%; 
   padding: 14px; 
-  font-size: var(--fs-base); 
+  font-size: var(--fs-sm); 
   font-weight: 600;
   margin-top: 8px; 
   display: flex;

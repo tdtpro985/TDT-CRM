@@ -6,7 +6,7 @@ export default function Pagination({
   onPageChange, 
   prevLabel = 'Previous', 
   nextLabel = 'Next', 
-  className = 'pagination-controls' 
+  className = '' 
 }) {
   const [inputValue, setInputValue] = useState(String(currentPage || 1))
   
@@ -35,7 +35,7 @@ export default function Pagination({
   }
   
   return (
-    <div className={className} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid var(--border)', marginTop: '16px' }}>
+    <div className={`pagination-controls ${className}`}>
       <button
         type="button"
         className="secondary-button"
@@ -44,8 +44,8 @@ export default function Pagination({
       >
         {prevLabel}
       </button>
-      <div className="pagination-jump" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Page</span>
+      <div className="pagination-jump">
+        <span>Page</span>
         <input
           type="text"
           inputMode="numeric"
@@ -53,19 +53,8 @@ export default function Pagination({
           onChange={(e) => setInputValue(e.target.value.replace(/\D/g, ''))}
           onBlur={hBlur}
           onKeyDown={hKeyDown}
-          style={{ 
-            width: '40px', 
-            textAlign: 'center', 
-            padding: '4px 0',
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid var(--border)',
-            borderRadius: 'var(--r-md)',
-            color: 'var(--text-strong)',
-            fontWeight: 700,
-            outline: 'none'
-          }}
         />
-        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>of {totalPages}</span>
+        <span>of {totalPages}</span>
       </div>
       <button
         type="button"

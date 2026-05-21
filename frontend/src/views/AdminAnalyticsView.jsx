@@ -109,8 +109,8 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
     return `/api/admin/export/audit-log${qs ? '?' + qs : ''}`
   }
 
-  if (loading) return <p style={{ padding: '2rem', color: 'var(--text-muted)' }}>Loading analytics…</p>
-  if (error)   return <p style={{ padding: '2rem', color: '#ff6b7a' }}>{error}</p>
+  if (loading) return <p className="u-pad-32 u-text-muted">Loading analytics…</p>
+  if (error)   return <p className="u-pad-32 u-alert">{error}</p>
 
   const actionLabel    = { status_change: 'Status', stage_change: 'Stage', create: 'Created', delete: 'Deleted' }
   const actionRowClass = { stage_change: 'analytics-audit-row--stage', status_change: 'analytics-audit-row--status', create: 'analytics-audit-row--create', delete: 'analytics-audit-row--delete' }
@@ -134,7 +134,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
           kicker="Performance"
           title="Branch Overview"
           action={
-            <button className="ghost-button" style={{ fontSize: 'var(--fs-sm)', padding: '4px 10px' }} onClick={() => downloadCSV('/api/admin/export/branch-overview', 'branch-overview.csv')}>
+            <button className="ghost-button u-fs-sm u-pad-4-10" onClick={() => downloadCSV('/api/admin/export/branch-overview', 'branch-overview.csv')}>
               ↓ Export CSV
             </button>
           }
@@ -196,7 +196,7 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
         </Panel>
 
         {/* Right column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}>
+        <div className="u-flex u-flex-column u-flex-gap-lg u-min-h-0">
 
           {/* Role distribution */}
           <Panel kicker="Access levels" title="Role Distribution">
@@ -244,18 +244,18 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
       </section>
 
       {/* Audit log — full width */}
-      <section style={{ marginTop: '16px' }}>
+      <section className="u-margin-t-16">
         <Panel
           kicker="Activity"
           title="Audit Log"
           action={
-            <button className="ghost-button" style={{ fontSize: 'var(--fs-sm)', padding: '4px 10px' }} onClick={() => downloadCSV(buildAuditExportUrl(), 'audit-log.csv')}>
+            <button className="ghost-button u-fs-sm u-pad-4-10" onClick={() => downloadCSV(buildAuditExportUrl(), 'audit-log.csv')}>
               ↓ Export CSV
             </button>
           }
         >
           {/* Filter bar */}
-          <div className="panel-inline-controls" style={{ padding: '0 16px 12px', flexWrap: 'wrap', gap: '8px' }}>
+          <div className="panel-inline-controls u-pad-0-16-12 u-flex-wrap u-flex-gap-sm">
             <label className="filter-wrap">
               <span>Type</span>
               <select value={auditEntity} onChange={(e) => { setAuditEntity(e.target.value); setAuditPage(1) }}>
@@ -276,21 +276,21 @@ export default function AdminAnalyticsView({ activeBranch = '' }) {
             {(auditEntity || auditFrom) && (
               <button
                 className="ghost-button"
-                style={{ fontSize: 'var(--fs-sm)', padding: '4px 10px' }}
+                className="ghost-button u-fs-sm u-pad-4-10"
                 onClick={() => { setAuditEntity(''); setAuditFrom(''); setAuditPage(1) }}
               >
                 Clear
               </button>
             )}
-            <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 'var(--fs-sm)', alignSelf: 'center' }}>
+            <span className="u-ml-auto u-text-muted u-fs-sm u-align-self-center">
               {auditTotal} {auditTotal === 1 ? 'entry' : 'entries'}
             </span>
           </div>
 
           {auditLoading ? (
-            <p style={{ padding: '16px', color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>Loading…</p>
+            <p className="u-pad-16 u-text-muted u-fs-sm">Loading…</p>
           ) : auditLogs.length === 0 ? (
-            <p style={{ padding: '16px', color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>No activity recorded yet.</p>
+            <p className="u-pad-16 u-text-muted u-fs-sm">No activity recorded yet.</p>
           ) : (
             <div className="analytics-audit-list">
               {auditLogs.map((entry) => (

@@ -418,19 +418,18 @@ export default function TaskForm({
       )}
 
       <div className="field--span-2">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 600, color: 'var(--text-muted)' }}>Contacts</span>
+        <div className="u-flex-between u-flex-center u-margin-b-8">
+          <div className="u-flex-center-gap-sm">
+            <span className="u-fs-xs u-font-600 u-text-muted">Contacts</span>
             {taskForm.dealId && selectedContactIds.length > 0 && (
-              <span className="tone-pill is-active" style={{ fontSize: '10px', padding: '1px 8px', height: 'auto', background: 'rgba(52, 211, 153, 0.1)', color: '#34d399', border: '1px solid rgba(52, 211, 153, 0.2)' }}>
+              <span className="tone-pill is-active u-fs-10 u-pad-1-8 u-h-auto u-accent-bg-soft u-positive u-border-positive-soft">
                 Deal contacts accounted for
               </span>
             )}
           </div>
           <button 
             type="button" 
-            className="ghost-button" 
-            style={{ fontSize: '11px', padding: '2px 6px' }}
+            className="ghost-button u-fs-11 u-pad-2-6" 
             onClick={() => setAddingContact(!addingContact)}
           >
             {addingContact ? 'Cancel' : '+ Add Contact'}
@@ -438,37 +437,22 @@ export default function TaskForm({
         </div>
 
         {addingContact && (
-          <div style={{ 
-            background: 'rgba(255,255,255,0.03)', 
-            borderRadius: 'var(--r-md)', 
-            padding: '16px', 
-            marginBottom: '16px',
-            border: '1px solid var(--border)' 
-          }}>
+          <div className="u-bg-white-03 u-r-md u-pad-16 u-margin-b-16 u-border">
             {contactErrors.global && (
-              <div style={{ 
-                background: 'rgba(251, 113, 133, 0.1)', 
-                color: 'var(--alert)', 
-                padding: '10px 14px', 
-                borderRadius: '8px', 
-                fontSize: '11px', 
-                fontWeight: 600,
-                marginBottom: '12px',
-                border: '1px solid rgba(251, 113, 133, 0.2)'
-              }}>
+              <div className="u-alert-bg-soft u-alert u-pad-10-14 u-r-md u-fs-11 u-font-600 u-margin-b-12 u-border-alert-soft">
                 ⚠ {contactErrors.global}
               </div>
             )}
-            <div className="form-grid" style={{ margin: 0, gap: '12px' }}>
+            <div className="form-grid u-margin-0 u-gap-12">
               <label className="field">
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  Contact Name {contactErrors.name && <span style={{ color: '#ff5252', fontSize: '10px' }}>{contactErrors.name}</span>}
+                <span className="u-flex-between">
+                  Contact Name {contactErrors.name && <span className="u-text-red u-fs-10">{contactErrors.name}</span>}
                 </span>
                 <input 
                   placeholder="Full name" 
                   value={newContact.name} 
                   onChange={e => setNewContact({...newContact, name: e.target.value})} 
-                  style={contactErrors.name ? { borderColor: '#ff5252' } : {}}
+                  className={contactErrors.name ? 'u-border-red' : ''}
                 />
               </label>
               <label className="field">
@@ -480,33 +464,32 @@ export default function TaskForm({
                 />
               </label>
               <label className="field">
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  Phone number {contactErrors.phone && <span style={{ color: '#ff5252', fontSize: '10px' }}>{contactErrors.phone}</span>}
+                <span className="u-flex-between">
+                  Phone number {contactErrors.phone && <span className="u-text-red u-fs-10">{contactErrors.phone}</span>}
                 </span>
                 <input 
                   placeholder="+63..." 
                   value={newContact.phone} 
                   onChange={e => setNewContact({...newContact, phone: e.target.value})} 
-                  style={contactErrors.phone ? { borderColor: '#ff5252' } : {}}
+                  className={contactErrors.phone ? 'u-border-red' : ''}
                 />
               </label>
               <label className="field">
-                <span style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  Email address {contactErrors.email && <span style={{ color: '#ff5252', fontSize: '10px' }}>{contactErrors.email}</span>}
+                <span className="u-flex-between">
+                  Email address {contactErrors.email && <span className="u-text-red u-fs-10">{contactErrors.email}</span>}
                 </span>
                 <input 
                   placeholder="name@company.com" 
                   value={newContact.email} 
                   onChange={e => setNewContact({...newContact, email: e.target.value})} 
-                  style={contactErrors.email ? { borderColor: '#ff5252' } : {}}
+                  className={contactErrors.email ? 'u-border-red' : ''}
                 />
               </label>
             </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '16px' }}>
+            <div className="u-flex u-flex-gap-sm u-justify-end u-margin-t-16">
               <button 
                 type="button" 
-                className="secondary-button" 
-                style={{ padding: '6px 14px', fontSize: 'var(--fs-xs)' }}
+                className="secondary-button u-pad-6-14 u-fs-xs"
                 onClick={() => {
                   setAddingContact(false)
                   setNewContact({ name: '', email: '', phone: '', role: '' })
@@ -516,8 +499,7 @@ export default function TaskForm({
               </button>
               <button 
                 type="button" 
-                className="primary-button" 
-                style={{ padding: '6px 14px', fontSize: 'var(--fs-xs)' }}
+                className="primary-button u-pad-6-14 u-fs-xs"
                 onClick={handleAddContact}
               >
                 Create Contact
@@ -526,23 +508,23 @@ export default function TaskForm({
           </div>
         )}
 
-        <div className="admin-table-wrap" style={{ maxHeight: '120px', overflowY: 'auto' }}>
+        <div className="admin-table-wrap u-max-h-120 u-overflow-y-auto">
           <table className="admin-table">
             <thead>
               <tr>
-                <th style={{ width: '30px' }}></th>
+                <th className="u-w-30px"></th>
                 <th>Name</th>
                 <th>Role</th>
               </tr>
             </thead>
             <tbody>
               {companyContacts.length === 0 ? (
-                <tr><td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '12px' }}>No contacts found</td></tr>
+                <tr><td colSpan={3} className="u-text-center u-text-muted u-pad-12">No contacts found</td></tr>
               ) : (
                 companyContacts.map(c => (
                   <tr 
                     key={c.id} 
-                    style={{ cursor: 'pointer', background: selectedContactIds.includes(c.id) ? 'rgba(255,152,0,0.08)' : 'transparent' }}
+                    className={`u-cursor-pointer ${selectedContactIds.includes(c.id) ? 'u-accent-bg-soft' : ''}`}
                     onClick={() => {
                       setHasManuallyInteracted(true)
                       setSelectedContactIds(prev => 
@@ -552,7 +534,7 @@ export default function TaskForm({
                   >
                     <td><input type="checkbox" checked={selectedContactIds.includes(c.id)} readOnly /></td>
                     <td>{c.name}</td>
-                    <td style={{ fontSize: '11px' }}>{c.role || '—'}</td>
+                    <td className="u-fs-11">{c.role || '—'}</td>
                   </tr>
                 ))
               )}
@@ -609,7 +591,7 @@ export default function TaskForm({
             placeholder="+63..." 
           />
           {taskForm.dealId && selectedContactIds.length > 0 && (
-            <small style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '4px', display: 'block' }}>
+            <small className="u-text-muted u-fs-10 u-margin-t-4 u-block">
               Contacts already accounted for — dial number or type to add a new contact
             </small>
           )}
@@ -638,7 +620,7 @@ export default function TaskForm({
             placeholder="Re: Opportunity..." 
           />
           {taskForm.dealId && selectedContactIds.length > 0 && (
-            <small style={{ color: 'var(--text-muted)', fontSize: '10px', marginTop: '4px', display: 'block' }}>
+            <small className="u-text-muted u-fs-10 u-margin-t-4 u-block">
               Contacts already accounted for — write subject or type to add a new contact
             </small>
           )}
@@ -680,7 +662,7 @@ export default function TaskForm({
 
       <label className="field field--span-2">
         <span>Description / Notes</span>
-        <textarea name="notes" value={taskForm.notes} onChange={handleChange} placeholder="Enter task details..." required style={{ minHeight: '80px' }} />
+        <textarea name="notes" value={taskForm.notes} onChange={handleChange} placeholder="Enter task details..." required className="u-min-h-80" />
       </label>
     </>
   )
@@ -688,7 +670,7 @@ export default function TaskForm({
   const hasDeals = activeDeals.length > 0
 
   return (
-    <form className="form-grid" style={{ padding: '0 24px 24px' }} onSubmit={handleSubmit}>
+    <form className="form-grid form-body" onSubmit={handleSubmit}>
       {/* ALWAYS TOP: COMPANY AND DEAL NAME */}
       <label className="field">
         <span>Company</span>
@@ -712,15 +694,15 @@ export default function TaskForm({
       {!hasDeals ? (
         <>
           {/* CASE: NO DEALS - DEAL SECTION FIRST (AUTO-EXPANDED) */}
-          <div className="field--span-2" style={{ borderBottom: '1px solid var(--border)', padding: '12px 0 8px', margin: '4px 0' }}>
-            <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent-strong)' }}>
+          <div className="form-section-header">
+            <span className="form-section-label">
               ◉ Deal (New)
             </span>
           </div>
           {dealFields}
 
-          <div className="field--span-2" style={{ borderBottom: '1px solid var(--border)', padding: '12px 0 8px', margin: '8px 0 4px' }}>
-            <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent-strong)' }}>
+          <div className="form-section-header u-margin-v-8">
+            <span className="form-section-label">
               ◉ Task
             </span>
           </div>
@@ -729,21 +711,20 @@ export default function TaskForm({
       ) : (
         <>
           {/* CASE: HAS DEALS - TASK SECTION FIRST */}
-          <div className="field--span-2" style={{ borderBottom: '1px solid var(--border)', padding: '12px 0 8px', margin: '4px 0' }}>
-            <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent-strong)' }}>
+          <div className="form-section-header">
+            <span className="form-section-label">
               ◉ Task
             </span>
           </div>
           {taskFields}
 
-          <div className="field--span-2" style={{ borderBottom: '1px solid var(--border)', padding: '12px 0 8px', margin: '8px 0 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 'var(--fs-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--accent-strong)' }}>
+          <div className="form-section-header is-flex u-margin-v-8">
+            <span className="form-section-label">
               ◉ Deal ({activeDeals.length} Linked)
             </span>
             <button 
               type="button" 
-              className="ghost-button" 
-              style={{ fontSize: 'var(--fs-xs)', color: 'var(--accent)', padding: '2px 8px' }}
+              className="ghost-button u-fs-xs u-text-accent u-pad-2-8"
               onClick={() => setSection1Expanded(!section1Expanded)}
             >
               {section1Expanded ? 'Collapse' : 'Expand Options'}
@@ -753,7 +734,7 @@ export default function TaskForm({
         </>
       )}
 
-      <div className="form-actions field--span-2" style={{ marginTop: '12px' }}>
+      <div className="form-actions field--span-2 u-margin-t-12">
         <button type="submit" className="primary-button">Save task</button>
         <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>
       </div>

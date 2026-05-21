@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
@@ -342,14 +343,13 @@ export default function PipelineView({
                   </select>
                 </label>
               )}
-              <button
-                type="button"
-                className="secondary-button"
-                style={{ fontSize: '12px', padding: '6px 12px' }}
-                onClick={() => setShowClosed((v) => !v)}
-              >
-                {showClosed ? 'Hide Closed' : 'Show Closed'}
-              </button>
+                <button
+                  type="button"
+                  className="secondary-button is-compact"
+                  onClick={() => setShowClosed((v) => !v)}
+                >
+                  {showClosed ? 'Hide Closed' : 'Show Closed'}
+                </button>
             </div>
           }
         >
@@ -382,42 +382,48 @@ export default function PipelineView({
                         </div>
                       ) : (
                         stageDeals.map((deal) => (
-                          <article key={deal.id} className={`pipeline-card ${getStageTone(deal.stage)}${deal.urgencyLabel === 'Overdue' ? ' is-health-critical' : ''}${deal.urgencyLabel === 'High Priority' ? ' is-health-at-risk' : ''}${deal.urgencyLabel === 'Due Today' ? ' is-health-healthy' : ''}`}>
+                          <article
+                            key={deal.id}
+                            className={`pipeline-card ${getStageTone(deal.stage)}${deal.urgencyLabel === 'Overdue' ? ' is-health-critical' : ''}${deal.urgencyLabel === 'High Priority' ? ' is-health-at-risk' : ''}${deal.urgencyLabel === 'Due Today' ? ' is-health-healthy' : ''}`}
+                            onClick={() => openDeal(deal)}
+                          >
                             <div className="pipeline-card__top">
-                              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                                <strong style={{ fontSize: 'var(--fs-base)', color: 'var(--text-strong)', lineHeight: 1.2 }}>{deal.name}</strong>
-                                <span style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                              <div className="pipeline-card__header-box">
+                                <strong className="pipeline-card__title">{deal.name}</strong>
+                                <span className="pipeline-card__subtitle">
                                   {companyMap[deal.companyId]?.name ?? deal.companyId}
                                 </span>
                               </div>
-                              <span className="tone-pill is-warning" style={{ fontSize: '10px', padding: '2px 6px' }}>{deal.probability}%</span>
+                              <span className="tone-pill is-warning is-compact">{deal.probability}%</span>
                             </div>
 
-                            <div style={{ margin: '8px 0', borderTop: '1px solid rgba(255,255,255,0.05)' }} />
+                            <div className="pipeline-card__divider" />
 
-                            <div className="pipeline-card__value" style={{ marginBottom: '8px' }}>
-                              <span className="tone-pill is-warning" style={{ fontSize: 'var(--fs-sm)', fontWeight: 700 }}>
+                            <div className="pipeline-card__value u-margin-b-8">
+                              <span className="tone-pill is-warning is-strong">
                                 {formatCurrencyCompact(deal.value)}
                               </span>
                             </div>
                             
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              {!isSr && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>Owner:</span>
-                                <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>{deal.owner}</span>
+                            <div className="pipeline-card__stats-list">
+                              {!isSr && <div className="pipeline-card__stat-row">
+                                <span className="pipeline-card__stat-label">Owner:</span>
+                                <span className="pipeline-card__stat-value">{deal.owner}</span>
                               </div>}
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>Close:</span>
-                                <span style={{ color: 'var(--text-secondary)' }}>{formatDateLabel(deal.expectedClose)}</span>
+                              <div className="pipeline-card__stat-row">
+                                <span className="pipeline-card__stat-label">Close:</span>
+                                <span className="pipeline-card__stat-value">{formatDateLabel(deal.expectedClose)}</span>
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-xs)' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>Touch:</span>
-                                <span style={{ color: 'var(--text-secondary)' }}>{formatRelativeDays(deal.lastTouch) || '—'}</span>
+                              <div className="pipeline-card__stat-row">
+                                <span className="pipeline-card__stat-label">Touch:</span>
+                                <span className="pipeline-card__stat-value">{formatRelativeDays(deal.lastTouch) || '—'}</span>
                               </div>
                             </div>
 
-                            <div className="field--compact pipeline-card__btn-wrap" style={{ textAlign: 'center', marginTop: '12px' }}>
-                              <button type="button" className="secondary-button pipeline-card__details-btn" style={{ width: '100%', fontSize: '11px', padding: '6px' }} onClick={() => openDeal(deal)}>View details</button>
+                            <div className="pipeline-card__btn-wrap">
+                              <div className="field--compact pipeline-card__footer">
+                                <button type="button" className="secondary-button pipeline-card__action-btn">View details</button>
+                              </div>
                             </div>
                           </article>
                         ))
@@ -456,9 +462,9 @@ export default function PipelineView({
         </Panel>
       </section>
 
-      {selectedDeal && (
+      {selectedDeal && createPortal(
         <div className="deal-modal-overlay" onClick={closeDeal}>
-          <div className="deal-modal" onClick={(e) => e.stopPropagation()}>
+          <div className={`deal-modal ${getStageTone(selectedDeal.stage)}`} onClick={(e) => e.stopPropagation()}>
 
             {/* ── Header ── */}
             <div className="deal-modal__header">
@@ -469,7 +475,7 @@ export default function PipelineView({
               <div className="deal-modal__header-actions">
                 <button type="button" className="deal-modal__close" aria-label="Close" onClick={closeDeal}>✕</button>
                 {canEdit && !isEditing && (
-                  <button type="button" className="secondary-button" style={{ fontSize: '11px', padding: '6px 12px' }} onClick={() => {
+                  <button type="button" className="secondary-button" onClick={() => {
                     setEditValue(selectedDeal.value)
                     setEditCloseDate(selectedDeal.expectedClose || '')
                     setEditProbability(selectedDeal.probability)
@@ -495,35 +501,33 @@ export default function PipelineView({
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Deal Value</span>
                   {isEditing ? (
-                    <div className="field" style={{ margin: 0 }}>
+                    <div className="field u-margin-0">
                       <input
                         type="text"
                         inputMode="numeric"
-                        className="deal-modal__edit-input"
+                        className="modal-edit-input"
                         value={editValue === '' ? '' : Number(editValue).toLocaleString('en-US')}
                         onChange={(e) => {
                           const raw = e.target.value.replace(/[^0-9.]/g, '')
                           setEditValue(raw === '' ? '' : Number(raw))
                         }}
-                        style={{ background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-strong)', padding: '6px 10px', width: '100%' }}
                       />
                     </div>
                   ) : (
-                    <strong className="deal-modal__value" style={{ color: 'var(--accent-strong)' }}>{formatCurrencyFull(selectedDeal.value)}</strong>
+                    <strong className="deal-modal__value u-text-accent">{formatCurrencyFull(selectedDeal.value)}</strong>
                   )}
                 </div>
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Probability</span>
                   {isEditing ? (
-                    <div className="field" style={{ margin: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div className="field u-margin-0">
+                      <div className="u-flex-center-gap-sm">
                           <input
                             type="number"
                             min="0"
                             max="100"
                             step="1"
-                            className="deal-modal__edit-input"
-                            style={{ maxWidth: '80px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-strong)', padding: '6px 10px' }}
+                            className="modal-edit-input u-width-80"
                             value={editProbability}
                             onChange={(e) => {
                               const raw = e.target.value.replace(/[^0-9]/g, '')
@@ -531,7 +535,7 @@ export default function PipelineView({
                               setEditProbability(num)
                             }}
                           />
-                        <span style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)' }}>%</span>
+                        <span className="u-fs-sm u-text-muted">%</span>
                       </div>
                     </div>
                   ) : (
@@ -543,11 +547,10 @@ export default function PipelineView({
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Expected Close</span>
                   {isEditing ? (
-                    <div className="field" style={{ margin: 0 }}>
+                    <div className="field u-margin-0">
                       <input
                         type="date"
-                        className="deal-modal__edit-input"
-                        style={{ minWidth: '160px', maxWidth: '180px', background: 'var(--bg-input)', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', color: 'var(--text-strong)', padding: '6px 10px' }}
+                        className="modal-edit-input u-width-date"
                         min={TODAY}
                         value={editCloseDate}
                         onChange={(e) => setEditCloseDate(e.target.value)}
@@ -562,9 +565,9 @@ export default function PipelineView({
                   <strong className="deal-modal__value">{selectedDeal.stage}</strong>
                 </div>
                 {selectedDeal.stage === 'Closed Lost' && selectedDeal.lostReason && (
-                  <div className="deal-modal__field" style={{ gridColumn: 'span 2' }}>
+                  <div className="deal-modal__field u-span-2">
                     <span className="deal-modal__label">Loss Reason</span>
-                    <strong className="deal-modal__value" style={{ color: 'var(--text-muted)' }}>{selectedDeal.lostReason}</strong>
+                    <strong className="deal-modal__value u-text-muted">{selectedDeal.lostReason}</strong>
                   </div>
                 )}
                 {selectedDeal.contactId && (
@@ -574,18 +577,18 @@ export default function PipelineView({
                   </div>
                 )}
                 {dealContacts.length > 0 && (
-                  <div className="deal-modal__field" style={{ gridColumn: 'span 2' }}>
+                  <div className="deal-modal__field u-span-2">
                     <span className="deal-modal__label">All Associated Contacts</span>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                    <div className="deal-modal__contact-list">
                       {dealContacts.map(c => (
-                        <div key={c.id} className="tone-pill is-neutral" style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '2px', height: 'auto', borderRadius: 'var(--r-md)' }}>
-                          <div style={{ fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                        <div key={c.id} className="tone-pill is-neutral deal-modal__contact-item">
+                          <div className="deal-modal__contact-header">
                             <span>{c.name}</span>
-                            {c.deal_role && <span style={{ fontSize: '9px', textTransform: 'uppercase', opacity: 0.6 }}>{c.deal_role}</span>}
+                            {c.deal_role && <span className="deal-modal__contact-role-tag">{c.deal_role}</span>}
                           </div>
-                          {c.role && <div style={{ fontSize: '10px', opacity: 0.8 }}>{c.role}</div>}
+                          {c.role && <div className="deal-modal__contact-sub">{c.role}</div>}
                           {(c.phone || c.email) && (
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px', paddingTop: '4px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: '10px' }}>
+                            <div className="deal-modal__contact-details">
                               {c.phone && <span title="Phone">📞 {c.phone}</span>}
                               {c.email && <span title="Email">✉️ {c.email}</span>}
                             </div>
@@ -605,17 +608,16 @@ export default function PipelineView({
 
               {/* Proposal Documents (only in Proposal stage) */}
               {selectedDeal.stage === 'Proposal' && (
-                <div style={{ padding: '16px 0', borderTop: '1px solid var(--border)', marginTop: '16px' }}>
+                <div className="modal-section-divider">
                   <h3 className="deal-modal__subheading">Proposal Documents</h3>
                   {attachments.length > 0 ? (
-                    <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0' }}>
+                    <ul className="deal-modal__attachment-list">
                       {attachments.map((a) => (
-                        <li key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                          <span style={{ fontSize: 'var(--fs-sm)' }}>{a.label || a.filename}</span>
+                        <li key={a.id} className="deal-modal__attachment-item">
+                          <span className="u-fs-sm">{a.label || a.filename}</span>
                           <button
                             type="button"
-                            className="ghost-button"
-                            style={{ fontSize: '11px', padding: '4px 10px' }}
+                            className="ghost-button is-compact"
                             onClick={async () => {
                               try {
                                 const res = await apiFetch(`/api/uploads/${a.filename}`)
@@ -637,21 +639,20 @@ export default function PipelineView({
                       ))}
                     </ul>
                   ) : (
-                    <p style={{ color: 'var(--text-muted)', fontSize: 'var(--fs-sm)', margin: '8px 0' }}>No documents uploaded yet.</p>
+                    <p className="u-text-muted u-fs-sm u-margin-v-8">No documents uploaded yet.</p>
                   )}
                   {canEdit && (
-                    <div style={{ marginTop: '12px' }}>
+                    <div className="u-margin-t-12">
                       <input
                         ref={fileInputRef}
                         type="file"
                         accept="application/pdf,.pdf"
-                        style={{ display: 'none' }}
+                        className="u-hidden"
                         onChange={handleFileUpload}
                       />
                       <button
                         type="button"
-                        className="secondary-button"
-                        style={{ fontSize: '12px' }}
+                        className="secondary-button u-fs-12"
                         disabled={uploading}
                         onClick={() => fileInputRef.current?.click()}
                       >
@@ -676,7 +677,7 @@ export default function PipelineView({
                       .sort((a, b) => new Date(b.created_at || b.dueDate || 0) - new Date(a.created_at || a.dueDate || 0))
                       .map(task => (
                         <div key={task.id} className="timeline-item">
-                          <div className="timeline-dot" style={{ background: 'var(--accent)' }}></div>
+                          <div className="timeline-dot timeline-dot--accent"></div>
                           <div className="timeline-content">
                             <div className="timeline-header">
                               <span className="timeline-time">{task.type} • {formatDateLabel(task.dueDate || task.created_at)}</span>
@@ -686,10 +687,9 @@ export default function PipelineView({
                               <p><strong>{task.title}</strong></p>
                               {task.notes && <p className="timeline-notes">{task.notes}</p>}
                             </div>
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', alignItems: 'center' }}>
+                            <div className="u-flex-center-gap-sm u-margin-t-8">
                               <span
-                                className={`tone-pill ${getToneClass(task.status)}`}
-                                style={{ cursor: 'pointer' }}
+                                className={`tone-pill ${getToneClass(task.status)} u-cursor-pointer`}
                                 title={`View all ${task.status.toLowerCase()} tasks`}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -701,8 +701,7 @@ export default function PipelineView({
                               </span>
                               <button
                                 type="button"
-                                className="ghost-button"
-                                style={{ fontSize: '10px', padding: '4px 8px' }}
+                                className="ghost-button u-fs-10-pad-4-8"
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   const nextStatus = task.status === 'Completed' ? 'reopened' : 'completed';
@@ -743,12 +742,12 @@ export default function PipelineView({
 
                       return (
                         <div key={log.id} className="timeline-item">
-                          <div className="timeline-dot" style={{ background: dotColor }}></div>
+                          <div className="timeline-dot" style={{ backgroundColor: dotColor }}></div>
                           <div className="timeline-content">
                             <div className="timeline-header">
                               <span className="timeline-time">{formatDateLabel(log.changedAt)}</span>
                               {log.changedBy && (
-                                <span className="timeline-user" style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                                <span className="timeline-user u-fs-10-muted-ml-8">
                                   by {log.changedBy}
                                 </span>
                               )}
@@ -758,7 +757,7 @@ export default function PipelineView({
                               <p>
                                 {log.action === 'deal_created' ? (
                                   <>
-                                    <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(log.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{log.newValue}</span>
+                                    <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(log.newValue)} is-compact u-margin-h-4`}>{log.newValue}</span>
                                     {selectedDeal && <> for <strong>{selectedDeal.name}</strong></>}
                                   </>
                                 ) : log.action.startsWith('task_status:') ? (
@@ -777,10 +776,10 @@ export default function PipelineView({
                                     {log.action === 'stage_change' ? (
                                       <>
                                         {log.oldValue ? (
-                                          <span className={`tone-pill ${getToneClass(log.oldValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{log.oldValue}</span>
+                                          <span className={`tone-pill ${getToneClass(log.oldValue)} is-compact u-margin-h-4`}>{log.oldValue}</span>
                                         ) : null}
                                         {log.oldValue && ' → '}
-                                        <span className={`tone-pill ${getToneClass(log.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{log.newValue}</span>
+                                        <span className={`tone-pill ${getToneClass(log.newValue)} is-compact u-margin-h-4`}>{log.newValue}</span>
                                       </>
                                     ) : log.action === 'value_change' ? (
                                       <>{formatCurrencyCompact(Number(log.oldValue))} → <strong>{formatCurrencyCompact(Number(log.newValue))}</strong></>
@@ -840,13 +839,13 @@ export default function PipelineView({
                   <button type="button" className="secondary-button" onClick={() => setIsEditing(false)}>Cancel</button>
                 </div>
               ) : showLostPrompt ? (
-                <div style={{ width: '100%' }}>
-                  <p className="deal-modal__footer-label" style={{ marginBottom: '10px' }}>Why was this deal lost?</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="u-width-full">
+                  <p className="deal-modal__footer-label u-margin-b-10">Why was this deal lost?</p>
+                  <div className="u-flex-column-gap-sm">
                     <select
                       value={lostReason}
                       onChange={(e) => setLostReason(e.target.value)}
-                      style={{ padding: '8px', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 'var(--fs-sm)' }}
+                      className="modal-edit-input u-fs-sm"
                     >
                       {LOST_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
@@ -855,10 +854,10 @@ export default function PipelineView({
                       onChange={(e) => setLostNotes(e.target.value)}
                       placeholder="Additional notes (optional)"
                       rows={2}
-                      style={{ padding: '8px', borderRadius: 'var(--r-md)', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 'var(--fs-sm)', resize: 'vertical' }}
+                      className="modal-edit-input u-fs-sm u-resize-v"
                     />
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button type="button" className="primary-button" style={{ flex: 1 }} onClick={confirmLostReason}>Confirm Lost</button>
+                    <div className="u-flex-gap-sm">
+                      <button type="button" className="primary-button u-flex-1" onClick={confirmLostReason}>Confirm Lost</button>
                       <button type="button" className="secondary-button" onClick={() => setShowLostPrompt(false)}>Cancel</button>
                     </div>
                   </div>
@@ -866,7 +865,7 @@ export default function PipelineView({
               ) : canEdit ? (
                 <>
                   {recommendedActivity && (
-                    <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', marginBottom: '8px', width: '100%' }}>
+                    <p className="u-fs-sm u-text-muted u-margin-b-8 u-width-full">
                       Recommended activity: <strong>{recommendedActivity}</strong>
                     </p>
                   )}
@@ -885,14 +884,15 @@ export default function PipelineView({
                   </div>
                 </>
               ) : (
-                <p className="deal-modal__footer-label" style={{ textAlign: 'center', width: '100%', opacity: 0.6 }}>
+                <p className="deal-modal__footer-label u-text-center u-width-full u-opacity-06">
                   Read-only — you are not the assigned SR for this deal
                 </p>
               )}
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )
