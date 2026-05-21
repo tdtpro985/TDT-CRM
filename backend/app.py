@@ -14,6 +14,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
 from datetime import timedelta, date, datetime
+from zoneinfo import ZoneInfo
 import json
 from dotenv import load_dotenv
 
@@ -299,6 +300,20 @@ def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=No
         (entity_type, entity_id, action, old_value, new_value, user_id),
     )
     cursor.close()
+
+
+PHT = ZoneInfo('Asia/Manila')
+
+def to_pht(dt):
+    """Convert a naive datetime to PHT (UTC+8) ISO string."""
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        return dt
+    local_tz = datetime.now().astimezone().tzinfo
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=local_tz)
+    return dt.astimezone(PHT).isoformat()
 
 
 # ─── Auth / Login ─────────────────────────────────────────────────────────────
@@ -624,6 +639,8 @@ def get_customer_detail(customer_id):
             """
             cursor.execute(sql, tuple(params))
             audit_logs = rows_to_list(cursor)
+            for log in audit_logs:
+                log['changedAt'] = to_pht(log.get('changedAt'))
 
         return jsonify({
             'customer': customer_data,
@@ -1736,7 +1753,10 @@ def get_deal_audit_logs(deal_id):
             WHERE a.entity_type = 'deal' AND a.entity_id = %s
             ORDER BY a.changed_at DESC
         """, (deal_id,))
-        return jsonify(rows_to_list(cursor))
+        logs = rows_to_list(cursor)
+        for log in logs:
+            log['changedAt'] = to_pht(log.get('changedAt'))
+        return jsonify(logs)
     finally:
         close_connection(conn)
 
@@ -2119,6 +2139,8 @@ def admin_audit_log():
             params + [limit, offset]
         )
         logs = rows_to_list(cursor)
+        for log in logs:
+            log['changed_at'] = to_pht(log.get('changed_at'))
 
         return jsonify({'logs': logs, 'total': total})
     finally:
