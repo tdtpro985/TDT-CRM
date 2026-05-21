@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole } from '../utils'
+import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatDateTimePHT, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole } from '../utils'
 import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP } from '../constants'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
@@ -746,7 +746,7 @@ export default function PipelineView({
                           <div className="timeline-dot" style={{ background: dotColor }}></div>
                           <div className="timeline-content">
                             <div className="timeline-header">
-                              <span className="timeline-time">{formatDateLabel(log.changedAt)}</span>
+                              <span className="timeline-time">{formatDateTimePHT(log.changedAt)}</span>
                               {log.changedBy && (
                                 <span className="timeline-user" style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '8px' }}>
                                   by {log.changedBy}

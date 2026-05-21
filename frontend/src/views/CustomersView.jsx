@@ -3,7 +3,7 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole } from '../utils'
+import { formatDateTimePHT, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole } from '../utils'
 import { STAGE_COLORS, ITEMS_PER_PAGE } from '../constants'
 import LeadForm from '../components/forms/LeadForm'
 import TaskForm from '../components/forms/TaskForm'
@@ -388,7 +388,7 @@ export default function CustomersView({
                             <div className="timeline-dot" style={{ background: dotColor }}></div>
                             <div className="timeline-content">
                               <div className="timeline-header">
-                                <span className="timeline-time">{formatDateLabel(item.changedAt)}</span>
+                                <span className="timeline-time">{formatDateTimePHT(item.changedAt)}</span>
                                 {item.changedBy && (
                                   <span className="timeline-user" style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '8px' }}>
                                     by {item.changedBy}
