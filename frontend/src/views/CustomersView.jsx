@@ -343,7 +343,7 @@ export default function CustomersView({
                       {(customerDetail?.auditLogs || [])
                       .filter(l => {
                         // 1. Filter out technical/noisy logs
-                        if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change' || l.action === 'stage_change' || l.action === 'probability_change') return false
+                        if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change' || l.action === 'stage_change' || l.action === 'probability_change' || l.action === 'close_date_change') return false
                         
                         // 2. Filter out no-change logs (where old == new)
                         if (l.oldValue === l.newValue && l.oldValue !== null) return false
@@ -369,7 +369,6 @@ export default function CustomersView({
                           'deal_created': 'Deal created',
                           'value_change': 'Value changed',
                           'owner_id_change': 'Owner changed',
-                          'close_date_change': 'Close date changed',
                           'probability_change': 'Probability changed',
                           'status_change': 'Status changed',
                           'lost_reason': 'Lost reason',
@@ -388,7 +387,6 @@ export default function CustomersView({
                                     by {item.changedBy}
                                   </span>
                                 )}
-                                <span className="timeline-badge is-audit">Change</span>
                               </div>
                               <div className="timeline-body">
                                 <p>
