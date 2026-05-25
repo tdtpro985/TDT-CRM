@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function Pagination({ 
   currentPage, 
@@ -9,9 +9,15 @@ export default function Pagination({
   className = '' 
 }) {
   const [inputValue, setInputValue] = useState(String(currentPage || 1))
-  
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    setInputValue(String(currentPage || 1))
+  }, [currentPage])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   if (totalPages <= 1) return null
-  
+
   const hBlur = () => {
     const num = parseInt(inputValue, 10)
     if (inputValue === '' || isNaN(num) || num < 1) {
@@ -28,10 +34,6 @@ export default function Pagination({
     if (e.key === 'Enter') {
       hBlur()
     }
-  }
-  
-  if (String(currentPage || 1) !== inputValue && !inputValue) {
-    setInputValue(String(currentPage || 1))
   }
   
   return (
