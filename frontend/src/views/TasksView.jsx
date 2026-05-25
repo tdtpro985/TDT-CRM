@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
@@ -149,6 +149,7 @@ export default function TasksView({
   currentUser
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [taskFilter, setTaskFilter] = useState('open')
   const [currentPage, setCurrentPage] = useState(1)
   const [highlightedTaskId, setHighlightedTaskId] = useState(null)
@@ -221,7 +222,7 @@ export default function TasksView({
     }
   }, [highlightedTaskId])
 
-  const handleFocusTaskClick = (task) => {
+  const handleFocusTaskClick = useCallback((task) => {
     setHighlightedTaskId(task.id)
     setPinnedTaskId(task.id)
 
@@ -232,7 +233,23 @@ export default function TasksView({
 
     // Task will now be at the top of page 1 due to pinning
     setCurrentPage(1)
-  }
+  }, [taskFilter])
+
+  // Handle cross-view navigation highlights (e.g. from Dashboard)
+  useEffect(() => {
+    if (location.state?.highlightTaskId) {
+      const task = tasks.find(t => t.id === location.state.highlightTaskId)
+      if (task) {
+        // Clear state so it doesn't re-trigger
+        navigate(location.pathname, { replace: true, state: {} })
+        
+        // Wrap in setTimeout to avoid synchronous setState in effect (eslint error)
+        setTimeout(() => {
+          handleFocusTaskClick(task)
+        }, 0)
+      }
+    }
+  }, [location.state, tasks, navigate, location.pathname, handleFocusTaskClick])
 
   const PRIORITY_ORDER = { 'High': 0, 'Medium': 1, 'Low': 2 }
   const focusQueue = [...openTasks]
