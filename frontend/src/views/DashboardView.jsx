@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import { formatCurrencyCompact, formatDateLabel, getToneClass } from '../utils'
+import { formatCurrencyCompact, formatDateLabel, isSrRole } from '../utils'
 import { ITEMS_PER_PAGE } from '../constants'
 
 export default function DashboardView({
@@ -13,8 +13,10 @@ export default function DashboardView({
   companies,
   openTasks,
   linkHealth,
+  currentUser,
 }) {
   const today = new Date().toISOString().split('T')[0]
+  const isSr = isSrRole(currentUser?.role)
   const stageListRef = useRef(null)
   const [visible, setVisible] = useState(false)
 
@@ -162,6 +164,7 @@ export default function DashboardView({
                     />
                   </div>
                 )}
+
               </div>
             ))}
           </div>
@@ -205,18 +208,21 @@ export default function DashboardView({
           detail="Open work is visible from the dashboard so reps always know what is next."
         >
           <div className="simple-list">
-            {focusTasks.map((task) => (
-              <article key={task.id} className="simple-list__item" style={{ position: 'relative' }}>
-                <div style={{ paddingRight: '110px' }}>
-                  <strong style={{ display: 'block' }}>{task.title}</strong>
-                  <p style={{ margin: '4px 0 0' }}>{task.owner} | due {formatDateLabel(task.dueDate)}</p>
-                </div>
-                <div className="activity-card__badges" style={{ position: 'absolute', top: '8px', right: '12px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-                  <span className={`tone-pill ${getToneClass(task.priority)}`}>{task.priority}</span>
-                  <span className={`tone-pill ${getToneClass(task.status)}`}>{task.status}</span>
-                </div>
-              </article>
-            ))}
+            {focusTasks.map((task) => {
+              const priorityClass = `is-priority-${task.priority.toLowerCase()}`
+              return (
+                <article key={task.id} className={`simple-list__item ${priorityClass} u-border-l-3-transparent`}>
+                  <div className="u-flex-1 u-min-w-0">
+                    <strong className="u-truncate u-block">
+                      {task.title}
+                    </strong>
+                    <p className="u-margin-t-4 u-fs-11 u-text-muted">
+                      {!isSr ? `${task.owner} | ` : ''}due {formatDateLabel(task.dueDate)}
+                    </p>
+                  </div>
+                </article>
+              )
+            })}
           </div>
         </Panel>
       </section>

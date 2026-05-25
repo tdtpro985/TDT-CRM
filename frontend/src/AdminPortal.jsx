@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom'
 import './App.css'
 import { clearToken, getUser, saveUser } from './api'
 import AdminLoginPage from './components/AdminLoginPage'
@@ -26,7 +26,6 @@ const VIEW_META = {
 }
 
 export default function AdminPortal() {
-  const navigate = useNavigate()
   const location = useLocation()
   // Ensure we get the correct active view based on the path (e.g. /admin/analytics)
   const activeView = location.pathname.split('/')[2] || 'analytics'
@@ -40,11 +39,6 @@ export default function AdminPortal() {
   function showToast(message) {
     setToast(message)
     setTimeout(() => setToast(null), 3000)
-  }
-
-  function handleNavChange(id) {
-    navigate(`/admin/${id}`)
-    setSidebarOpen(false)
   }
 
   function handleLogout() {
@@ -64,7 +58,7 @@ export default function AdminPortal() {
   const meta = VIEW_META[activeView] || VIEW_META.analytics
 
   return (
-    <div className="crm-shell">
+    <div className={`crm-shell ${sidebarOpen ? 'sidebar-is-open' : ''}`}>
       {/* Mobile overlay */}
       <div
         className={`sidebar-overlay ${sidebarOpen ? 'is-open' : ''}`}
@@ -80,49 +74,50 @@ export default function AdminPortal() {
           <div className="brand-branch-badge admin-portal-badge">Headquarters</div>
         </div>
 
-        <nav className="sidebar-nav" aria-label="Admin navigation" style={{ flex: '0 0 auto' }}>
-          <p className="nav-section-label">Menu</p>
-          {NAV.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`nav-item ${activeView === item.id ? 'is-active' : ''}`}
-              onClick={() => handleNavChange(item.id)}
-              aria-current={activeView === item.id ? 'page' : undefined}
+        <nav className="sidebar-nav u-flex-0-0-auto" aria-label="Admin navigation">
+          <Link 
+            to="/admin/accounts" 
+            className={`nav-item ${location.pathname.startsWith('/admin/accounts') ? 'is-active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            Manage Accounts
+          </Link>
+          <Link 
+            to="/admin/analytics" 
+            className={`nav-item ${location.pathname.startsWith('/admin/analytics') ? 'is-active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            Analytics & Audits
+          </Link>
+
+          <div className="sidebar-nav-section">
+            <p className="nav-section-label u-margin-b-8">Viewing Branch</p>
+
+            <select
+              className="sidebar-select"
+              value={activeRegion}
+              onChange={e => {
+                setActiveRegion(e.target.value)
+                setActiveBranch('')
+              }}
             >
-              <span className="nav-item__copy">
-                <span className="nav-item__label">{item.label}</span>
-                <span className="nav-item__description">{item.description}</span>
-              </span>
-            </button>
-          ))}
+              <option value="">All Regions</option>
+              {Object.keys(REGION_BRANCHES).map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <select
+              className="sidebar-select"
+              value={activeBranch}
+              onChange={e => setActiveBranch(e.target.value)}
+            >
+              <option value="">All Branches</option>
+              {(activeRegion ? REGION_BRANCHES[activeRegion] : Object.values(REGION_BRANCHES).flat())
+                .map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
         </nav>
 
-        <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)' }}>
-          <p className="nav-section-label" style={{ marginBottom: '8px' }}>Viewing Branch</p>
-          <select
-            style={{ width: '100%', marginBottom: '6px', padding: '6px 8px', borderRadius: '6px', border: '1px solid #444', background: '#222222', color: '#ffffff', fontSize: '0.8rem' }}
-            value={activeRegion}
-            onChange={e => {
-              setActiveRegion(e.target.value)
-              setActiveBranch('')
-            }}
-          >
-            <option value="">All Regions</option>
-            {Object.keys(REGION_BRANCHES).map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-          <select
-            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid #444', background: '#222222', color: '#ffffff', fontSize: '0.8rem' }}
-            value={activeBranch}
-            onChange={e => setActiveBranch(e.target.value)}
-          >
-            <option value="">All Branches</option>
-            {(activeRegion ? REGION_BRANCHES[activeRegion] : Object.values(REGION_BRANCHES).flat())
-              .map(b => <option key={b} value={b}>{b}</option>)}
-          </select>
-        </div>
 
-        <div className="sidebar-footer" style={{ marginTop: 'auto' }}>
+        <div className="sidebar-footer u-margin-t-auto">
           <p className="sidebar-label">Signed in as</p>
           <div className="sidebar-user">
             <span className="sidebar-user__name">{adminUser.name}</span>
@@ -155,7 +150,7 @@ export default function AdminPortal() {
         <div className="view-content">
           <Routes>
             <Route path="/" element={<Navigate to="/admin/analytics" replace />} />
-            <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} />} />
+            <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} />} />
             <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} />} />
             <Route path="/profile" element={<AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />} />
             <Route path="*" element={<Navigate to="/admin/analytics" replace />} />

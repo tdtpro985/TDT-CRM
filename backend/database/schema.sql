@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS team (
     email    VARCHAR(255),
     role     VARCHAR(100) DEFAULT 'Sales Rep',
     branch   VARCHAR(100) NOT NULL,
-    region   ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'North Luzon'
+    region   ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'Central'
 );
 
 -- ─── Companies ───────────────────────────────────────────────────────────────
@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS leads (
     address       TEXT,
     region        VARCHAR(100),
     owner_id      INT,
+    owner_name    VARCHAR(255),
     branch        VARCHAR(100),
     status        VARCHAR(50)  DEFAULT 'New',
     created_at    DATE         DEFAULT (CURRENT_DATE),
@@ -67,7 +68,7 @@ CREATE TABLE IF NOT EXISTS deals (
     company_id  VARCHAR(100),
     contact_id  VARCHAR(100),
     lead_id     VARCHAR(100),
-    stage       VARCHAR(100)   DEFAULT 'Qualified',
+    stage       VARCHAR(100)   DEFAULT 'New Opportunity',
     value       DECIMAL(15, 2) DEFAULT 0,
     close_date  DATE,
     probability INT            DEFAULT 20,
@@ -100,11 +101,12 @@ CREATE TABLE IF NOT EXISTS activities (
     owner_id   INT,
     deal_id    VARCHAR(100),
     due_date   DATE,
-    priority   VARCHAR(50)  DEFAULT 'Medium',
+    priority   VARCHAR(50)  DEFAULT 'Low',
     status     VARCHAR(50)  DEFAULT 'Open',
     notes      TEXT,
     stage      VARCHAR(100),
     contact_name VARCHAR(255),
+    metadata     TEXT,
     created_at DATE         DEFAULT (CURRENT_DATE),
     FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL,
     FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE SET NULL

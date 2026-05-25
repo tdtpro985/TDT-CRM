@@ -38,6 +38,21 @@ export function formatDateLabel(value) {
   }).format(new Date(value))
 }
 
+export function formatDateTimePHT(value) {
+  if (!value) return ''
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Manila',
+  }).format(d)
+}
+
 export function formatRelativeDays(value) {
   if (!value) return ''
   const dateValue = new Date(value)
@@ -49,10 +64,26 @@ export function formatRelativeDays(value) {
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
 
   if (diffDays === 0) return 'today'
-  if (diffDays === 1) return '1 day ago'
+  if (diffDays === 1) return 'yesterday'
   if (diffDays > 1) return `${diffDays} days ago`
-  if (diffDays === -1) return 'in 1 day'
+  if (diffDays === -1) return 'tomorrow'
   return `in ${Math.abs(diffDays)} days`
+}
+
+export function formatDueDate(value) {
+  if (!value) return ''
+  const dateValue = new Date(value)
+  if (Number.isNaN(dateValue.getTime())) return ''
+  const today = new Date()
+  const normalizedToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  const normalizedValue = new Date(dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate())
+  const diffMs = normalizedToday - normalizedValue
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) return 'Due Today'
+  if (diffDays === -1) return 'Due Tomorrow'
+  if (diffDays > 0) return `Due ${formatDateLabel(value)}` // Past
+  return `Due ${formatDateLabel(value)}` // Future
 }
 
 export function formatMetricValue(value, metricType) {
@@ -181,6 +212,10 @@ export function getPaginatedData(data, page, pageSize) {
 export function displayRole(role) {
   if (role === 'Sales Rep' || role === 'Sales Manager') return 'Branch Account'
   return role
+}
+
+export function isSrRole(role) {
+  return role === 'Sales Rep' || role === 'Sales Representative'
 }
 
 export function shortStageLabel(stage, SHORT_STAGE_LABEL) {

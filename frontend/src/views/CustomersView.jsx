@@ -3,15 +3,16 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import { formatDateLabel, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData } from '../utils'
+import { formatDateTimePHT, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole } from '../utils'
 import { STAGE_COLORS, ITEMS_PER_PAGE } from '../constants'
 import LeadForm from '../components/forms/LeadForm'
 import TaskForm from '../components/forms/TaskForm'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
 
+const CUSTOMER_ITEMS_PER_PAGE = 10
+
 export default function CustomersView({
-  filteredCustomers,
   customers,
   contacts,
   deals,
@@ -21,23 +22,58 @@ export default function CustomersView({
   setSelectedCustomerId,
   customerStatuses,
   dealStages,
-  statusFilter,
-  setStatusFilter,
   showCustomerForm,
   setShowCustomerForm,
   onCreateCustomer,
   onCreateTask,
+  fetchDealContacts,
   fetchCompanies,
   fetchContacts,
+  setNotice,
   currentUser,
-  page,
-  setPage
+  searchQuery
 }) {
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = useState(1)
   const [showQuickTaskForm, setShowQuickTaskForm] = useState(false)
   const [customerDetail, setCustomerDetail] = useState(null)
   const [loadingDetail, setLoadingDetail] = useState(false)
   const [companyContacts, setCompanyContacts] = useState([])
+  const [contactErrors, setContactErrors] = useState({})
   const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const isSr = isSrRole(currentUser?.role)
+
+  // Reset page on search change (adjusting state during render)
+  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
+  if (searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(searchQuery)
+    setPage(1)
+  }
+
+  const filteredCustomers = useMemo(() => {
+    return customers.filter((c) => {
+      // Handle deal-based status filtering
+      if (statusFilter !== 'all') {
+        const companyDeals = deals.filter(d => d.companyId === c.id)
+        
+        if (statusFilter === 'New') {
+          // New: No active deals (only Closed or no deals at all)
+          if (companyDeals.some(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost')) return false
+        } else if (statusFilter === 'Prospect') {
+          // Prospect: At least one deal in "New Opportunity"
+          if (!companyDeals.some(d => d.stage === 'New Opportunity')) return false
+        } else if (statusFilter === 'Negotiation') {
+          // Negotiation: At least one deal in "Proposal" or "Negotiation"
+          if (!companyDeals.some(d => d.stage === 'Proposal' || d.stage === 'Negotiation')) return false
+        } else if (statusFilter === 'Converted') {
+          // Converted: At least one deal is Closed (Won or Lost) and owned by current user
+          if (!companyDeals.some(d => (d.stage === 'Closed Won' || d.stage === 'Closed Lost') && d.ownerId === currentUser?.id)) return false
+        }
+      }
+
+      return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
+    })
+  }, [customers, searchQuery, statusFilter, deals, currentUser])
 
   const renderContactDiff = (item, linkedContact) => {
     const ACTION_LABELS = {
@@ -69,7 +105,7 @@ export default function CustomersView({
         <>
           <strong>{ACTION_LABELS[item.action] || item.action}</strong>: 
           {changes.length > 0 ? (
-            <span style={{ marginLeft: '4px' }}>
+            <span className="u-ml-4">
               {changes.reduce((prev, curr) => [prev, ', ', curr])}
             </span>
           ) : <span> {linkedContact?.name || 'Contact'} details updated</span>}
@@ -89,6 +125,8 @@ export default function CustomersView({
 
   useEffect(() => {
     if (selectedCustomer?.id) {
+      setCustomerDetail(null)
+      setCompanyContacts([])
       fetchDetail(selectedCustomer.id)
     }
   }, [selectedCustomer?.id])
@@ -164,25 +202,25 @@ export default function CustomersView({
     customerDeals.some(d => !['Closed Won', 'Closed Lost'].includes(d.stage))
   , [customerDeals])
 
-  const paginatedCustomers = getPaginatedData(filteredCustomers, page, ITEMS_PER_PAGE)
-  const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE)
+  const paginatedCustomers = getPaginatedData(filteredCustomers, page, CUSTOMER_ITEMS_PER_PAGE)
+  const totalPages = Math.ceil(filteredCustomers.length / CUSTOMER_ITEMS_PER_PAGE)
 
   return (
     <>
 
-      <section className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+      <section className="metrics-grid metrics-grid--compact u-grid-3">
         <MetricCard label="Total Customers" value={customers.length.toLocaleString()} meta="Total records" accent="accent" />
         <MetricCard label="Active Deals" value={activeDealSum.toLocaleString()} meta="Currently in pipeline" accent="alt" />
         <MetricCard label="Cold Companies" value={coldCompanyCount.toLocaleString()} meta="No recent deal activity" accent="surface" />
       </section>
 
-      <section className="content-grid content-grid--primary" style={{ gridTemplateColumns: '45fr 55fr' }}>
+      <section className="content-grid content-grid--primary u-grid-45-55">
         <Panel
           kicker="Customer Registry"
           title="Companies"
           detail="Derived from leads and direct company entries."
           action={
-            <div className="panel-inline-controls" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div className="panel-inline-controls u-flex-center-gap-16">
               <label className="filter-wrap">
                 <span>Status</span>
                 <select 
@@ -199,12 +237,12 @@ export default function CustomersView({
             </div>
           }
         >
-          <div style={{ minHeight: '600px', display: 'flex', flexDirection: 'column' }}>
+          <div className="u-min-h-600 u-flex-column">
             {filteredCustomers.length === 0
               ? <EmptyState title="No customers match this filter" copy="Try adjusting your status filter." />
               : (
                 <>
-                  <div className="contact-list" style={{ flex: 1, alignContent: 'start' }}>
+                  <div className="contact-list u-flex-1 u-align-content-start">
                     {paginatedCustomers.map((customer) => (
                       <div
                         key={customer.id}
@@ -213,15 +251,15 @@ export default function CustomersView({
                         onDoubleClick={() => setDetailModalOpen(true)}
                       >
                         <div>
-                          <strong style={{ fontSize: 'var(--fs-md)', color: 'var(--text-strong)', display: 'block' }}>
+                          <strong className="u-fs-md u-text-strong u-block">
                             {customer.name}
                           </strong>
-                          <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <div className="u-fs-xs u-text-muted u-margin-t-4 u-flex-center-gap-4">
                             <span>{Number(customer.totalDealCount || 0)} total</span>
                             {Number(customer.activeDealCount) > 0 && (
                               <>
-                                <span style={{ opacity: 0.5 }}>•</span>
-                                <span style={{ color: 'var(--accent-strong)', fontWeight: 600 }}>
+                                <span className="u-opacity-05">•</span>
+                                <span className="u-text-accent u-font-600">
                                   {customer.activeDealCount} active
                                 </span>
                               </>
@@ -247,18 +285,11 @@ export default function CustomersView({
             {selectedCustomer ? (
               <div className="customer-detail-view">
                 {loadingDetail ? (
-                  <p style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading records...</p>
+                  <p className="u-pad-24 u-text-center u-text-muted">Loading records...</p>
                 ) : !hasActiveDeal ? (
-                  <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    padding: '64px 24px',
-                    textAlign: 'center' 
-                  }}>
-                    <h4 style={{ margin: '0 0 8px', color: 'var(--text-strong)' }}>No active deals</h4>
-                    <p style={{ margin: '0 0 24px', fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', maxWidth: '240px' }}>
+                  <div className="u-flex-column-center u-pad-64-24 u-text-center">
+                    <h4 className="u-margin-b-8 u-text-strong">No active deals</h4>
+                    <p className="u-margin-b-24 u-fs-sm u-text-muted u-max-w-240">
                       Transactional history and contacts are only visible for companies with at least one active deal.
                     </p>
                     <button 
@@ -271,24 +302,24 @@ export default function CustomersView({
                   </div>
                 ) : (
                   <>
-                    <div className="section-header" style={{ marginBottom: '12px' }}>
-                      <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Deal History</h4>
+                    <div className="section-header u-margin-b-12">
+                      <h4 className="u-margin-0 u-text-strong">Deal History</h4>
                     </div>
 
-                    <div className="metrics-grid metrics-grid--compact" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '24px' }}>
+                    <div className="metrics-grid metrics-grid--compact u-grid-3 u-flex-gap-sm u-margin-b-24">
                       <MetricCard label="W/L Ratio" value={Number(winLossRatio) ? Number(winLossRatio).toFixed(2) : winLossRatio} meta="Performance" accent="accent" />
                       <MetricCard label="Won Value" value={wonCount === 0 ? '-' : formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
                       <MetricCard label="Lost Value" value={lostCount === 0 ? '-' : formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
                     </div>
 
-                    <div className="admin-table-wrap" style={{ marginBottom: '24px' }}>
+                    <div className="admin-table-wrap u-margin-b-24">
                       <table className="admin-table">
                         <thead>
                           <tr>
                             <th>Deal</th>
                             <th>Stage</th>
                             <th>Value</th>
-                            <th>Owner</th>
+                            {!isSr && <th>Owner</th>}
                           </tr>
                         </thead>
                         <tbody>
@@ -297,25 +328,28 @@ export default function CustomersView({
                               <td className="admin-table__name">{deal.name}</td>
                               <td>{deal.stage}</td>
                               <td>{formatCurrencyCompact(deal.value)}</td>
-                              <td className="admin-table__muted">{deal.owner}</td>
+                              {!isSr && <td className="admin-table__muted">{deal.owner}</td>}
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
 
-                    <div className="section-header" style={{ marginBottom: '12px' }}>
-                      <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Activity Log</h4>
+                    <div className="section-header u-margin-b-12">
+                      <h4 className="u-margin-0 u-text-strong">Activity Log</h4>
                     </div>
 
                     <div className="timeline">
                       {(customerDetail?.auditLogs || [])
                       .filter(l => {
                         // 1. Filter out technical/noisy logs
-                        if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change') return false
+                        if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change' || l.action === 'stage_change' || l.action === 'probability_change') return false
                         
                         // 2. Filter out no-change logs (where old == new)
                         if (l.oldValue === l.newValue && l.oldValue !== null) return false
+                        
+                        // 3. SRs should not see owner reassignments
+                        if (isSr && l.action === 'owner_id_change') return false
                         
                         return true
                       })
@@ -345,12 +379,12 @@ export default function CustomersView({
 
                         return (
                           <div key={idx} className="timeline-item">
-                            <div className="timeline-dot" style={{ background: dotColor }}></div>
+                            <div className="timeline-dot" style={{ backgroundColor: dotColor }}></div>
                             <div className="timeline-content">
                               <div className="timeline-header">
-                                <span className="timeline-time">{formatDateLabel(item.changedAt)}</span>
+                                <span className="timeline-time">{formatDateTimePHT(item.changedAt)}</span>
                                 {item.changedBy && (
-                                  <span className="timeline-user" style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '8px' }}>
+                                  <span className="timeline-user u-fs-10 u-text-muted u-ml-8">
                                     by {item.changedBy}
                                   </span>
                                 )}
@@ -360,7 +394,7 @@ export default function CustomersView({
                                 <p>
                                   {item.action === 'deal_created' ? (
                                     <>
-                                      <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(item.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.newValue}</span>
+                                      <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(item.newValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.newValue}</span>
                                       {linkedDeal && <> for <strong>{linkedDeal.name}</strong></>}
                                     </>
                                   ) : item.entityType === 'contact' ? (
@@ -371,10 +405,10 @@ export default function CustomersView({
                                       {item.action === 'stage_change' ? (
                                         <>
                                           {item.oldValue ? (
-                                            <span className={`tone-pill ${getToneClass(item.oldValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.oldValue}</span>
+                                            <span className={`tone-pill ${getToneClass(item.oldValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.oldValue}</span>
                                           ) : null}
                                           {item.oldValue && ' → '}
-                                          <span className={`tone-pill ${getToneClass(item.newValue)}`} style={{ fontSize: '10px', padding: '1px 6px', margin: '0 4px' }}>{item.newValue}</span>
+                                          <span className={`tone-pill ${getToneClass(item.newValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.newValue}</span>
                                         </>
                                       ) : item.action === 'owner_id_change' ? (
                                         <>
@@ -425,14 +459,19 @@ export default function CustomersView({
           dealStages={dealStages}
           currentUser={currentUser}
           prefilledCompanyId={selectedCustomer?.id}
+          fetchDealContacts={fetchDealContacts}
           fetchCompanies={fetchCompanies}
           fetchContacts={fetchContacts}
           onCancel={() => setShowQuickTaskForm(false)}
           onSubmit={async (form) => {
-            await onCreateTask(form)
-            setShowQuickTaskForm(false)
-            if (selectedCustomer?.id) {
-              fetchDetail(selectedCustomer.id)
+            try {
+              await onCreateTask(form)
+              setShowQuickTaskForm(false)
+              if (selectedCustomer?.id) {
+                fetchDetail(selectedCustomer.id)
+              }
+            } catch {
+              // Error handled in useCRMData
             }
           }}
         />
@@ -447,6 +486,7 @@ export default function CustomersView({
         <LeadForm
           teamMembers = {teamMembers}
           branch = {currentUser?.branch ?? ''}
+          currentUser = {currentUser}
           onCancel = {() => setShowCustomerForm(false)}
           onSubmit = {(form) =>{
             onCreateCustomer(form)
@@ -461,9 +501,9 @@ export default function CustomersView({
         title={selectedCustomer?.name ?? 'Company Details'}
         kicker="Record Information"
       >
-        <div style={{ padding: '0 24px 24px' }}>
+        <div className="u-pad-0-24-24">
           <div className="detail-list">
-            <div><span>SR</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>
+            {!isSr && <div><span>SR</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>}
             <div><span>Region</span><strong>{selectedCustomer?.city || selectedCustomer?.region || '—'}</strong></div>
             <div><span>Branch</span><strong>{selectedCustomer?.branch ?? '—'}</strong></div>
             <div><span>Address</span><strong>{selectedCustomer?.address ?? '—'}</strong></div>
@@ -471,13 +511,13 @@ export default function CustomersView({
             <div><span>Website</span><strong>{selectedCustomer?.website ?? '—'}</strong></div>
           </div>
 
-          {hasActiveDeal && (
-            <>
-              <div className="section-header" style={{ marginTop: '24px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h4 style={{ margin: 0, color: 'var(--text-strong)' }}>Contacts</h4>
+          <>
+              <div className="section-header u-margin-t-24 u-margin-b-12 u-flex-between u-flex-center">
+                <h4 className="u-margin-0 u-text-strong">Contacts</h4>
                 <button
                   type="button"
                   title="Add contact"
+                  className="u-btn-circle-plus"
                   onClick={() => {
                     setCompanyContacts(prev => [{
                       id: createRecordId('contact'),
@@ -488,13 +528,6 @@ export default function CustomersView({
                       isEditing: true,
                       isNew: true,
                     }, ...prev])
-                  }}
-                  style={{
-                    width: '28px', height: '28px', borderRadius: '50%',
-                    border: '1px solid var(--accent)', background: 'transparent',
-                    color: 'var(--accent)', fontSize: '16px', lineHeight: 1,
-                    cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
-                    justifyContent: 'center', padding: 0,
                   }}
                 >+</button>
               </div>
@@ -507,174 +540,217 @@ export default function CustomersView({
                       <th>Role</th>
                       <th>Email</th>
                       <th>Number</th>
-                      <th style={{ width: '60px' }}></th>
+                      <th className="col-actions"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {companyContacts.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="admin-table__muted" style={{ textAlign: 'center', padding: '16px' }}>
+                        <td colSpan={5} className="admin-table__muted u-text-center u-pad-16">
                           No contacts for this company.
                         </td>
                       </tr>
                     ) : (
-                      companyContacts.map((contact, idx) => (
-                        <tr key={contact.id}>
-                          {contact.isEditing ? (
-                            <>
-                              <td>
-                                <input
-                                  name="name"
-                                  value={contact.name}
-                                  onChange={e => {
-                                    const val = e.target.value
-                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, name: val } : c))
-                                  }}
-                                  placeholder="Name *"
-                                  style={{ width: '100%', boxSizing: 'border-box' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  name="role"
-                                  value={contact.role}
-                                  onChange={e => {
-                                    const val = e.target.value
-                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, role: val } : c))
-                                  }}
-                                  placeholder="Role"
-                                  style={{ width: '100%', boxSizing: 'border-box' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  name="email"
-                                  value={contact.email}
-                                  onChange={e => {
-                                    const val = e.target.value
-                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, email: val } : c))
-                                  }}
-                                  placeholder="Email"
-                                  style={{ width: '100%', boxSizing: 'border-box' }}
-                                />
-                              </td>
-                              <td>
-                                <input
-                                  name="phone"
-                                  value={contact.phone}
-                                  onChange={e => {
-                                    const val = e.target.value.replace(/[^0-9+\s()-]/g, '')
-                                    setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c))
-                                  }}
-                                  placeholder="Number"
-                                  style={{ width: '100%', boxSizing: 'border-box' }}
-                                />
-                              </td>
-                              <td style={{ whiteSpace: 'nowrap' }}>
-                                <button
-                                  type="button"
-                                  className="ghost-button"
-                                  style={{ fontSize: '11px', padding: '2px 6px', marginRight: '4px' }}
-                                  onClick={async () => {
-                                    const c = companyContacts[idx]
-                                    if (!c.name) return
-                                    if (!c.email && !c.phone) return
-
-                                    const payload = {
-                                      ...(c.isNew ? {
-                                        id: c.id,
-                                        companyId: selectedCustomer?.id,
-                                        ownerId: currentUser?.id || null,
-                                        lastTouch: new Date().toISOString().split('T')[0],
-                                        status: 'Active',
-                                      } : {}),
-                                      name: c.name,
-                                      role: c.role,
-                                      email: c.email,
-                                      phone: c.phone,
-                                    }
-
-                                    try {
-                                      if (c.isNew) {
-                                        const res = await apiFetch('/api/contacts', {
-                                          method: 'POST',
-                                          body: JSON.stringify(payload),
-                                        })
-                                        if (res.status === 409) {
-                                          const errData = await res.json()
-                                          alert(errData.error || 'This contact already exists.')
-                                          return
-                                        }
-                                        if (!res.ok) return
-                                      } else {
-                                        const res = await apiFetch(`/api/contacts/${c.id}`, {
-                                          method: 'PUT',
-                                          body: JSON.stringify({ name: c.name, role: c.role, email: c.email, phone: c.phone }),
-                                        })
-                                        if (res.status === 409) {
-                                          const errData = await res.json()
-                                          alert(errData.error || 'This contact already exists.')
-                                          return
-                                        }
+                      companyContacts.map((contact, idx) => {
+                        const errors = contactErrors[contact.id] || {}
+                        return (
+                          <tr key={contact.id}>
+                            {contact.isEditing ? (
+                              <>
+                                <td>
+                                  <input
+                                    name="name"
+                                    value={contact.name}
+                                    onChange={e => {
+                                      const val = e.target.value
+                                      setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, name: val } : c))
+                                    }}
+                                    placeholder="Name *"
+                                    className={`u-w-100 u-box-border ${errors.name ? 'u-border-alert' : ''}`}
+                                  />
+                                  {errors.name && <div className="u-fs-10 u-margin-t-4 u-alert">{errors.name}</div>}
+                                </td>
+                                <td>
+                                  <input
+                                    name="role"
+                                    value={contact.role}
+                                    onChange={e => {
+                                      const val = e.target.value
+                                      setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, role: val } : c))
+                                    }}
+                                    placeholder="Role"
+                                    className="u-w-100 u-box-border"
+                                  />
+                                </td>
+                                <td>
+                                  <input
+                                    name="email"
+                                    value={contact.email}
+                                    onChange={e => {
+                                      const val = e.target.value
+                                      setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, email: val } : c))
+                                    }}
+                                    placeholder="Email"
+                                    className={`u-w-100 u-box-border ${errors.email ? 'u-border-alert' : ''}`}
+                                  />
+                                  {errors.email && <div className="u-fs-10 u-margin-t-4 u-alert">{errors.email}</div>}
+                                </td>
+                                <td>
+                                  <input
+                                    name="phone"
+                                    value={contact.phone}
+                                    onChange={e => {
+                                      const val = e.target.value.replace(/[^0-9+\s()-]/g, '')
+                                      setCompanyContacts(prev => prev.map((c, i) => i === idx ? { ...c, phone: val } : c))
+                                    }}
+                                    placeholder="Number"
+                                    className={`u-w-100 u-box-border ${errors.phone ? 'u-border-alert' : ''}`}
+                                  />
+                                  {errors.phone && <div className="u-fs-10 u-margin-t-4 u-alert">{errors.phone}</div>}
+                                  {errors.global && <div className="u-fs-10 u-margin-t-4 u-font-600 u-alert">{errors.global}</div>}
+                                </td>
+                                <td className="col-actions u-nowrap">
+                                  <button
+                                    type="button"
+                                    className="ghost-button u-fs-11 u-pad-2-6 u-mr-4"
+                                    onClick={async () => {
+                                      const c = companyContacts[idx]
+                                      const errors = {}
+                                      if (!c.name?.trim()) errors.name = 'Name is required'
+                                      if (!c.email?.trim() && !c.phone?.trim()) {
+                                        errors.email = 'Need phone or email'
+                                        errors.phone = 'Need phone or email'
                                       }
-                                      setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false, isNew: false } : c2))
-                                      fetchDetail(selectedCustomer.id)
-                                    } catch (e) {
-                                      console.error('Failed to save contact:', e)
-                                    }
-                                  }}
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  type="button"
-                                  className="ghost-button"
-                                  style={{ fontSize: '11px', padding: '2px 6px' }}
-                                  onClick={() => {
-                                    if (contact.isNew) {
-                                      setCompanyContacts(prev => prev.filter((_, i) => i !== idx))
-                                    } else {
-                                      setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false } : c2))
-                                    }
-                                  }}
-                                >
-                                  Cancel
-                                </button>
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="admin-table__name">{contact.name}</td>
-                              <td className="admin-table__muted">{contact.role || '—'}</td>
-                              <td className="admin-table__muted">{contact.email || '—'}</td>
-                              <td className="admin-table__muted">{contact.phone || '—'}</td>
-                              <td>
-                                <button
-                                  type="button"
-                                  className="ghost-button"
-                                  title="Edit"
-                                  style={{ fontSize: '11px', padding: '2px 6px' }}
-                                  onClick={() => setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: true } : c2))}
-                                >
-                                  Edit
-                                </button>
-                              </td>
-                            </>
-                          )}
-                        </tr>
-                      ))
+                                      if (c.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) {
+                                        errors.email = 'Invalid email'
+                                      }
+
+                                      if (Object.keys(errors).length > 0) {
+                                        setContactErrors(prev => ({ ...prev, [c.id]: errors }))
+                                        setNotice('Please correct the highlighted errors.')
+                                        return
+                                      }
+
+                                      setContactErrors(prev => {
+                                        const next = { ...prev }
+                                        delete next[c.id]
+                                        return next
+                                      })
+
+                                      const payload = {
+                                        ...(c.isNew ? {
+                                          id: c.id,
+                                          companyId: selectedCustomer?.id,
+                                          ownerId: currentUser?.id || null,
+                                          lastTouch: new Date().toISOString().split('T')[0],
+                                          status: 'Active',
+                                        } : {}),
+                                        name: c.name,
+                                        role: c.role,
+                                        email: c.email,
+                                        phone: c.phone,
+                                      }
+
+                                      try {
+                                        if (c.isNew) {
+                                          const res = await apiFetch('/api/contacts', {
+                                            method: 'POST',
+                                            body: JSON.stringify(payload),
+                                          })
+                                          if (res.status === 409) {
+                                            const errData = await res.json()
+                                            setNotice(errData.error || 'This contact already exists.')
+                                            setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Duplicate contact' } }))
+                                            return
+                                          }
+                                          if (!res.ok) {
+                                            const errData = await res.json().catch(() => ({}))
+                                            setNotice(errData.error || 'Failed to create contact.')
+                                            setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Create failed' } }))
+                                            return
+                                          }
+                                        } else {
+                                          const res = await apiFetch(`/api/contacts/${c.id}`, {
+                                            method: 'PUT',
+                                            body: JSON.stringify({ name: c.name, role: c.role, email: c.email, phone: c.phone }),
+                                          })
+                                          if (res.status === 409) {
+                                            const errData = await res.json()
+                                            setNotice(errData.error || 'This contact already exists.')
+                                            setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Duplicate contact' } }))
+                                            return
+                                          }
+                                          if (!res.ok) {
+                                            const errData = await res.json().catch(() => ({}))
+                                            setNotice(errData.error || 'Failed to update contact.')
+                                            setContactErrors(prev => ({ ...prev, [c.id]: { global: errData.error || 'Update failed' } }))
+                                            return
+                                          }
+                                        }
+                                        setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false, isNew: false } : c2))
+                                        setNotice('Contact saved successfully.')
+                                        fetchDetail(selectedCustomer.id)
+                                        fetchContacts()
+                                      } catch (e) {
+                                        console.error('Failed to save contact:', e)
+                                        setNotice('A network error occurred while saving the contact.')
+                                        setContactErrors(prev => ({ ...prev, [c.id]: { global: 'Network error' } }))
+                                      }
+                                    }}
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="ghost-button u-fs-11 u-pad-2-6"
+                                    onClick={() => {
+                                      if (contact.isNew) {
+                                        setCompanyContacts(prev => prev.filter((_, i) => i !== idx))
+                                      } else {
+                                        setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: false } : c2))
+                                      }
+                                      setContactErrors(prev => {
+                                        const next = { ...prev }
+                                        delete next[contact.id]
+                                        return next
+                                      })
+                                    }}
+                                  >
+                                    Cancel
+                                    </button>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className="admin-table__name">{contact.name}</td>
+                                <td className="admin-table__muted">{contact.role || '—'}</td>
+                                <td className="admin-table__muted">{contact.email || '—'}</td>
+                                <td className="admin-table__muted">{contact.phone || '—'}</td>
+                                <td className="col-actions">
+                                  <button
+                                    type="button"
+                                    className="ghost-button u-fs-11 u-pad-2-6"
+                                    title="Edit"
+                                    onClick={() => setCompanyContacts(prev => prev.map((c2, i) => i === idx ? { ...c2, isEditing: true } : c2))}
+                                  >
+                                    Edit
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        )
+                      })
                     )}
                   </tbody>
                 </table>
               </div>
             </>
-          )}
 
-          <div style={{ marginTop: '24px' }}>
+          <div className="u-margin-t-24">
             <button 
               type="button" 
-              className="secondary-button" 
-              style={{ width: '100%' }}
+              className="secondary-button u-w-100" 
               onClick={() => setDetailModalOpen(false)}
             >
               Close

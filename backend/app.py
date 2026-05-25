@@ -1,9 +1,11 @@
 import os
+import csv
+import io
 import uuid
 import traceback
 from functools import wraps
 from importlib import import_module
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
@@ -11,14 +13,16 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from database.database import get_db_connection, close_connection
-from database.sync_pipeline import fill_pipeline
-from gsheets_sync import sync_from_sheets, sync_to_sheets
 from datetime import timedelta, date, datetime
+from zoneinfo import ZoneInfo
 import json
 from dotenv import load_dotenv
 
 load_dotenv()
+
+from database.database import get_db_connection, close_connection
+from database.sync_pipeline import fill_pipeline
+from gsheets_sync import sync_from_sheets
 
 def ensure_schema():
     conn = get_db_connection()
@@ -58,14 +62,38 @@ def ensure_schema():
             cursor.execute("ALTER TABLE audit_log ADD FOREIGN KEY (user_id) REFERENCES team(id) ON DELETE SET NULL")
             conn.commit()
 
-        # Ensure owner_name column exists in leads table (stores raw SR name from GSheets)
+        # Ensure metadata column exists in activities table
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'activities' AND COLUMN_NAME = 'metadata'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'metadata' column to 'activities' table...")
+            cursor.execute("ALTER TABLE activities ADD COLUMN metadata TEXT NULL")
+            conn.commit()
+
+        # Ensure deal_contacts table exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS deal_contacts (
+                deal_id    VARCHAR(100) NOT NULL,
+                contact_id VARCHAR(100) NOT NULL,
+                role       VARCHAR(100) DEFAULT 'Primary',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (deal_id, contact_id),
+                FOREIGN KEY (deal_id) REFERENCES deals(id) ON DELETE CASCADE,
+                FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+            )
+        """)
+        conn.commit()
+
+        # Ensure owner_name column exists in leads table
         cursor.execute("""
             SELECT COUNT(*) FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'leads' AND COLUMN_NAME = 'owner_name'
         """)
         if cursor.fetchone()[0] == 0:
             print("Adding missing 'owner_name' column to 'leads' table...")
-            cursor.execute("ALTER TABLE leads ADD COLUMN owner_name VARCHAR(255)")
+            cursor.execute("ALTER TABLE leads ADD COLUMN owner_name VARCHAR(255) NULL")
             conn.commit()
     except Exception as e:
         print(f"Error during schema verification: {e}")
@@ -76,7 +104,7 @@ ensure_schema()
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {
-    "origins": os.getenv("FRONTEND_URL", "http://localhost:5173"),
+    "origins": [os.getenv("FRONTEND_URL", "http://localhost:5173")],
     "allow_headers": ["Content-Type", "Authorization"]
 }})
 
@@ -87,6 +115,12 @@ jwt = JWTManager(app)
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+REGION_BRANCHES = {
+    'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
+    'North Luzon': ['Ilocos', 'Isabela'],
+    'Vis&Min':     ['Gensan', 'Iloilo', 'Cebu', 'Davao', 'CDO'],
+}
 
 @jwt.unauthorized_loader
 def unauthorized_response(callback):
@@ -122,6 +156,9 @@ def admin_required(fn):
 
 @app.errorhandler(Exception)
 def handle_exception(e):
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
     # Log securely on backend
     print(f"Backend Error: {traceback.format_exc()}")
     return jsonify(error="An internal error occurred"), 500
@@ -232,10 +269,7 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
     user_region = claims.get('region', '')
     user_branch = claims.get('branch', '')
 
-    if role == 'Sales Rep':
-        return ([f'{col} = %s'], False, [normalize_branch(user_branch)])
-
-    if role == 'Sales Representative':
+    if role in ('Sales Rep', 'Sales Representative'):
         return ([f'{col} = %s'], True, [normalize_branch(user_branch)])
 
     if role == 'Regional Sales Manager':
@@ -272,6 +306,20 @@ def log_audit(conn, entity_type, entity_id, action, old_value=None, new_value=No
         (entity_type, entity_id, action, old_value, new_value, user_id),
     )
     cursor.close()
+
+
+PHT = ZoneInfo('Asia/Manila')
+
+def to_pht(dt):
+    """Convert a naive datetime to PHT (UTC+8) ISO string."""
+    if dt is None:
+        return None
+    if isinstance(dt, str):
+        return dt
+    local_tz = datetime.now().astimezone().tzinfo
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=local_tz)
+    return dt.astimezone(PHT).isoformat()
 
 
 # ─── Auth / Login ─────────────────────────────────────────────────────────────
@@ -472,9 +520,20 @@ def get_customer_detail(customer_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+        claims = get_jwt()
+        user_id = get_jwt_identity()
         
-        # 1. Fetch Company/Customer info
-        cursor.execute("""
+        # 1. Fetch Company/Customer with scoping
+        scope_parts, restrict_owner, scope_params = build_scope(claims, '', col='LOWER(TRIM(l.branch))')
+        where_parts = list(scope_parts) + ['c.id = %s']
+        params = list(scope_params) + [customer_id]
+        if restrict_owner:
+            where_parts.append('(l.owner_id = %s OR l.owner_id IS NULL)')
+            params.append(user_id)
+        
+        where_sql = 'WHERE ' + ' AND '.join(where_parts)
+        
+        cursor.execute(f"""
             SELECT 
                 c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
                 c.status AS companyStatus, c.created_at AS createdAt,
@@ -510,25 +569,32 @@ def get_customer_detail(customer_id):
                 FROM deals
                 GROUP BY company_id
             ) deal_stats ON c.id = deal_stats.company_id
-            WHERE c.id = %s
-        """, (customer_id,))
+            {where_sql}
+        """, tuple(params))
         
         customer_row = cursor.fetchone()
         if not customer_row:
-            return jsonify({'error': 'Customer not found'}), 404
+            return jsonify({'error': 'Customer not found or access denied'}), 404
             
         columns = [col[0] for col in cursor.description]
         customer_data = dict(zip(columns, customer_row))
         
         # 2. Fetch all deals for this customer
-        cursor.execute("""
+        deal_where = ["d.company_id = %s"]
+        deal_params = [customer_id]
+        if restrict_owner:
+            deal_where.append("(d.owner_id = %s OR (d.owner_id IS NULL AND (l.owner_id = %s OR l.owner_id IS NULL)))")
+            deal_params.extend([user_id, user_id])
+            
+        cursor.execute(f"""
             SELECT d.id, d.name, d.stage, d.value, d.close_date AS closeDate, d.probability, 
                    t.name AS owner, d.owner_id AS ownerId, d.created_at AS createdAt
             FROM deals d
             LEFT JOIN team t ON d.owner_id = t.id
-            WHERE d.company_id = %s
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            WHERE {" AND ".join(deal_where)}
             ORDER BY d.created_at DESC
-        """, (customer_id,))
+        """, tuple(deal_params))
         deals = rows_to_list(cursor)
         
         # 3. Fetch all activities for these deals
@@ -579,6 +645,8 @@ def get_customer_detail(customer_id):
             """
             cursor.execute(sql, tuple(params))
             audit_logs = rows_to_list(cursor)
+            for log in audit_logs:
+                log['changedAt'] = to_pht(log.get('changedAt'))
 
         return jsonify({
             'customer': customer_data,
@@ -755,6 +823,9 @@ def create_company():
             'branch': branch,
             'status': data.get('status', 'Active')
         }), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 
@@ -1119,13 +1190,10 @@ def create_lead():
         
         conn.commit()
         
-        # Sync to Google Sheets
-        try:
-            sync_to_sheets(data)
-        except Exception as e:
-            print(f"Failed to sync to Google Sheets: {e}")
-            
         return jsonify({'message': 'Lead, Company, and Contact created', 'id': lead_id}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 
@@ -1306,21 +1374,31 @@ def create_deal():
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+        # Check for existing deal with same name for this company
+        deal_name = data.get('name', '').strip()
+        company_id = data.get('companyId')
+        if deal_name and company_id:
+            cursor.execute(
+                'SELECT id FROM deals WHERE company_id = %s AND LOWER(TRIM(name)) = %s',
+                (company_id, deal_name.lower())
+            )
+            if cursor.fetchone():
+                return jsonify({'error': f'A deal named "{deal_name}" already exists for this company.'}), 409
+
         owner_id = data.get('ownerId')
-        
         # Validation for owner_id branch mismatch
         if owner_id:
-            cursor.execute('SELECT branch, role FROM team WHERE id = %s', (owner_id,))
+            cursor.execute('SELECT branch, region, role FROM team WHERE id = %s', (owner_id,))
             team_row = cursor.fetchone()
             if not team_row:
                 return jsonify({'error': 'Assigned owner not found in team'}), 400
-            
+
             token_claims = get_jwt()
             user_id = get_jwt_identity()
 
             # Role hierarchy check
-            if not can_assign(token_claims, user_id, owner_id, team_row[1]):
-                return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({team_row[1]})'}), 403
+            if not can_assign(token_claims, user_id, owner_id, team_row[2]):
+                return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({team_row[2]})'}), 403
 
             # If leadId is provided, check branch against lead's branch
             lead_id = data.get('leadId')
@@ -1359,6 +1437,9 @@ def create_deal():
         log_audit(conn, 'deal', data['id'], 'deal_created', None, stage, get_jwt_identity())
         conn.commit()
         return jsonify({'message': 'Deal created', 'id': data['id']}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 
@@ -1371,26 +1452,40 @@ def update_deal_stage(deal_id):
     new_value = data.get('value')
     new_close = data.get('closeDate')
     new_owner = data.get('owner')
+    new_name = data.get('name')
 
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability, probability_manual, lost_reason FROM deals WHERE id = %s', (deal_id,))
+        cursor.execute('SELECT stage, value, close_date, owner_id, lead_id, probability, probability_manual, lost_reason, name, company_id FROM deals WHERE id = %s', (deal_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({'error': 'Deal not found'}), 404
 
-        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability, old_probability_manual, old_lost_reason = row
+        old_stage, old_value, old_close, old_owner_id, lead_id, old_probability, old_probability_manual, old_lost_reason, old_name, company_id = row
 
         claims = get_jwt()
         user_id = get_jwt_identity()
         if claims.get('role') != 'Admin' and str(old_owner_id) != str(user_id):
             return jsonify({'error': 'Only the assigned SR can update this deal'}), 403
-        
+
         updates = []
         params = []
+
+        if new_name and new_name.strip().lower() != old_name.strip().lower():
+            # Check for duplicates
+            cursor.execute(
+                'SELECT id FROM deals WHERE company_id = %s AND LOWER(TRIM(name)) = %s AND id != %s',
+                (company_id, new_name.strip().lower(), deal_id)
+            )
+            if cursor.fetchone():
+                return jsonify({'error': f'A deal named "{new_name}" already exists for this company.'}), 409
+            
+            updates.append('name = %s')
+            params.append(new_name.strip())
+            log_audit(conn, 'deal', deal_id, 'name_change', old_name, new_name.strip(), get_jwt_identity())
         
         probability = data.get('probability')
         if probability is not None and probability != old_probability:
@@ -1584,8 +1679,8 @@ def create_activity():
                 final_owner_id = row[0]
 
         cursor.execute(
-            """INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes, stage, contact_name)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes, stage, contact_name, metadata)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 data['id'],
                 data['subject'],
@@ -1598,6 +1693,7 @@ def create_activity():
                 data.get('notes'),
                 data.get('stage'),
                 data.get('contact'),
+                data.get('metadata'),
             ),
         )
         conn.commit()
@@ -1663,7 +1759,10 @@ def get_deal_audit_logs(deal_id):
             WHERE a.entity_type = 'deal' AND a.entity_id = %s
             ORDER BY a.changed_at DESC
         """, (deal_id,))
-        return jsonify(rows_to_list(cursor))
+        logs = rows_to_list(cursor)
+        for log in logs:
+            log['changedAt'] = to_pht(log.get('changedAt'))
+        return jsonify(logs)
     finally:
         close_connection(conn)
 
@@ -1830,7 +1929,14 @@ def update_admin_profile():
 @jwt_required()
 @admin_required
 def admin_analytics():
-    branch_filter = request.args.get('branch', '').strip()
+    branch_filter  = request.args.get('branch', '').strip()
+    region_filter  = request.args.get('region', '').strip()
+    region_branches = REGION_BRANCHES.get(region_filter, []) if (not branch_filter and region_filter) else []
+    audit_limit   = min(int(request.args.get('auditLimit',  20)), 100)
+    audit_offset  = int(request.args.get('auditOffset', 0))
+    audit_entity  = request.args.get('auditEntity', '').strip()
+    audit_from    = request.args.get('auditFrom',   '').strip()
+
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Database connection failed'}), 500
@@ -1840,6 +1946,9 @@ def admin_analytics():
         # Users per branch (exclude Headquarters — admin-only, not a sales branch)
         if branch_filter:
             cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch = %s GROUP BY branch ORDER BY branch", (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f"SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch IN ({in_ph}) GROUP BY branch ORDER BY branch", region_branches)
         else:
             cursor.execute("SELECT branch, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY branch ORDER BY branch")
         users_per_branch = rows_to_list(cursor)
@@ -1847,6 +1956,9 @@ def admin_analytics():
         # Role distribution
         if branch_filter:
             cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch = %s GROUP BY role ORDER BY role", (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f"SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' AND branch IN ({in_ph}) GROUP BY role ORDER BY role", region_branches)
         else:
             cursor.execute("SELECT role, COUNT(*) AS count FROM team WHERE branch != 'Headquarters' GROUP BY role ORDER BY role")
         role_distribution = rows_to_list(cursor)
@@ -1854,46 +1966,119 @@ def admin_analytics():
         # Leads per branch
         if branch_filter:
             cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads WHERE branch = %s GROUP BY branch ORDER BY branch', (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f'SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads WHERE branch IN ({in_ph}) GROUP BY branch ORDER BY branch', region_branches)
         else:
-            cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads WHERE 1=1 GROUP BY branch ORDER BY branch')
+            cursor.execute('SELECT branch, COUNT(*) AS total, SUM(status = "Converted") AS converted FROM leads GROUP BY branch ORDER BY branch')
         leads_per_branch = rows_to_list(cursor)
 
-        # Deals per branch (via robust join, active only)
+        # Lead status distribution
+        if branch_filter:
+            cursor.execute(
+                'SELECT status, COUNT(*) AS count FROM leads WHERE branch = %s GROUP BY status ORDER BY count DESC',
+                (branch_filter,)
+            )
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(
+                f'SELECT status, COUNT(*) AS count FROM leads WHERE branch IN ({in_ph}) GROUP BY status ORDER BY count DESC',
+                region_branches
+            )
+        else:
+            cursor.execute(
+                'SELECT status, COUNT(*) AS count FROM leads GROUP BY status ORDER BY count DESC'
+            )
+        lead_status_dist = rows_to_list(cursor)
+
+        # Deals per branch — active deal_count + pipeline_value, plus win_rate and avg_deal_value across all deals
+        deals_sql = '''
+            SELECT l.branch,
+                   COUNT(CASE WHEN d.stage NOT IN ('Closed Won','Closed Lost') THEN 1 END) AS deal_count,
+                   COALESCE(SUM(CASE WHEN d.stage NOT IN ('Closed Won','Closed Lost') THEN d.value ELSE 0 END), 0) AS pipeline_value,
+                   ROUND(
+                       SUM(d.stage = 'Closed Won') /
+                       NULLIF(SUM(d.stage IN ('Closed Won','Closed Lost')), 0) * 100, 1
+                   ) AS win_rate,
+                   ROUND(AVG(d.value), 0) AS avg_deal_value
+            FROM deals d
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            {where}
+            GROUP BY l.branch
+            ORDER BY l.branch
+        '''
+        if branch_filter:
+            cursor.execute(deals_sql.format(where='WHERE l.branch = %s'), (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(deals_sql.format(where=f'WHERE l.branch IN ({in_ph})'), region_branches)
+        else:
+            cursor.execute(deals_sql.format(where=''))
+        deals_per_branch = rows_to_list(cursor)
+
+        # Top SRs — leads, converted, deals won
         if branch_filter:
             cursor.execute('''
-                SELECT l.branch,
-                       COUNT(d.id)              AS deal_count,
-                       COALESCE(SUM(d.value),0) AS pipeline_value
-                FROM deals d
-                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
-                GROUP BY l.branch
-                ORDER BY l.branch
+                SELECT t.name, t.branch,
+                       COUNT(DISTINCT l.id)                                            AS leads_count,
+                       COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
+                       COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
+                FROM team t
+                JOIN leads l ON l.owner_id = t.id
+                LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE t.role IN ('Sales Representative', 'Sales Rep') AND t.branch = %s
+                GROUP BY t.id, t.name, t.branch
+                ORDER BY leads_count DESC
+                LIMIT 20
             ''', (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f'''
+                SELECT t.name, t.branch,
+                       COUNT(DISTINCT l.id)                                            AS leads_count,
+                       COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
+                       COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
+                FROM team t
+                JOIN leads l ON l.owner_id = t.id
+                LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE t.role IN ('Sales Representative', 'Sales Rep') AND t.branch IN ({in_ph})
+                GROUP BY t.id, t.name, t.branch
+                ORDER BY leads_count DESC
+                LIMIT 20
+            ''', region_branches)
         else:
             cursor.execute('''
-                SELECT l.branch,
-                       COUNT(d.id)              AS deal_count,
-                       COALESCE(SUM(d.value),0) AS pipeline_value
-                FROM deals d
-                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost')
-                GROUP BY l.branch
-                ORDER BY l.branch
+                SELECT t.name, t.branch,
+                       COUNT(DISTINCT l.id)                                            AS leads_count,
+                       COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
+                       COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
+                FROM team t
+                JOIN leads l ON l.owner_id = t.id
+                LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE t.role IN ('Sales Representative', 'Sales Rep')
+                GROUP BY t.id, t.name, t.branch
+                ORDER BY leads_count DESC
+                LIMIT 20
             ''')
-        deals_per_branch = rows_to_list(cursor)
+        top_srs = rows_to_list(cursor)
 
         # Totals
         if branch_filter:
             cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters' AND branch = %s", (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f"SELECT COUNT(*) FROM team WHERE branch != 'Headquarters' AND branch IN ({in_ph})", region_branches)
         else:
             cursor.execute("SELECT COUNT(*) FROM team WHERE branch != 'Headquarters'")
         total_users = cursor.fetchone()[0]
 
         if branch_filter:
             cursor.execute("SELECT COUNT(*) FROM leads WHERE branch = %s", (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f"SELECT COUNT(*) FROM leads WHERE branch IN ({in_ph})", region_branches)
         else:
-            cursor.execute("SELECT COUNT(*) FROM leads WHERE 1=1")
+            cursor.execute("SELECT COUNT(*) FROM leads")
         total_leads = cursor.fetchone()[0]
 
         if branch_filter:
@@ -1903,6 +2088,14 @@ def admin_analytics():
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
             ''', (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f'''
+                SELECT COUNT(*)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch IN ({in_ph})
+            ''', region_branches)
         else:
             cursor.execute('''
                 SELECT COUNT(*)
@@ -1919,6 +2112,14 @@ def admin_analytics():
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch = %s
             ''', (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f'''
+                SELECT COALESCE(SUM(d.value),0)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage NOT IN ('Closed Won', 'Closed Lost') AND l.branch IN ({in_ph})
+            ''', region_branches)
         else:
             cursor.execute('''
                 SELECT COALESCE(SUM(d.value),0)
@@ -1928,8 +2129,43 @@ def admin_analytics():
             ''')
         pipeline_value = float(cursor.fetchone()[0])
 
-        # Recent audit log (last 20)
-        cursor.execute('SELECT * FROM audit_log ORDER BY changed_at DESC LIMIT 20')
+        if branch_filter:
+            cursor.execute('''
+                SELECT COUNT(*)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage = 'Closed Won' AND l.branch = %s
+            ''', (branch_filter,))
+        elif region_branches:
+            in_ph = ', '.join(['%s'] * len(region_branches))
+            cursor.execute(f'''
+                SELECT COUNT(*)
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                WHERE d.stage = 'Closed Won' AND l.branch IN ({in_ph})
+            ''', region_branches)
+        else:
+            cursor.execute("SELECT COUNT(*) FROM deals WHERE stage = 'Closed Won'")
+        closed_won = cursor.fetchone()[0]
+
+        # Audit log — paginated + filterable
+        audit_filters = []
+        audit_params  = []
+        if audit_entity:
+            audit_filters.append('entity_type = %s')
+            audit_params.append(audit_entity)
+        if audit_from:
+            audit_filters.append('changed_at >= %s')
+            audit_params.append(audit_from)
+        audit_where = ('WHERE ' + ' AND '.join(audit_filters)) if audit_filters else ''
+
+        cursor.execute(f'SELECT COUNT(*) FROM audit_log {audit_where}', audit_params)
+        audit_total = cursor.fetchone()[0]
+
+        cursor.execute(
+            f'SELECT * FROM audit_log {audit_where} ORDER BY changed_at DESC LIMIT %s OFFSET %s',
+            audit_params + [audit_limit, audit_offset]
+        )
         audit_log = rows_to_list(cursor)
 
         return jsonify({
@@ -1937,14 +2173,138 @@ def admin_analytics():
             'roleDistribution': role_distribution,
             'leadsPerBranch':   leads_per_branch,
             'dealsPerBranch':   deals_per_branch,
+            'topSRs':           top_srs,
+            'leadStatusDist':   lead_status_dist,
             'totals': {
-                'users':        total_users,
-                'leads':        total_leads,
-                'activeDeals':  active_deals,
+                'users':         total_users,
+                'leads':         total_leads,
+                'activeDeals':   active_deals,
                 'pipelineValue': pipeline_value,
+                'closedWon':     closed_won,
             },
-            'auditLog': audit_log,
+            'auditLog':   audit_log,
+            'auditTotal': audit_total,
         })
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/audit-log', methods=['GET'])
+@jwt_required()
+@admin_required
+def admin_audit_log():
+    limit      = min(int(request.args.get('limit',  20)), 100)
+    offset     = int(request.args.get('offset', 0))
+    entity     = request.args.get('entity', '').strip()
+    date_from  = request.args.get('from',   '').strip()
+    date_to    = request.args.get('to',     '').strip()
+    user_id    = request.args.get('userId', '').strip()
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+
+        filters = []
+        params  = []
+        if entity:
+            filters.append('entity_type = %s');   params.append(entity)
+        if date_from:
+            filters.append('changed_at >= %s');   params.append(date_from)
+        if date_to:
+            filters.append('changed_at <= %s');   params.append(date_to)
+        if user_id:
+            filters.append('user_id = %s');       params.append(user_id)
+
+        where = ('WHERE ' + ' AND '.join(filters)) if filters else ''
+
+        cursor.execute(f'SELECT COUNT(*) FROM audit_log {where}', params)
+        total = cursor.fetchone()[0]
+
+        cursor.execute(
+            f'SELECT * FROM audit_log {where} ORDER BY changed_at DESC LIMIT %s OFFSET %s',
+            params + [limit, offset]
+        )
+        logs = rows_to_list(cursor)
+        for log in logs:
+            log['changed_at'] = to_pht(log.get('changed_at'))
+
+        return jsonify({'logs': logs, 'total': total})
+    finally:
+        close_connection(conn)
+
+
+# ─── Admin: CSV Export ────────────────────────────────────────────────────────
+
+@app.route('/api/admin/export/<report>', methods=['GET'])
+@jwt_required()
+@admin_required
+def admin_export(report):
+    if report not in ('branch-overview', 'audit-log'):
+        return jsonify({'error': 'Unknown report'}), 404
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        output = io.StringIO()
+
+        if report == 'branch-overview':
+            cursor.execute('''
+                SELECT l.branch,
+                       COUNT(CASE WHEN d.stage NOT IN ('Closed Won','Closed Lost') THEN 1 END) AS deal_count,
+                       COALESCE(SUM(CASE WHEN d.stage NOT IN ('Closed Won','Closed Lost') THEN d.value ELSE 0 END), 0) AS pipeline_value,
+                       ROUND(
+                           SUM(d.stage = 'Closed Won') /
+                           NULLIF(SUM(d.stage IN ('Closed Won','Closed Lost')), 0) * 100, 1
+                       ) AS win_rate,
+                       ROUND(AVG(d.value), 0) AS avg_deal_value
+                FROM deals d
+                LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+                GROUP BY l.branch
+                ORDER BY l.branch
+            ''')
+            rows = rows_to_list(cursor)
+            writer = csv.DictWriter(output, fieldnames=['branch', 'deal_count', 'pipeline_value', 'win_rate', 'avg_deal_value'])
+            writer.writeheader()
+            writer.writerows(rows)
+            filename = 'branch-overview.csv'
+
+        else:  # audit-log
+            entity    = request.args.get('entity', '').strip()
+            date_from = request.args.get('from',   '').strip()
+            date_to   = request.args.get('to',     '').strip()
+            user_id   = request.args.get('userId', '').strip()
+
+            filters = []
+            params  = []
+            if entity:
+                filters.append('entity_type = %s');  params.append(entity)
+            if date_from:
+                filters.append('changed_at >= %s');  params.append(date_from)
+            if date_to:
+                filters.append('changed_at <= %s');  params.append(date_to)
+            if user_id:
+                filters.append('user_id = %s');      params.append(user_id)
+
+            where = ('WHERE ' + ' AND '.join(filters)) if filters else ''
+            cursor.execute(
+                f'SELECT * FROM audit_log {where} ORDER BY changed_at DESC LIMIT 5000',
+                params
+            )
+            rows = rows_to_list(cursor)
+            if rows:
+                writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+                writer.writeheader()
+                writer.writerows(rows)
+            filename = 'audit-log.csv'
+
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+        return response
     finally:
         close_connection(conn)
 
@@ -2132,6 +2492,46 @@ def set_security_headers(response):
     return response
 
 
+@app.route('/api/deal-contacts', methods=['GET'])
+@jwt_required()
+def get_all_deal_contacts():
+    """Return all deal_contacts with full contact info - single efficient query"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        branch = request.args.get('branch', '')
+        region = request.args.get('region', '')
+        claims = get_jwt()
+        user_id = get_jwt_identity()
+        
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
+        where_parts = list(scope_parts)
+        params = list(scope_params)
+        
+        if restrict_owner:
+            where_parts.append('(d.owner_id = %s OR (d.owner_id IS NULL AND (l.owner_id = %s OR l.owner_id IS NULL)))')
+            params.extend([user_id, user_id])
+            
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+        
+        cursor.execute(f"""
+            SELECT dc.deal_id, c.id, c.name, c.role, c.email, c.phone, dc.role AS deal_role
+            FROM deal_contacts dc
+            JOIN contacts c ON c.id = dc.contact_id
+            JOIN deals d ON d.id = dc.deal_id
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            {where_sql}
+        """, tuple(params))
+        return jsonify(rows_to_list(cursor))
+    except Exception as e:
+        print(f"Error in get_all_deal_contacts: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+
 @app.route('/api/deals/<deal_id>/contacts', methods=['GET'])
 @jwt_required()
 def get_deal_contacts(deal_id):
@@ -2150,6 +2550,9 @@ def get_deal_contacts(deal_id):
             (deal_id,),
         )
         return jsonify(rows_to_list(cursor))
+    except Exception as e:
+        print(f"Error in get_deal_contacts: {e}")
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 
@@ -2176,6 +2579,34 @@ def add_deal_contact(deal_id):
         )
         conn.commit()
         return jsonify({'message': 'Contact added to deal'}), 201
+    except Exception as e:
+        print(f"Error in add_deal_contact: {e}")
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/deals/<deal_id>/contacts', methods=['DELETE'])
+@jwt_required()
+def remove_deal_contact(deal_id):
+    data = request.get_json()
+    contact_id = data.get('contactId')
+    if not contact_id:
+        return jsonify({'error': 'contactId is required'}), 400
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'DELETE FROM deal_contacts WHERE deal_id = %s AND contact_id = %s',
+            (deal_id, contact_id),
+        )
+        conn.commit()
+        return jsonify({'message': 'Contact removed from deal'}), 200
+    except Exception as e:
+        print(f"Error in remove_deal_contact: {e}")
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 

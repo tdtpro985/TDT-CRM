@@ -2,15 +2,31 @@ export const ITEMS_PER_PAGE = 20
 
 export const LEAD_STATUSES = ['New', 'Working', 'Qualified', 'Unqualified', 'Converted']
 export const CUSTOMER_STATUSES = ['New', 'Prospect', 'Negotiation', 'Converted']
-export const TASK_TYPES = ['Call', 'Follow-up', 'Meeting', 'Email']
+export const TASK_TYPES = ['Call', 'Meeting', 'Email', 'Internal']
 export const TASK_PRIORITIES = ['Low', 'Medium', 'High']
 export const LEAD_SOURCES = ['Website', 'Referral', 'Outbound', 'Event', 'Email']
 
 export const STAGE_WORKFLOW = {
-  'Qualified':       { probability: 20, activityType: null,      hint: 'Verify company exists in the customer database.' },
-  'New Opportunity': { probability: 40, activityType: 'Call',    hint: 'Client has requested a quotation. Gather scope requirements.' },
-  'Proposal':        { probability: 60, activityType: 'Meeting', hint: 'Formalize and present the proposal document.' },
-  'Negotiation':     { probability: 80, activityType: 'Meeting', hint: 'Adjust terms. Resolve to Closed Won or Closed Lost.' },
+  'Qualified':       { 
+    probability: 20, 
+    activityType: 'Call',    
+    hint: 'Verify company exists in the customer database.'
+  },
+  'New Opportunity': { 
+    probability: 40, 
+    activityType: 'Call',    
+    hint: 'Client has requested a quotation. Gather scope requirements.'
+  },
+  'Proposal':        { 
+    probability: 60, 
+    activityType: 'Email', 
+    hint: 'Formalize and present the proposal document.'
+  },
+  'Negotiation':     { 
+    probability: 80, 
+    activityType: 'Meeting', 
+    hint: 'Adjust terms. Resolve to Closed Won or Closed Lost.'
+  },
   'Closed Won':      { probability: 100, activityType: null,     hint: 'Deal signed and closed.' },
   'Closed Lost':     { probability: 0,   activityType: null,     hint: 'Deal lost. Capture reason before closing.' },
 }

@@ -215,7 +215,7 @@ export default function AdminView({ currentUser, showToast }) {
 
           {/* Users Table */}
           {loading ? (
-            <p style={{ padding: '2rem', color: 'var(--text-muted)' }}>Loading accounts…</p>
+            <p className="u-pad-32 u-text-muted">Loading accounts…</p>
           ) : filteredUsers.length === 0 ? (
             <div className="admin-empty">
               <p>No accounts match your filter.</p>
