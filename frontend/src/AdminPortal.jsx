@@ -155,7 +155,7 @@ export default function AdminPortal() {
         <div className="view-content">
           <Routes>
             <Route path="/" element={<Navigate to="/admin/analytics" replace />} />
-            <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} />} />
+            <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} />} />
             <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} />} />
             <Route path="/profile" element={<AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />} />
             <Route path="*" element={<Navigate to="/admin/analytics" replace />} />
