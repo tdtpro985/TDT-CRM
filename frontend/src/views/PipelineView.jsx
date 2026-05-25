@@ -751,7 +751,6 @@ export default function PipelineView({
                                   by {log.changedBy}
                                 </span>
                               )}
-                              <span className="timeline-badge is-audit">Change</span>
                             </div>
                             <div className="timeline-body">
                               <p>
