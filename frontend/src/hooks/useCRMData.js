@@ -203,9 +203,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     } catch (err) {
       if (err.name === 'AbortError') return
       setNotice('Backend is not reachable or database is down. Start the server and configure database to load live data.')
-    } finally {
-      setLoading(false)
     }
+    setLoading(false)
   }
 
   // Reset activeBranch/activeRegion whenever the logged-in user changes (login/logout)

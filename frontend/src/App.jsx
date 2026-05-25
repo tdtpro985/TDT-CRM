@@ -470,6 +470,15 @@ export default function App() {
             <p className="page-description">{currentMeta.description}</p>
           </div>
           {loading && <div className="top-bar-loader" aria-hidden="true" />}
+          {(currentUser?.role === 'Head of Sales' || currentUser?.role === 'Admin' || currentUser?.role === 'Regional Sales Manager') && (
+            <div className="top-bar-context-badge">
+              {currentUser.role === 'Regional Sales Manager'
+                ? currentUser.region
+                : (activeRegion || 'All Regions')}
+              <span className="context-sep">/</span>
+              {activeBranch || 'All Branches'}
+            </div>
+          )}
           <div className="top-bar-actions">
             <label className="search-field" htmlFor="global-search-input">
               <span className="search-icon" aria-hidden="true">Search</span>
