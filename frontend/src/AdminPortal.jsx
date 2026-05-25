@@ -145,6 +145,11 @@ export default function AdminPortal() {
             <p className="eyebrow">{meta.eyebrow}</p>
             <h2 className="page-title">{meta.title}</h2>
           </div>
+          <div className="top-bar-context-badge">
+            {activeRegion || 'All Regions'}
+            <span className="context-sep">/</span>
+            {activeBranch || 'All Branches'}
+          </div>
         </header>
 
         <div className="view-content">
