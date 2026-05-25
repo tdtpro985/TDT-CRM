@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, isSrRole } from '../utils'
@@ -15,6 +16,7 @@ export default function DashboardView({
   linkHealth,
   currentUser,
 }) {
+  const navigate = useNavigate()
   const today = new Date().toISOString().split('T')[0]
   const isSr = isSrRole(currentUser?.role)
   const stageListRef = useRef(null)
@@ -211,7 +213,11 @@ export default function DashboardView({
             {focusTasks.map((task) => {
               const priorityClass = `is-priority-${task.priority.toLowerCase()}`
               return (
-                <article key={task.id} className={`simple-list__item ${priorityClass} u-border-l-3-transparent`}>
+                <article
+                  key={task.id}
+                  className={`simple-list__item ${priorityClass} u-border-l-3-transparent u-cursor-pointer`}
+                  onClick={() => navigate('/tasks', { state: { highlightTaskId: task.id } })}
+                >
                   <div className="u-flex-1 u-min-w-0">
                     <strong className="u-truncate u-block">
                       {task.title}
