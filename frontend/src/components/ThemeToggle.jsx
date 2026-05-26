@@ -1,10 +1,11 @@
 import './ThemeToggle.css'
+import { IconMoon, IconSun, IconSparkle } from './Icons'
 
 export default function ThemeToggle({ theme, onThemeChange }) {
   const themes = [
-    { id: 'dark', label: 'Dark', icon: '🌙' },
-    { id: 'light', label: 'Light', icon: '☀️' },
-    { id: 'neon', label: 'Neon', icon: '✨' },
+    { id: 'dark', label: 'Dark', icon: IconMoon },
+    { id: 'light', label: 'Light', icon: IconSun },
+    { id: 'neon', label: 'Neon', icon: IconSparkle },
   ]
 
   return (
@@ -21,7 +22,7 @@ export default function ThemeToggle({ theme, onThemeChange }) {
             aria-label={`Switch to ${t.label} theme`}
             aria-pressed={theme === t.id}
           >
-            <span className="theme-toggle-icon">{t.icon}</span>
+            <span className="theme-toggle-icon"><t.icon /></span>
             <span className="theme-toggle-name">{t.label}</span>
           </button>
         ))}

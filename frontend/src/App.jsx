@@ -28,6 +28,8 @@ import LeadForm      from './components/forms/LeadForm'
 import TaskForm      from './components/forms/TaskForm'
 import ThemeToggle   from './components/ThemeToggle'
 
+import { IconCheck } from './components/Icons'
+
 // ─── App ─────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -46,6 +48,7 @@ export default function App() {
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarLocked, setSidebarLocked] = useState(false)
   const sidebarCloseTimer = useRef(null)
   
   // Theme management
@@ -238,6 +241,7 @@ export default function App() {
   }
 
   const closeSidebarWithDelay = () => {
+    if (sidebarLocked) return
     sidebarCloseTimer.current = setTimeout(() => {
       setSidebarOpen(false)
     }, 300)
@@ -340,11 +344,12 @@ export default function App() {
   // ─── Shell ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className={`crm-shell ${sidebarOpen ? 'sidebar-is-open' : ''}`} data-theme={theme}>
+    <div className={`crm-shell ${sidebarOpen || sidebarLocked ? 'sidebar-is-open' : ''}`} data-theme={theme}>
       {/* Invisible hover trigger zone for sidebar */}
       <div 
-        className="sidebar-hover-trigger" 
+        className={`sidebar-hover-trigger ${sidebarLocked ? 'is-locked' : ''}`} 
         onMouseEnter={openSidebar}
+        onClick={() => setSidebarLocked(!sidebarLocked)}
       />
 
       {/* Mobile sidebar overlay */}
@@ -525,7 +530,7 @@ export default function App() {
 
       {toast && (
         <div className="toast" role="status">
-          <span className="toast__icon">✓</span>
+          <span className="toast__icon"><IconCheck /></span>
           <span>{toast}</span>
         </div>
       )}
