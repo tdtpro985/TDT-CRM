@@ -41,6 +41,10 @@
     var(--bg-app);
 }
 
+[data-theme="light"] .login-form-panel {
+  background: var(--bg-app);
+}
+
 [data-theme="neon"] .login-form-panel {
   background:
     radial-gradient(circle at 85% 15%, rgba(168, 85, 247, 0.15) 0%, transparent 60%),
@@ -100,6 +104,12 @@
   flex-direction: column;
   gap: 32px;
   position: relative;
+}
+
+[data-theme="light"] .login-card {
+  background: var(--bg-card);
+  border-color: rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-strong);
 }
 
 .login-card::before {
