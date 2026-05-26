@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
 
 :root {
+  color-scheme: dark;
   /* ═══════════════════════════════════════════════════════════════
      DARK THEME (Default)
      ═══════════════════════════════════════════════════════════════ */
@@ -68,6 +69,7 @@
    LIGHT THEME (White, Orange, Black)
    ═══════════════════════════════════════════════════════════════ */
 [data-theme="light"] {
+  color-scheme: only light;
   --bg: #ffffff;
   --bg-app: #f9f9f9;
   --bg-card: #f5f5f5;
@@ -97,6 +99,7 @@
    NEON THEME (Deep Purple with Vibrant Neon Accents)
    ═══════════════════════════════════════════════════════════════ */
 [data-theme="neon"] {
+   color-scheme: dark;
    --bg: #0f0a1a;
    --bg-app: #0a0612;
    --bg-card: #1a1030;
