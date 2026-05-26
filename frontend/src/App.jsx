@@ -19,12 +19,14 @@ import CustomersView from './views/CustomersView'
 import PipelineView  from './views/PipelineView'
 import TasksView     from './views/TasksView'
 import useCRMData    from './hooks/useCRMData'
+import { useTheme } from './hooks/useTheme'
 import LoginPage     from './components/LoginPage'
 import Modal         from './components/Modal'
 import AboutContent  from './components/AboutContent'
 import PageSkeleton  from './components/SkeletonLoader'
 import LeadForm      from './components/forms/LeadForm'
 import TaskForm      from './components/forms/TaskForm'
+import ThemeToggle   from './components/ThemeToggle'
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +47,9 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const sidebarCloseTimer = useRef(null)
+  
+  // Theme management
+  const { theme, setTheme } = useTheme()
 
   // ─── Performance: Search Debounce ──────────────────────────────────────────
   useEffect(() => {
@@ -335,7 +340,7 @@ export default function App() {
   // ─── Shell ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className={`crm-shell ${sidebarOpen ? 'sidebar-is-open' : ''}`}>
+    <div className={`crm-shell ${sidebarOpen ? 'sidebar-is-open' : ''}`} data-theme={theme}>
       {/* Invisible hover trigger zone for sidebar */}
       <div 
         className="sidebar-hover-trigger" 
@@ -446,6 +451,9 @@ export default function App() {
             <strong>{openTasks.length}</strong>
             <span>Open tasks still waiting on follow-through</span>
           </div>
+          
+          <ThemeToggle theme={theme} onThemeChange={setTheme} />
+          
           <div className="sidebar-user">
             <button type="button" className="about-button" onClick={() => setShowAbout(true)}>About this system</button>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>

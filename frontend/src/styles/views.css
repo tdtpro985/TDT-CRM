@@ -1,15 +1,21 @@
 /* ── Dashboard Specifics ────────────────────────────────────── */
 
 .hero-panel {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-  gap: var(--pad-panel);
-  padding: var(--pad-panel);
-  border-radius: var(--r-lg);
-  background:
-    radial-gradient(circle at top right, rgba(255, 152, 0, 0.1), transparent 40%),
-    linear-gradient(160deg, rgba(22, 33, 62, 0.98), rgba(15, 52, 96, 0.85));
-  border: 1px solid var(--border);
+   display: grid;
+   grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+   gap: var(--pad-panel);
+   padding: var(--pad-panel);
+   border-radius: var(--r-lg);
+   background:
+     radial-gradient(circle at top right, rgba(255, 152, 0, 0.1), transparent 40%),
+     linear-gradient(160deg, rgba(22, 33, 62, 0.98), rgba(15, 52, 96, 0.85));
+   border: 1px solid var(--border);
+}
+
+[data-theme="neon"] .hero-panel {
+   background:
+     radial-gradient(circle at top right, rgba(168, 85, 247, 0.2), transparent 40%),
+     linear-gradient(160deg, rgba(21, 16, 37, 0.98), rgba(15, 10, 26, 0.85));
 }
 
 .hero-text {
@@ -83,15 +89,19 @@
 }
 
 .hero-band {
-  display: flex;
-  align-items: center;
-  height: 32px;
-  padding: 0 14px;
-  border-radius: var(--r-sm);
-  background: linear-gradient(90deg, rgba(255, 152, 0, 0.16), rgba(15, 52, 96, 0.32));
-  color: var(--text-strong);
-  font-size: var(--fs-sm);
-  font-weight: 700;
+   display: flex;
+   align-items: center;
+   height: 32px;
+   padding: 0 14px;
+   border-radius: var(--r-sm);
+   background: linear-gradient(90deg, rgba(255, 152, 0, 0.16), rgba(15, 52, 96, 0.32));
+   color: var(--text-strong);
+   font-size: var(--fs-sm);
+   font-weight: 700;
+}
+
+[data-theme="neon"] .hero-band {
+   background: linear-gradient(90deg, rgba(168, 85, 247, 0.3), rgba(15, 10, 26, 0.4));
 }
 
 .principles-grid {
@@ -102,10 +112,22 @@
 }
 
 .principle-card {
-  padding: var(--pad-card);
-  border-radius: var(--r-md);
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border);
+   padding: var(--pad-card);
+   border-radius: var(--r-md);
+   background: rgba(255, 255, 255, 0.02);
+   border: 1px solid var(--border);
+   transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-theme="neon"] .principle-card {
+   background: rgba(168, 85, 247, 0.1);
+   border-color: rgba(168, 85, 247, 0.3);
+}
+
+[data-theme="neon"] .principle-card:hover {
+   background: rgba(168, 85, 247, 0.15);
+   border-color: var(--accent);
+   box-shadow: var(--glow-sm);
 }
 
 /* ── Pipeline & Kanban Specifics ─────────────────────────────── */
@@ -320,21 +342,25 @@
 }
 
 .pipeline-card {
-  position: relative;
-  padding: 12px;
-  border-radius: var(--r-md);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-  width: 100%;
-  overflow: hidden;
-  box-sizing: border-box;
+   position: relative;
+   padding: 12px;
+   border-radius: var(--r-md);
+   background: rgba(255, 255, 255, 0.03);
+   border: 1px solid rgba(255, 255, 255, 0.1);
+   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+   cursor: pointer;
+   display: flex;
+   flex-direction: column;
+   gap: 6px;
+   min-width: 0;
+   width: 100%;
+   overflow: hidden;
+   box-sizing: border-box;
+}
+
+[data-theme="neon"] .pipeline-card:hover {
+   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), var(--glow-sm);
 }
 
 .pipeline-card.is-stage-qualified,
@@ -382,9 +408,14 @@
 }
 
 .kanban-card:hover {
-  transform: translateY(-2px) scale(1.01);
-  border-color: rgba(255, 152, 0, 0.3);
-  background: linear-gradient(135deg, rgba(255, 152, 0, 0.08), rgba(255, 255, 255, 0.05));
+   transform: translateY(-2px) scale(1.01);
+   border-color: rgba(255, 152, 0, 0.3);
+   background: linear-gradient(135deg, rgba(255, 152, 0, 0.08), rgba(255, 255, 255, 0.05));
+}
+
+[data-theme="neon"] .kanban-card:hover {
+   border-color: var(--accent);
+   background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(15, 10, 26, 0.05));
 }
 
 .pipeline-card:hover {
@@ -417,8 +448,45 @@
 }
 
 .pipeline-card.is-stage-closed-lost:hover {
-  border-color: rgba(255, 152, 0, 0.34);
-  background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
+   border-color: rgba(255, 152, 0, 0.34);
+   background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
+}
+
+/* Neon Theme Pipeline Card Overrides — all purple */
+[data-theme="neon"] .pipeline-card.is-stage-qualified:hover {
+   border-color: var(--accent);
+   background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(15, 10, 26, 0.05));
+   box-shadow: var(--glow-xs);
+}
+
+[data-theme="neon"] .pipeline-card.is-stage-new-opportunity:hover {
+   border-color: rgba(168, 85, 247, 0.5);
+   background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(15, 10, 26, 0.05));
+   box-shadow: var(--glow-sm);
+}
+
+[data-theme="neon"] .pipeline-card.is-stage-proposal:hover {
+   border-color: rgba(168, 85, 247, 0.5);
+   background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(15, 10, 26, 0.05));
+   box-shadow: var(--glow-sm);
+}
+
+[data-theme="neon"] .pipeline-card.is-stage-negotiation:hover {
+   border-color: rgba(168, 85, 247, 0.5);
+   background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(15, 10, 26, 0.05));
+   box-shadow: var(--glow-sm);
+}
+
+[data-theme="neon"] .pipeline-card.is-stage-closed-won:hover {
+   border-color: rgba(168, 85, 247, 0.5);
+   background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(15, 10, 26, 0.05));
+   box-shadow: var(--glow-sm);
+}
+
+[data-theme="neon"] .pipeline-card.is-stage-closed-lost:hover {
+   border-color: rgba(168, 85, 247, 0.5);
+   background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(15, 10, 26, 0.05));
+   box-shadow: var(--glow-xs);
 }
 
 .pipeline-card__top {
@@ -697,8 +765,12 @@
 }
 
 .activity-card.is-highlighted {
-  box-shadow: 0 0 0 2px var(--accent), 0 0 16px rgba(255, 152, 0, 0.35);
-  transition: box-shadow 0.3s ease;
+   box-shadow: 0 0 0 2px var(--accent), var(--glow-md);
+   transition: box-shadow 0.3s ease;
+}
+
+[data-theme="neon"] .activity-card.is-highlighted {
+   box-shadow: 0 0 0 2px var(--accent), var(--glow-lg);
 }
 
 .activity-card__deal-line {
@@ -849,8 +921,12 @@
 }
 
 .view-button.is-active {
-  background: var(--accent);
-  color: #10131f;
+   background: var(--accent);
+   color: #10131f;
+}
+
+[data-theme="neon"] .view-button.is-active {
+   color: var(--text-strong);
 }
 
 /* ── Database Specifics ─────────────────────────────────────── */
@@ -912,10 +988,24 @@
   border: 1px solid var(--border);
 }
 
+[data-theme="neon"] .chart-frame {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(168, 85, 247, 0.12)),
+    repeating-linear-gradient(to top,
+      transparent,
+      transparent 48px,
+      rgba(168, 85, 247, 0.06) 48px,
+      rgba(168, 85, 247, 0.06) 49px);
+}
+
 .chart-fill {
   width: 100%;
   border-radius: var(--r-sm) var(--r-sm) 4px 4px;
   background: linear-gradient(180deg, #ffbd59, var(--accent));
+}
+
+[data-theme="neon"] .chart-fill {
+  background: linear-gradient(180deg, var(--accent-strong), var(--accent));
 }
 
 /* ── Analytics ──────────────────────────────────────────────── */
@@ -944,11 +1034,27 @@
 }
 
 .analytics-bar-fill {
-  height: 100%;
-  border-radius: var(--r-full);
-  background: linear-gradient(90deg, var(--accent), #ffbd59);
-  min-width: 3px;
-  transition: width 0.4s ease;
+   height: 100%;
+   border-radius: var(--r-full);
+   background: linear-gradient(90deg, var(--accent), #ffbd59);
+   min-width: 3px;
+   transition: width 0.4s ease;
+}
+
+[data-theme="neon"] .analytics-bar-fill {
+   background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+}
+
+.analytics-role-bar-fill {
+   height: 100%;
+   border-radius: var(--r-full);
+   background: linear-gradient(90deg, var(--accent), #ffbd59);
+   min-width: 3px;
+   transition: width 0.4s ease;
+}
+
+[data-theme="neon"] .analytics-role-bar-fill {
+   background: linear-gradient(90deg, var(--accent), var(--accent-strong));
 }
 
 .analytics-role-row {
@@ -1284,7 +1390,13 @@
 
 .admin-form .field input:focus,
 .admin-form .field select:focus {
-  border-color: rgba(255, 152, 0, 0.42);
+   border-color: rgba(255, 152, 0, 0.42);
+}
+
+[data-theme="neon"] .admin-form .field input:focus,
+[data-theme="neon"] .admin-form .field select:focus {
+   border-color: var(--accent);
+   box-shadow: var(--glow-xs);
 }
 
 .admin-form-error {
@@ -2023,6 +2135,14 @@
 .deal-modal.is-stage-negotiation { border-top-color: #fb7185; }
 .deal-modal.is-stage-closed-won { border-top-color: #34d399; }
 .deal-modal.is-stage-closed-lost { border-top-color: #666666; }
+
+/* Neon Theme Deal Modal Status Colors — all purple */
+[data-theme="neon"] .deal-modal.is-stage-qualified { border-top-color: var(--accent); }
+[data-theme="neon"] .deal-modal.is-stage-new-opportunity { border-top-color: var(--accent); }
+[data-theme="neon"] .deal-modal.is-stage-proposal { border-top-color: var(--accent); }
+[data-theme="neon"] .deal-modal.is-stage-negotiation { border-top-color: var(--accent); }
+[data-theme="neon"] .deal-modal.is-stage-closed-won { border-top-color: var(--accent); }
+[data-theme="neon"] .deal-modal.is-stage-closed-lost { border-top-color: var(--accent); }
 
 .pipeline-card__header-box {
   display: flex;

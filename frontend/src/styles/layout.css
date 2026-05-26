@@ -6,7 +6,7 @@
   display: grid;
   grid-template-columns: 0 1fr;
   transition: grid-template-columns 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  background: #0a0e17;
+  background: var(--bg-app);
 }
 
 .crm-shell.sidebar-is-open {
@@ -146,15 +146,20 @@
 }
 
 .brand-branch-badge {
-  padding: 4px 10px;
-  background: rgba(255, 152, 0, 0.1);
-  border: 1px solid rgba(255, 152, 0, 0.2);
-  color: var(--accent-strong);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  border-radius: var(--r-full);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+   padding: 4px 10px;
+   background: rgba(255, 152, 0, 0.1);
+   border: 1px solid rgba(255, 152, 0, 0.2);
+   color: var(--accent-strong);
+   font-size: var(--fs-xs);
+   font-weight: 700;
+   border-radius: var(--r-full);
+   text-transform: uppercase;
+   letter-spacing: 0.05em;
+}
+
+[data-theme="neon"] .brand-branch-badge {
+   background: rgba(168, 85, 247, 0.15);
+   border-color: rgba(168, 85, 247, 0.3);
 }
 
 .brand-branch-badge.is-role {
@@ -225,15 +230,26 @@
 
 .nav-item:hover:not(.is-active),
 .nav-item:focus-visible:not(.is-active) {
-  background: rgba(255,255,255,0.06);
-  border-color: rgba(255, 152, 0, 0.34);
-  background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
-  outline: none;
+   background: rgba(255,255,255,0.06);
+   border-color: rgba(255, 152, 0, 0.34);
+   background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
+   outline: none;
+}
+
+[data-theme="neon"] .nav-item:hover:not(.is-active),
+[data-theme="neon"] .nav-item:focus-visible:not(.is-active) {
+   border-color: var(--accent);
+   background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(15, 10, 26, 0.05));
 }
 
 .nav-item.is-active {
-  background: rgba(255,152,0,0.12);
-  border-color: rgba(255,152,0,0.3);
+   background: rgba(255,152,0,0.12);
+   border-color: rgba(255,152,0,0.3);
+}
+
+[data-theme="neon"] .nav-item.is-active {
+   background: rgba(168, 85, 247, 0.2);
+   border-color: var(--accent);
 }
 
 .nav-item.is-active .nav-item__label {
