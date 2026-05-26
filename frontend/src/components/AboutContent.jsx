@@ -19,11 +19,15 @@ function initials(name) {
 function DevCard({ name, role, index }) {
   return (
     <div className="dev-card" style={{ animationDelay: `${index * 60}ms` }}>
-      <div className="dev-avatar">{initials(name)}</div>
-      <div className="dev-info">
-        <span className="dev-name">{name}</span>
-        <span className="dev-role">{role}</span>
+      <div className="dev-card-inner">
+        <div className="dev-avatar-badge">{initials(name)}</div>
+        <div className="dev-info">
+          <span className="dev-name">{name}</span>
+          <span className="dev-role">{role}</span>
+        </div>
+        <div className="dev-card-watermark">CRM</div>
       </div>
+      <div className="dev-card-accent" />
     </div>
   )
 }
