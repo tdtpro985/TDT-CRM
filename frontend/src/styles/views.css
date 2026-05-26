@@ -1601,20 +1601,25 @@
   position: relative;
 }
 
-.timeline::before {
-  content: '';
-  position: absolute;
-  top: 10px;
-  bottom: 10px;
-  left: 17px;
-  width: 2px;
-  background: var(--border);
-}
-
 .timeline-item {
   display: flex;
   gap: 16px;
   position: relative;
+}
+
+.timeline-item::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: -16px;
+  left: 5px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  z-index: 0;
+}
+
+.timeline-item:last-child::after {
+  display: none;
 }
 
 .timeline-dot {
@@ -1689,12 +1694,190 @@
   font-style: italic;
 }
 
+/* ── Customer View Specific Layout Polish ─────────────────────── */
+
+.content-grid--customer-view {
+  /* Let the grid height be determined by the left panel's content */
+  align-items: stretch;
+  min-height: 0;
+}
+
+.content-grid--customer-view > .panel {
+  /* Left panel: sizes naturally to its 10 companies + pagination */
+  height: auto;
+  min-height: 0;
+}
+
+.content-grid--customer-view > .panel-stack {
+  /* Right panel: matches left panel height without expanding the row */
+  height: 0;
+  min-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-grid--customer-view > .panel-stack .panel {
+  flex: 1;
+  min-height: 0;
+}
+
+.customer-registry-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-registry-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.customer-detail-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px; /* Space for scrollbar */
+}
+
+.customer-detail-view--sections {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+}
+
+.detail-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.detail-section + .detail-section {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.detail-section__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .customer-detail-view .admin-table td {
   padding: 10px 12px;
 }
 
 .customer-detail-view .admin-table th {
   padding: 8px 12px;
+}
+
+.activity-log-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  border-radius: 50%;
+  border: 1px solid transparent;
+}
+
+.activity-log-toggle:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--accent);
+  border-color: rgba(255, 152, 0, 0.2);
+}
+
+.activity-log-toggle.is-expanded {
+  transform: rotate(180deg);
+  background: rgba(255, 152, 0, 0.1);
+  color: var(--accent);
+  border-color: rgba(255, 152, 0, 0.3);
+}
+
+.timeline--expanded {
+  max-height: none;
+  overflow: visible;
+  padding-right: 8px;
+  margin-right: -4px;
+}
+
+.deal-table-wrap--expanded {
+  max-height: none;
+  overflow: visible;
+  padding-right: 8px;
+  margin-right: -4px;
+}
+
+.collapse-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 2px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.collapse-bar:hover {
+  color: var(--accent);
+}
+
+/* Custom scrollbar for expanded containers */
+.timeline--expanded::-webkit-scrollbar,
+.deal-table-wrap--expanded::-webkit-scrollbar {
+  width: 4px;
+}
+.timeline--expanded::-webkit-scrollbar-track,
+.deal-table-wrap--expanded::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 10px;
+}
+.timeline--expanded::-webkit-scrollbar-thumb,
+.deal-table-wrap--expanded::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+.timeline--expanded::-webkit-scrollbar-thumb:hover,
+.deal-table-wrap--expanded::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 152, 0, 0.3);
+}
+
+.u-flex-center-gap-8 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.u-flex-center-gap-4 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.log-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ── Admin Analytics — Branch Cards ─────────────────────────── */
