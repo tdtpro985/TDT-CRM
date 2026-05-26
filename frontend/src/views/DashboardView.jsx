@@ -107,6 +107,7 @@ export default function DashboardView({
             value={kpi.value}
             meta={kpi.meta}
             accent={kpi.accent}
+            route={kpi.route}
           />
         ))}
       </section>
