@@ -188,7 +188,9 @@ export default function App() {
     setShowLeadForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId]?.title || viewId} is active.`)
-    setSidebarOpen(false)
+    if (!sidebarLocked) {
+      setSidebarOpen(false)
+    }
   }
 
   function handlePrimaryAction() {
@@ -344,12 +346,20 @@ export default function App() {
   // ─── Shell ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className={`crm-shell ${sidebarOpen || sidebarLocked ? 'sidebar-is-open' : ''}`} data-theme={theme}>
-      {/* Invisible hover trigger zone for sidebar */}
+    <div className={`crm-shell ${sidebarOpen || sidebarLocked ? 'sidebar-is-open' : ''}`}>
+      {/* Combined Trigger: Visible at viewport edge when closed, at sidebar edge when open */}
       <div 
         className={`sidebar-hover-trigger ${sidebarLocked ? 'is-locked' : ''}`} 
         onMouseEnter={openSidebar}
-        onClick={() => setSidebarLocked(!sidebarLocked)}
+        onClick={() => {
+          if (sidebarLocked) {
+            setSidebarLocked(false)
+            setSidebarOpen(false)
+          } else {
+            openSidebar()
+            setSidebarLocked(true)
+          }
+        }}
       />
 
       {/* Mobile sidebar overlay */}

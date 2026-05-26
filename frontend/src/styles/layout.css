@@ -30,9 +30,8 @@
   flex-shrink: 0;
   visibility: hidden;
   opacity: 0;
-  transform: translateX(-100%);
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.35s, opacity 0.35s;
-  will-change: transform, opacity;
+  transition: visibility 0.35s, opacity 0.35s;
+  will-change: opacity;
 }
 
 [data-theme="dark"] .sidebar {
@@ -44,7 +43,6 @@
 }
 
 .sidebar.is-open {
-  transform: translateX(0);
   visibility: visible;
   opacity: 1;
 }
@@ -541,8 +539,15 @@
   -webkit-backdrop-filter: none;
 }
 
+@media (min-width: 769px) {
+  .sidebar-overlay.is-open {
+    pointer-events: none;
+    opacity: 0;
+  }
+}
+
 .sidebar-hover-trigger {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 14px;
