@@ -215,6 +215,33 @@
   flex-shrink: 0;
 }
 
+/* Priority Indicators */
+.priority-indicators {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.priority-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.priority-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.priority-dot.is-high   { background-color: #fb7185; }
+.priority-dot.is-medium { background-color: #fbbf24; }
+.priority-dot.is-low    { background-color: #34d399; }
+
 .panel-inline-controls {
   display: flex;
   align-items: center;

@@ -17,10 +17,15 @@ export default function DashboardView({
   currentUser,
 }) {
   const navigate = useNavigate()
-  const today = new Date().toISOString().split('T')[0]
   const isSr = isSrRole(currentUser?.role)
   const stageListRef = useRef(null)
   const [visible, setVisible] = useState(false)
+
+  const priorityCounts = {
+    High: openTasks.filter(t => t.priority === 'High').length,
+    Medium: openTasks.filter(t => t.priority === 'Medium').length,
+    Low: openTasks.filter(t => t.priority === 'Low').length,
+  }
 
   useEffect(() => {
     const el = stageListRef.current
@@ -37,21 +42,19 @@ export default function DashboardView({
     observer.observe(el)
     return () => observer.disconnect()
   }, [])
-  const focusTasks = [...openTasks]
-    .sort((a, b) => {
-      const statusScore = (task) => {
-        if (!['Open', 'Reopened'].includes(task.status)) return 5
-        if (!task.dueDate) return 4
-        if (task.dueDate < today) return 1
-        if (task.priority === 'High') return 2
-        if (task.dueDate === today) return 3
-        return 4
-      }
-      const scoreDiff = statusScore(a) - statusScore(b)
-      if (scoreDiff !== 0) return scoreDiff
-      return (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
-    })
-    .slice(0, 4)
+  const focusTasks = (() => {
+    const high = openTasks.filter(t => t.priority === 'High')
+      .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+    if (high.length > 0) return high.slice(0, 4)
+
+    const medium = openTasks.filter(t => t.priority === 'Medium')
+      .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+    if (medium.length > 0) return medium.slice(0, 4)
+
+    const low = openTasks.filter(t => t.priority === 'Low')
+      .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+    return low.slice(0, 4)
+  })()
 
   return (
     <>
@@ -208,6 +211,22 @@ export default function DashboardView({
           kicker="Task focus"
           title="Priority follow-ups"
           detail="Open work is visible from the dashboard so reps always know what is next."
+          action={
+            <div className="priority-indicators">
+              <span className="priority-indicator">
+                <span className="priority-dot is-high" />
+                <span>{priorityCounts.High}</span>
+              </span>
+              <span className="priority-indicator">
+                <span className="priority-dot is-medium" />
+                <span>{priorityCounts.Medium}</span>
+              </span>
+              <span className="priority-indicator">
+                <span className="priority-dot is-low" />
+                <span>{priorityCounts.Low}</span>
+              </span>
+            </div>
+          }
         >
           <div className="simple-list">
             {focusTasks.map((task) => {
