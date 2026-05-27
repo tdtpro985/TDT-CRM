@@ -8,6 +8,8 @@ import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP } from '../const
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
 
+import { IconPhone, IconCheck, IconCalendar, IconMail, IconClipboard } from '../components/Icons'
+
 const CURRENT_MONTH = getCurrentMonthISO()
 const TODAY = getTodayISO()
 
@@ -22,6 +24,15 @@ const STAGE_TONES = {
 
 function getStageTone(stage) {
   return STAGE_TONES[stage] ?? 'is-neutral'
+}
+
+function getTaskTypeIcon(type) {
+  switch (type) {
+    case 'Call': return <IconPhone />
+    case 'Meeting': return <IconCalendar />
+    case 'Email': return <IconMail />
+    default: return <IconClipboard />
+  }
 }
 
 export default function PipelineView({
@@ -588,10 +599,17 @@ export default function PipelineView({
                           </div>
                           {c.role && <div className="deal-modal__contact-sub">{c.role}</div>}
                           {(c.phone || c.email) && (
-                            <div className="deal-modal__contact-details">
-                              {c.phone && <span title="Phone">📞 {c.phone}</span>}
-                              {c.email && <span title="Email">✉️ {c.email}</span>}
-                            </div>
+                             <div className="deal-modal__contact-details">
+                               {c.phone && <span title="Phone"><IconPhone /> {c.phone}</span>}
+                               {c.email && <span title="Email">
+                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: '4px' }}>
+                                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                   <polyline points="22,6 12,13 2,6"/>
+                                 </svg>
+                                 {c.email}
+                               </span>}
+                             </div>
+
                           )}
                         </div>
                       ))}
@@ -680,8 +698,10 @@ export default function PipelineView({
                           <div className="timeline-dot timeline-dot--accent"></div>
                           <div className="timeline-content">
                             <div className="timeline-header">
-                              <span className="timeline-time">{task.type} • {formatDateLabel(task.dueDate || task.created_at)}</span>
-                              <span className="timeline-badge is-activity">Task</span>
+                              <span className="timeline-time">{formatDateTimePHT(task.dueDate || task.created_at)}</span>
+                              <span className="timeline-badge is-activity u-flex-center-gap-sm">
+                                {getTaskTypeIcon(task.type)} {task.type}
+                              </span>
                             </div>
                             <div className="timeline-body">
                               <p><strong>{task.title}</strong></p>
@@ -751,7 +771,6 @@ export default function PipelineView({
                                   by {log.changedBy}
                                 </span>
                               )}
-                              <span className="timeline-badge is-audit">Change</span>
                             </div>
                             <div className="timeline-body">
                               <p>

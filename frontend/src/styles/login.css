@@ -22,6 +22,12 @@
   border-right: 1px solid var(--border);
 }
 
+[data-theme="neon"] .login-brand-panel {
+  background:
+    linear-gradient(135deg, rgba(168, 85, 247, 0.35) 0%, rgba(10, 6, 18, 0.95) 100%),
+    url('/src/assets/hero.png') center/cover no-repeat;
+}
+
 .login-form-panel {
   flex: 1;
   display: flex;
@@ -31,6 +37,18 @@
   background: 
     radial-gradient(circle at 85% 15%, rgba(74, 121, 147, 0.1) 0%, transparent 60%),
     radial-gradient(circle at 15% 85%, rgba(74, 121, 147, 0.4) 0%, transparent 60%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
+    var(--bg-app);
+}
+
+[data-theme="light"] .login-form-panel {
+  background: var(--bg-app);
+}
+
+[data-theme="neon"] .login-form-panel {
+  background:
+    radial-gradient(circle at 85% 15%, rgba(168, 85, 247, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 15% 85%, rgba(168, 85, 247, 0.1) 0%, transparent 60%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
     var(--bg-app);
 }
@@ -86,6 +104,12 @@
   flex-direction: column;
   gap: 32px;
   position: relative;
+}
+
+[data-theme="light"] .login-card {
+  background: var(--bg-card);
+  border-color: rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-strong);
 }
 
 .login-card::before {
@@ -234,6 +258,56 @@
   font-size: var(--fs-xs);
 }
 
+/* Login page theme toggle */
+.login-theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.login-theme-label {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.login-theme-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.login-theme-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: var(--fs-sm);
+  line-height: 1;
+}
+
+.login-theme-btn:hover {
+  border-color: var(--accent);
+  transform: scale(1.1);
+}
+
+.login-theme-btn.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.4);
+}
+
 /* Animations */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }
@@ -274,10 +348,25 @@
   border-right-color: rgba(100, 160, 255, 0.2);
 }
 
+[data-theme="neon"] .admin-login-shell .login-brand-panel {
+  background:
+    linear-gradient(135deg, rgba(168, 85, 247, 0.4) 0%, rgba(10, 6, 18, 0.95) 100%),
+    url('/src/assets/hero.png') center/cover no-repeat;
+  border-right-color: rgba(168, 85, 247, 0.3);
+}
+
 .admin-login-shell .login-form-panel {
   background: 
     radial-gradient(circle at 85% 15%, rgba(74, 121, 147, 0.1) 0%, transparent 60%),
     radial-gradient(circle at 15% 85%, rgba(74, 121, 147, 0.4) 0%, transparent 60%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
+    var(--bg-app);
+}
+
+[data-theme="neon"] .admin-login-shell .login-form-panel {
+  background:
+    radial-gradient(circle at 85% 15%, rgba(168, 85, 247, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 15% 85%, rgba(168, 85, 247, 0.1) 0%, transparent 60%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
     var(--bg-app);
 }

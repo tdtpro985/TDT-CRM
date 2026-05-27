@@ -6,6 +6,7 @@ import AdminLoginPage from './components/AdminLoginPage'
 import AdminView from './views/AdminView'
 import AdminAnalyticsView from './views/AdminAnalyticsView'
 import AdminProfileView from './views/AdminProfileView'
+import { IconCheck } from './components/Icons'
 
 const REGION_BRANCHES = {
   'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
@@ -145,6 +146,11 @@ export default function AdminPortal() {
             <p className="eyebrow">{meta.eyebrow}</p>
             <h2 className="page-title">{meta.title}</h2>
           </div>
+          <div className="top-bar-context-badge">
+            {activeRegion || 'All Regions'}
+            <span className="context-sep">/</span>
+            {activeBranch || 'All Branches'}
+          </div>
         </header>
 
         <div className="view-content">
@@ -160,7 +166,7 @@ export default function AdminPortal() {
 
       {toast && (
         <div className="toast" role="status">
-          <span className="toast__icon">✓</span>
+          <span className="toast__icon"><IconCheck /></span>
           <span>{toast}</span>
         </div>
       )}

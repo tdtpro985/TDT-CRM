@@ -19,12 +19,16 @@ import CustomersView from './views/CustomersView'
 import PipelineView  from './views/PipelineView'
 import TasksView     from './views/TasksView'
 import useCRMData    from './hooks/useCRMData'
+import { useTheme } from './hooks/useTheme'
 import LoginPage     from './components/LoginPage'
 import Modal         from './components/Modal'
 import AboutContent  from './components/AboutContent'
 import PageSkeleton  from './components/SkeletonLoader'
 import LeadForm      from './components/forms/LeadForm'
 import TaskForm      from './components/forms/TaskForm'
+import ThemeToggle   from './components/ThemeToggle'
+
+import { IconCheck } from './components/Icons'
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -44,7 +48,11 @@ export default function App() {
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarLocked, setSidebarLocked] = useState(false)
   const sidebarCloseTimer = useRef(null)
+  
+  // Theme management
+  const { theme, setTheme } = useTheme()
 
   // ─── Performance: Search Debounce ──────────────────────────────────────────
   useEffect(() => {
@@ -129,11 +137,11 @@ export default function App() {
     .join(' | '), [stageSummary])
 
   const topKpis = useMemo(() => [
-    { label: 'New Customers',   value: newLeads.length.toLocaleString(),    meta: 'Customers added this month',                                   accent: 'accent'  },
-    { label: 'Active Deals',    value: activeDeals.length.toLocaleString(), meta: 'Open opportunities being worked',                              accent: 'surface' },
-    { label: 'Deals per Stage', value: `${stageSummary.filter((s) => s.count > 0).length} stages`, meta: stageBreakdown,                         accent: 'alt'     },
-    { label: 'Conversion Rate', value: `${conversionRate}%`,                meta: `${convertedLeads.length} of ${leads.length} customers converted`,  accent: 'surface' },
-    { label: 'Pipeline Value',  value: formatCurrencyCompact(pipelineValue), meta: 'Expected revenue across active deals',                        accent: 'accent'  },
+    { label: 'New Customers',   value: newLeads.length.toLocaleString(),    meta: 'Customers added this month',                                   accent: 'accent',  route: '/database'  },
+    { label: 'Active Deals',    value: activeDeals.length.toLocaleString(), meta: 'Open opportunities being worked',                              accent: 'surface', route: '/pipeline'  },
+    { label: 'Deals per Stage', value: `${stageSummary.filter((s) => s.count > 0).length} stages`, meta: stageBreakdown,                         accent: 'alt',     route: '/pipeline'  },
+    { label: 'Conversion Rate', value: `${conversionRate}%`,                meta: `${convertedLeads.length} of ${leads.length} customers converted`,  accent: 'surface', route: '/database'  },
+    { label: 'Pipeline Value',  value: formatCurrencyCompact(pipelineValue), meta: 'Expected revenue across active deals',                        accent: 'accent',  route: '/pipeline'  },
   ], [newLeads.length, activeDeals.length, stageSummary, stageBreakdown, conversionRate, convertedLeads.length, leads.length, pipelineValue])
 
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
@@ -180,7 +188,9 @@ export default function App() {
     setShowLeadForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId]?.title || viewId} is active.`)
-    setSidebarOpen(false)
+    if (!sidebarLocked) {
+      setSidebarOpen(false)
+    }
   }
 
   function handlePrimaryAction() {
@@ -233,6 +243,7 @@ export default function App() {
   }
 
   const closeSidebarWithDelay = () => {
+    if (sidebarLocked) return
     sidebarCloseTimer.current = setTimeout(() => {
       setSidebarOpen(false)
     }, 300)
@@ -335,11 +346,20 @@ export default function App() {
   // ─── Shell ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className={`crm-shell ${sidebarOpen ? 'sidebar-is-open' : ''}`}>
-      {/* Invisible hover trigger zone for sidebar */}
+    <div className={`crm-shell ${sidebarOpen || sidebarLocked ? 'sidebar-is-open' : ''}`}>
+      {/* Combined Trigger: Visible at viewport edge when closed, at sidebar edge when open */}
       <div 
-        className="sidebar-hover-trigger" 
+        className={`sidebar-hover-trigger ${sidebarLocked ? 'is-locked' : ''}`} 
         onMouseEnter={openSidebar}
+        onClick={() => {
+          if (sidebarLocked) {
+            setSidebarLocked(false)
+            setSidebarOpen(false)
+          } else {
+            openSidebar()
+            setSidebarLocked(true)
+          }
+        }}
       />
 
       {/* Mobile sidebar overlay */}
@@ -446,6 +466,9 @@ export default function App() {
             <strong>{openTasks.length}</strong>
             <span>Open tasks still waiting on follow-through</span>
           </div>
+          
+          <ThemeToggle theme={theme} onThemeChange={setTheme} />
+          
           <div className="sidebar-user">
             <button type="button" className="about-button" onClick={() => setShowAbout(true)}>About this system</button>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
@@ -470,6 +493,15 @@ export default function App() {
             <p className="page-description">{currentMeta.description}</p>
           </div>
           {loading && <div className="top-bar-loader" aria-hidden="true" />}
+          {(currentUser?.role === 'Head of Sales' || currentUser?.role === 'Admin' || currentUser?.role === 'Regional Sales Manager') && (
+            <div className="top-bar-context-badge">
+              {currentUser.role === 'Regional Sales Manager'
+                ? currentUser.region
+                : (activeRegion || 'All Regions')}
+              <span className="context-sep">/</span>
+              {activeBranch || 'All Branches'}
+            </div>
+          )}
           <div className="top-bar-actions">
             <label className="search-field" htmlFor="global-search-input">
               <span className="search-icon" aria-hidden="true">Search</span>
@@ -508,7 +540,7 @@ export default function App() {
 
       {toast && (
         <div className="toast" role="status">
-          <span className="toast__icon">✓</span>
+          <span className="toast__icon"><IconCheck /></span>
           <span>{toast}</span>
         </div>
       )}

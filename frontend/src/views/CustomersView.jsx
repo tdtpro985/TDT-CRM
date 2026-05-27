@@ -41,6 +41,11 @@ export default function CustomersView({
   const [companyContacts, setCompanyContacts] = useState([])
   const [contactErrors, setContactErrors] = useState({})
   const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [activityLogExpanded, setActivityLogExpanded] = useState(false)
+  const [dealHistoryExpanded, setDealHistoryExpanded] = useState(false)
+  const [logTypeFilter, setLogTypeFilter] = useState('all')
+  const [logDateFrom, setLogDateFrom] = useState('')
+  const [logDateTo, setLogDateTo] = useState('')
   const isSr = isSrRole(currentUser?.role)
 
   // Reset page on search change (adjusting state during render)
@@ -72,6 +77,19 @@ export default function CustomersView({
       }
 
       return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
+    }).sort((a, b) => {
+      // 1. Sort by active deals (most to least)
+      const activeA = Number(a.activeDealCount || 0)
+      const activeB = Number(b.activeDealCount || 0)
+      if (activeA !== activeB) return activeB - activeA
+
+      // 2. Sort by closed deals (won + lost) (most to least)
+      const closedA = Number(a.closedWonCount || 0) + Number(a.closedLostCount || 0)
+      const closedB = Number(b.closedWonCount || 0) + Number(b.closedLostCount || 0)
+      if (closedA !== closedB) return closedB - closedA
+
+      // 3. Fallback to name (alphabetical)
+      return (a.name || '').localeCompare(b.name || '')
     })
   }, [customers, searchQuery, statusFilter, deals, currentUser])
 
@@ -127,6 +145,8 @@ export default function CustomersView({
     if (selectedCustomer?.id) {
       setCustomerDetail(null)
       setCompanyContacts([])
+      setActivityLogExpanded(false)
+      setDealHistoryExpanded(false)
       fetchDetail(selectedCustomer.id)
     }
   }, [selectedCustomer?.id])
@@ -179,7 +199,12 @@ export default function CustomersView({
   const customerDeals = useMemo(() => 
     deals
       .filter(d => d.companyId === selectedCustomer?.id)
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .sort((a, b) => {
+        const aClosed = a.stage === 'Closed Won' || a.stage === 'Closed Lost'
+        const bClosed = b.stage === 'Closed Won' || b.stage === 'Closed Lost'
+        if (aClosed !== bClosed) return aClosed ? 1 : -1
+        return new Date(b.createdAt) - new Date(a.createdAt)
+      })
   , [deals, selectedCustomer?.id])
 
   const wonCount = useMemo(() =>
@@ -214,7 +239,7 @@ export default function CustomersView({
         <MetricCard label="Cold Companies" value={coldCompanyCount.toLocaleString()} meta="No recent deal activity" accent="surface" />
       </section>
 
-      <section className="content-grid content-grid--primary u-grid-45-55">
+      <section className="content-grid content-grid--primary content-grid--customer-view u-grid-45-55">
         <Panel
           kicker="Customer Registry"
           title="Companies"
@@ -237,12 +262,12 @@ export default function CustomersView({
             </div>
           }
         >
-          <div className="u-min-h-600 u-flex-column">
+          <div className="customer-registry-body">
             {filteredCustomers.length === 0
               ? <EmptyState title="No customers match this filter" copy="Try adjusting your status filter." />
               : (
                 <>
-                  <div className="contact-list u-flex-1 u-align-content-start">
+                  <div className="contact-list customer-registry-list">
                     {paginatedCustomers.map((customer) => (
                       <div
                         key={customer.id}
@@ -301,146 +326,247 @@ export default function CustomersView({
                     </button>
                   </div>
                 ) : (
-                  <>
-                    <div className="section-header u-margin-b-12">
-                      <h4 className="u-margin-0 u-text-strong">Deal History</h4>
-                    </div>
-
-                    <div className="metrics-grid metrics-grid--compact u-grid-3 u-flex-gap-sm u-margin-b-24">
-                      <MetricCard label="W/L Ratio" value={Number(winLossRatio) ? Number(winLossRatio).toFixed(2) : winLossRatio} meta="Performance" accent="accent" />
-                      <MetricCard label="Won Value" value={wonCount === 0 ? '-' : formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
-                      <MetricCard label="Lost Value" value={lostCount === 0 ? '-' : formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
-                    </div>
-
-                    <div className="admin-table-wrap u-margin-b-24">
-                      <table className="admin-table">
-                        <thead>
-                          <tr>
-                            <th>Deal</th>
-                            <th>Stage</th>
-                            <th>Value</th>
-                            {!isSr && <th>Owner</th>}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {customerDeals.map(deal => (
-                            <tr key={deal.id}>
-                              <td className="admin-table__name">{deal.name}</td>
-                              <td>{deal.stage}</td>
-                              <td>{formatCurrencyCompact(deal.value)}</td>
-                              {!isSr && <td className="admin-table__muted">{deal.owner}</td>}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="section-header u-margin-b-12">
-                      <h4 className="u-margin-0 u-text-strong">Activity Log</h4>
-                    </div>
-
-                    <div className="timeline">
-                      {(customerDetail?.auditLogs || [])
-                      .filter(l => {
-                        // 1. Filter out technical/noisy logs
-                        if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change' || l.action === 'stage_change' || l.action === 'probability_change') return false
-                        
-                        // 2. Filter out no-change logs (where old == new)
-                        if (l.oldValue === l.newValue && l.oldValue !== null) return false
-                        
-                        // 3. SRs should not see owner reassignments
-                        if (isSr && l.action === 'owner_id_change') return false
-                        
-                        return true
-                      })
-                      .sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt))
-                      .map((item, idx) => {
-                        const linkedDeal = deals.find(d => d.id === item.entityId)
-                        const linkedContact = (customerDetail?.contacts || []).find(c => c.id === item.entityId)
-                        
-                        const stageContext = (item.action === 'stage_change' || item.action === 'deal_created')
-                          ? parseAuditValue(item.newValue)
-                          : (item.stage || linkedDeal?.stage)
-                        
-                        const dotColor = item.entityType === 'contact' ? 'var(--text-muted)' : (STAGE_COLORS[stageContext] || 'var(--accent)')
-
-                        const ACTION_LABELS = {
-                          'stage_change': 'Stage changed',
-                          'deal_created': 'Deal created',
-                          'value_change': 'Value changed',
-                          'owner_id_change': 'Owner changed',
-                          'close_date_change': 'Close date changed',
-                          'probability_change': 'Probability changed',
-                          'status_change': 'Status changed',
-                          'lost_reason': 'Lost reason',
-                          'contact_created': 'Contact added',
-                          'update': 'Contact updated'
-                        }
-
+                  <div className="customer-detail-view--sections">
+                    <div className="detail-section">
+                      {(() => {
+                        const displayDeals = dealHistoryExpanded ? customerDeals : customerDeals.slice(0, 5)
                         return (
-                          <div key={idx} className="timeline-item">
-                            <div className="timeline-dot" style={{ backgroundColor: dotColor }}></div>
-                            <div className="timeline-content">
-                              <div className="timeline-header">
-                                <span className="timeline-time">{formatDateTimePHT(item.changedAt)}</span>
-                                {item.changedBy && (
-                                  <span className="timeline-user u-fs-10 u-text-muted u-ml-8">
-                                    by {item.changedBy}
-                                  </span>
-                                )}
-                                <span className="timeline-badge is-audit">Change</span>
-                              </div>
-                              <div className="timeline-body">
-                                <p>
-                                  {item.action === 'deal_created' ? (
-                                    <>
-                                      <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(item.newValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.newValue}</span>
-                                      {linkedDeal && <> for <strong>{linkedDeal.name}</strong></>}
-                                    </>
-                                  ) : item.entityType === 'contact' ? (
-                                    renderContactDiff(item, linkedContact)
-                                  ) : (
-                                    <>
-                                      <strong>{ACTION_LABELS[item.action] || item.action.replace(/_/g, ' ')}</strong>:{' '}
-                                      {item.action === 'stage_change' ? (
-                                        <>
-                                          {item.oldValue ? (
-                                            <span className={`tone-pill ${getToneClass(item.oldValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.oldValue}</span>
-                                          ) : null}
-                                          {item.oldValue && ' → '}
-                                          <span className={`tone-pill ${getToneClass(item.newValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.newValue}</span>
-                                        </>
-                                      ) : item.action === 'owner_id_change' ? (
-                                        <>
-                                          <span className="timeline-old">
-                                            {teamMembers.find(m => String(m.id) === String(item.oldValue))?.name || `User ${item.oldValue}`}
-                                          </span>
-                                          {' → '}
-                                          <strong>
-                                            {teamMembers.find(m => String(m.id) === String(item.newValue))?.name || `User ${item.newValue}`}
-                                          </strong>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
-                                        </>
-                                      )}
-                                    </>
-                                  )}
-                                </p>
-                                {item.notes && <p className="timeline-notes">{item.notes}</p>}
+                          <>
+                            <div className="section-header u-margin-b-12 u-flex-between u-flex-center" style={{ flexShrink: 0 }}>
+                              <h4 className="u-margin-0 u-text-strong">Deal History</h4>
+                            </div>
+
+                            <div className="metrics-grid metrics-grid--compact u-grid-3 u-flex-gap-sm u-margin-b-24" style={{ flexShrink: 0 }}>
+                              <MetricCard label="W/L Ratio" value={Number(winLossRatio) ? Number(winLossRatio).toFixed(2) : winLossRatio} meta="Performance" accent="accent" />
+                              <MetricCard label="Won Value" value={wonCount === 0 ? '-' : formatCurrencyCompact(closedWonValue)} meta="Revenue" accent="alt" />
+                              <MetricCard label="Lost Value" value={lostCount === 0 ? '-' : formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
+                            </div>
+
+                            <div className="detail-section__body">
+                              <div className={`admin-table-wrap u-margin-b-16 ${dealHistoryExpanded ? 'deal-table-wrap--expanded' : ''}`}>
+                                <table className="admin-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Deal</th>
+                                      <th>Stage</th>
+                                      <th>Value</th>
+                                      {!isSr && <th>Owner</th>}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {displayDeals.map(deal => (
+                                      <tr key={deal.id}>
+                                        <td className="admin-table__name">{deal.name}</td>
+                                        <td>{deal.stage}</td>
+                                        <td>{formatCurrencyCompact(deal.value)}</td>
+                                        {!isSr && <td className="admin-table__muted">{deal.owner}</td>}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
                               </div>
                             </div>
-                          </div>
+                            {customerDeals.length > 5 && (
+                              <div className="collapse-bar" onClick={() => setDealHistoryExpanded(!dealHistoryExpanded)}>
+                                <svg 
+                                  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                                  style={{ transform: `rotate(${dealHistoryExpanded ? 180 : 0}deg)`, transition: 'transform 0.2s' }}
+                                >
+                                  <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                                <span>{dealHistoryExpanded ? 'Show less' : `Show all ${customerDeals.length} deals`}</span>
+                              </div>
+                            )}
+                          </>
                         )
-                      })}
+                      })()}
                     </div>
-                  </>
+
+                    <div className="detail-section">
+                      {(() => {
+                        const baseLogs = (customerDetail?.auditLogs || [])
+                          .filter(l => {
+                            if (l.action.startsWith('task_status:') || l.action === 'task_status_change' || l.action === 'value_change' || l.action === 'stage_change' || l.action === 'probability_change' || l.action === 'close_date_change') return false
+                            if (l.oldValue === l.newValue && l.oldValue !== null) return false
+                            if (isSr && l.action === 'owner_id_change') return false
+                            return true
+                          })
+
+                        const filteredLogs = baseLogs.filter(l => {
+                          if (logTypeFilter !== 'all' && l.action !== logTypeFilter) return false
+                          if (logDateFrom && new Date(l.changedAt) < new Date(logDateFrom + 'T00:00:00')) return false
+                          if (logDateTo && new Date(l.changedAt) > new Date(logDateTo + 'T23:59:59')) return false
+                          return true
+                        }).sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt))
+
+                        const displayLogs = activityLogExpanded ? filteredLogs : filteredLogs.slice(0, 7)
+
+                        return (
+                          <>
+                            <div className="section-header u-margin-b-12 u-flex-between u-flex-center" style={{ flexShrink: 0 }}>
+                              <h4 className="u-margin-0 u-text-strong">Activity Log</h4>
+                              <div className="log-filters u-flex-center-gap-8">
+                                <select 
+                                  value={logTypeFilter} 
+                                  onChange={(e) => setLogTypeFilter(e.target.value)}
+                                  className="admin-select u-fs-11"
+                                  style={{ padding: '4px 8px', height: 'auto', width: 'auto' }}
+                                >
+                                  <option value="all">All types</option>
+                                  <option value="deal_created">Deal created</option>
+                                  <option value="owner_id_change">Owner changed</option>
+                                  <option value="name_change">Name changed</option>
+                                  <option value="contact_created">Contact added</option>
+                                  <option value="update">Contact updated</option>
+                                  <option value="status_change">Status changed</option>
+                                  <option value="lost_reason">Lost reason</option>
+                                </select>
+                                <div className="u-flex-center-gap-4">
+                                  <span className="u-fs-10 u-text-muted u-font-700">FROM</span>
+                                  <input 
+                                    type="date" 
+                                    value={logDateFrom} 
+                                    onChange={(e) => setLogDateFrom(e.target.value)}
+                                    className="admin-search u-fs-11"
+                                    style={{ padding: '4px 8px', height: 'auto', minWidth: '110px', width: 'auto' }}
+                                  />
+                                </div>
+                                <div className="u-flex-center-gap-4">
+                                  <span className="u-fs-10 u-text-muted u-font-700">TO</span>
+                                  <input 
+                                    type="date" 
+                                    value={logDateTo} 
+                                    onChange={(e) => setLogDateTo(e.target.value)}
+                                    className="admin-search u-fs-11"
+                                    style={{ padding: '4px 8px', height: 'auto', minWidth: '110px', width: 'auto' }}
+                                  />
+                                </div>
+                                {(logTypeFilter !== 'all' || logDateFrom || logDateTo) && (
+                                  <button 
+                                    className="admin-action-btn u-pad-2-6 u-fs-10"
+                                    onClick={() => {
+                                      setLogTypeFilter('all')
+                                      setLogDateFrom('')
+                                      setLogDateTo('')
+                                    }}
+                                  >
+                                    Clear
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="detail-section__body">
+                              <div className={`timeline ${activityLogExpanded ? 'timeline--expanded' : ''}`}>
+                                {displayLogs.length === 0 ? (
+                                  <p className="u-pad-16 u-text-center u-text-muted u-fs-sm">No significant activity recorded.</p>
+                                ) : (
+                                  displayLogs.map((item, idx) => {
+                                    const linkedDeal = deals.find(d => d.id === item.entityId)
+                                    const linkedContact = (customerDetail?.contacts || []).find(c => c.id === item.entityId)
+                                    
+                                    const stageContext = (item.action === 'stage_change' || item.action === 'deal_created')
+                                      ? parseAuditValue(item.newValue)
+                                      : (item.stage || linkedDeal?.stage)
+                                    
+                                    const dotColor = item.entityType === 'contact' ? 'var(--text-muted)' : (STAGE_COLORS[stageContext] || 'var(--accent)')
+
+                                    const ACTION_LABELS = {
+                                      'stage_change': 'Stage changed',
+                                      'deal_created': 'Deal created',
+                                      'value_change': 'Value changed',
+                                      'owner_id_change': 'Owner changed',
+                                      'probability_change': 'Probability changed',
+                                      'status_change': 'Status changed',
+                                      'lost_reason': 'Lost reason',
+                                      'contact_created': 'Contact added',
+                                      'update': 'Contact updated'
+                                    }
+
+                                    return (
+                                      <div key={idx} className="timeline-item">
+                                        <div className="timeline-dot" style={{ backgroundColor: dotColor }}></div>
+                                        <div className="timeline-content">
+                                          <div className="timeline-header">
+                                            <span className="timeline-time">{formatDateTimePHT(item.changedAt)}</span>
+                                            {item.changedBy && (
+                                              <span className="timeline-user u-fs-10 u-text-muted u-ml-8">
+                                                by {item.changedBy}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="timeline-body">
+                                            <p>
+                                              {item.action === 'deal_created' ? (
+                                                <>
+                                                  <strong>Deal created</strong>: {linkedDeal ? <strong>{linkedDeal.name}</strong> : 'Deal'} – <span className={`tone-pill ${getToneClass(item.newValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.newValue}</span>
+                                                </>
+                                              ) : item.entityType === 'contact' ? (
+                                                renderContactDiff(item, linkedContact)
+                                              ) : (
+                                                <>
+                                                  <strong>{ACTION_LABELS[item.action] || item.action.replace(/_/g, ' ')}</strong>:{' '}
+                                                  {item.action === 'stage_change' ? (
+                                                    <>
+                                                      {item.oldValue ? (
+                                                        <span className={`tone-pill ${getToneClass(item.oldValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.oldValue}</span>
+                                                      ) : null}
+                                                      {item.oldValue && ' → '}
+                                                      <span className={`tone-pill ${getToneClass(item.newValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.newValue}</span>
+                                                    </>
+                                                  ) : item.action === 'owner_id_change' ? (
+                                                    <>
+                                                      <span className="timeline-old">
+                                                        {teamMembers.find(m => String(m.id) === String(item.oldValue))?.name || `User ${item.oldValue}`}
+                                                      </span>
+                                                      {' → '}
+                                                      <strong>
+                                                        {teamMembers.find(m => String(m.id) === String(item.newValue))?.name || `User ${item.newValue}`}
+                                                      </strong>
+                                                    </>
+                                                  ) : item.action === 'name_change' ? (
+                                                    <>
+                                                      <strong>deal name changed</strong> from <span className="timeline-old">{item.oldValue}</span> to <strong>{item.newValue}</strong>
+                                                    </>
+                                                  ) : (
+                                                    <>
+                                                      <span className="timeline-old">{item.oldValue}</span> → <strong>{item.newValue}</strong>
+                                                    </>
+                                                  )}
+                                                </>
+                                              )}
+                                            </p>
+                                            {item.notes && <p className="timeline-notes">{item.notes}</p>}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })
+                                )}
+                              </div>
+                            </div>
+                            {filteredLogs.length > 7 && (
+                              <div className="collapse-bar" onClick={() => setActivityLogExpanded(!activityLogExpanded)}>
+                                <svg 
+                                  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                                  style={{ transform: `rotate(${activityLogExpanded ? 180 : 0}deg)`, transition: 'transform 0.2s' }}
+                                >
+                                  <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                                <span>{activityLogExpanded ? 'Show less' : `Show all ${filteredLogs.length} entries`}</span>
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
+                    </div>
+                  </div>
                 )}
               </div>
             ) : (
               <EmptyState title="No customer selected" copy="Choose a customer from the registry to review their history." />
             )}
+
           </Panel>
         </div>
       </section>

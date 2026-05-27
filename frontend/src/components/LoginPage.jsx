@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { API_BASE, saveToken } from '../api'
+import { useTheme } from '../hooks/useTheme'
+import { IconMoon, IconSun, IconSparkle } from './Icons'
 
 const BRANCHES = [
   'Manila',
@@ -19,6 +21,12 @@ const BRANCHES = [
 ]
 
 export default function LoginPage({ onLogin }) {
+  const { theme, setTheme } = useTheme()
+  const themes = [
+    { id: 'dark', label: 'Dark', icon: IconMoon },
+    { id: 'light', label: 'Light', icon: IconSun },
+    { id: 'neon', label: 'Neon', icon: IconSparkle },
+  ]
   const [form, setForm] = useState({ 
     username: '', 
     password: '', 
@@ -168,6 +176,23 @@ export default function LoginPage({ onLogin }) {
               ) : 'Sign in'}
             </button>
           </form>
+
+          <div className="login-theme-toggle">
+            <p className="login-theme-label">Theme</p>
+            <div className="login-theme-buttons">
+              {themes.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`login-theme-btn ${theme === t.id ? 'is-active' : ''}`}
+                  onClick={() => setTheme(t.id)}
+                  title={`Switch to ${t.label} theme`}
+                >
+                  <span className="login-theme-icon"><t.icon /></span>
+                </button>
+              ))}
+            </div>
+          </div>
 
           <p className="login-footer">© {new Date().getFullYear()} TDT Powersteel. All rights reserved.</p>
         </div>

@@ -1,6 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
 
 :root {
+  color-scheme: dark;
+  /* ═══════════════════════════════════════════════════════════════
+     DARK THEME (Default)
+     ═══════════════════════════════════════════════════════════════ */
   --bg: #1a1a2e;
   --bg-app: #0a0e17;
   --bg-card: #16213e;
@@ -58,6 +62,73 @@
 
   /* Gap */
   --gap-fluid: clamp(12px, 2vw, 24px);
+  --panel-bg: linear-gradient(135deg, rgba(22,33,62,0.8), rgba(22,33,62,0.6));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LIGHT THEME (White, Orange, Black)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  color-scheme: only light;
+  --bg: #f4f5f7;
+  --bg-app: #d1d5db;
+  --bg-card: #f4f5f7;
+  --bg-card-alt: #e9ecef;
+  --bg-surface: #dee2e6;
+  --bg-input: #f8f9fa;
+  --bg-soft: #e9ecef;
+  --accent: #ff9800;
+  --accent-strong: #e65100;
+  --accent-soft: rgba(255, 152, 0, 0.12);
+  --text-strong: #111827;
+  --text: #374151;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --border: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.2);
+  --positive: #059669;
+  --warning: #ea580c;
+  --caution: #d97706;
+  --alert: #dc2626;
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-strong: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --panel-bg: #f4f5f7;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NEON THEME (Deep Purple with Vibrant Neon Accents)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="neon"] {
+   color-scheme: dark;
+   --bg: #0f0a1a;
+   --bg-app: #0a0612;
+   --bg-card: #1a1030;
+   --bg-card-alt: #2a1a45;
+   --bg-surface: #151025;
+   --bg-input: #1a1030;
+   --bg-soft: #120d22;
+   --accent: #a855f7;
+   --accent-strong: #c084fc;
+   --accent-soft: rgba(168, 85, 247, 0.18);
+   --text-strong: #f0eaff;
+   --text: #ddd6fe;
+   --text-secondary: #c4b5fd;
+   --text-muted: #9a8bbf;
+   --border: rgba(168, 85, 247, 0.2);
+   --border-strong: rgba(168, 85, 247, 0.35);
+   --positive: #4ade80;
+   --warning: #c084fc;
+   --caution: #facc15;
+   --alert: #f472b6;
+   --shadow-soft: 0 0 10px rgba(168, 85, 247, 0.15);
+   --shadow-strong: 0 0 20px rgba(168, 85, 247, 0.25);
+   /* Neon Glow Effects */
+   --glow-xs: 0 0 8px rgba(168, 85, 247, 0.3);
+   --glow-sm: 0 0 12px rgba(168, 85, 247, 0.4);
+   --glow-md: 0 0 16px rgba(168, 85, 247, 0.5);
+   --glow-lg: 0 0 24px rgba(168, 85, 247, 0.6);
+   --glow-xl: 0 0 32px rgba(168, 85, 247, 0.7);
+   --panel-bg: linear-gradient(135deg, rgba(26,16,48,0.85), rgba(26,16,48,0.65));
 }
 
 *,
@@ -87,16 +158,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 120px 120px, 120px 120px;
-  opacity: 0.38;
+/* Light theme background */
+[data-theme="light"] body {
+  background:
+    radial-gradient(circle at top left, rgba(255, 152, 0, 0.1), transparent 30%),
+    linear-gradient(180deg, var(--bg-app) 0%, #d1d5db 100%);
+}
+
+/* Neon theme background */
+[data-theme="neon"] body {
+  background:
+    radial-gradient(circle at top left, rgba(168, 85, 247, 0.18), transparent 26%),
+    radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.08), transparent 34%),
+    linear-gradient(180deg, #151025 0%, #0f0a1a 100%);
 }
 
 button,
@@ -143,6 +217,28 @@ p {
   background: rgba(255, 181, 71, 0.9);
 }
 
+/* ── Theme Switching ────────────────────────────────────────── */
+
+/* Disable all transitions during theme switching to prevent flashes */
+html.is-theme-switching *,
+html.is-theme-switching *::before,
+html.is-theme-switching *::after {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
+}
+
+/* Light theme selection */
+[data-theme="light"] ::selection {
+  color: #ffffff;
+  background: rgba(255, 152, 0, 0.8);
+}
+
+/* Neon theme selection */
+[data-theme="neon"] ::selection {
+  color: #0f0a1a;
+  background: rgba(168, 85, 247, 0.9);
+}
+
 @keyframes revealUp {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -155,6 +251,6 @@ p {
 }
 
 /* Priority Signaling */
-.is-priority-high { border-left-color: #fb7185 !important; }
-.is-priority-medium { border-left-color: #fbbf24 !important; }
-.is-priority-low { border-left-color: #34d399 !important; }
+.is-priority-high { border-left-color: var(--alert) !important; }
+.is-priority-medium { border-left-color: var(--caution) !important; }
+.is-priority-low { border-left-color: var(--positive) !important; }
