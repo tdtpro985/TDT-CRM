@@ -7,6 +7,7 @@
   grid-template-columns: 0 1fr;
   transition: grid-template-columns 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   background: var(--bg-app);
+  position: relative;
 }
 
 .crm-shell.sidebar-is-open {
@@ -34,8 +35,15 @@
   will-change: transform, opacity;
 }
 
+[data-theme="dark"] .sidebar {
+  background: linear-gradient(160deg, rgba(255,255,255,0.03) 0%, transparent 60%), var(--bg-card);
+}
+
+[data-theme="light"] .sidebar {
+  background: #f8f9fa; /* slightly different from page bg to create chrome feel */
+}
+
 .sidebar.is-open {
-  transform: translateX(0);
   visibility: visible;
   opacity: 1;
 }
@@ -144,15 +152,20 @@
 }
 
 .brand-branch-badge {
-  padding: 4px 10px;
-  background: rgba(255, 152, 0, 0.1);
-  border: 1px solid rgba(255, 152, 0, 0.2);
-  color: var(--accent-strong);
-  font-size: var(--fs-xs);
-  font-weight: 700;
-  border-radius: var(--r-full);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+   padding: 4px 10px;
+   background: rgba(255, 152, 0, 0.1);
+   border: 1px solid rgba(255, 152, 0, 0.2);
+   color: var(--accent-strong);
+   font-size: var(--fs-xs);
+   font-weight: 700;
+   border-radius: var(--r-full);
+   text-transform: uppercase;
+   letter-spacing: 0.05em;
+}
+
+[data-theme="neon"] .brand-branch-badge {
+   background: rgba(168, 85, 247, 0.15);
+   border-color: rgba(168, 85, 247, 0.3);
 }
 
 [data-theme="neon"] .brand-branch-badge {
@@ -164,6 +177,11 @@
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
   color: var(--text-muted);
+}
+
+[data-theme="light"] .brand-branch-badge.is-role {
+  background: rgba(0,0,0,0.06);
+  border-color: rgba(0,0,0,0.12);
 }
 
 .brand-logo {
@@ -240,6 +258,10 @@
   outline: none;
 }
 
+[data-theme="dark"] .nav-item:hover:not(.is-active) {
+   background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
+}
+
 [data-theme="neon"] .nav-item:hover:not(.is-active),
 [data-theme="neon"] .nav-item:focus-visible:not(.is-active) {
   background: linear-gradient(135deg, rgba(168, 85, 247, 0.18), rgba(255, 255, 255, 0.04));
@@ -287,6 +309,10 @@
   font-weight: 700;
   min-width: 24px;
   text-align: center;
+}
+
+[data-theme="light"] .nav-item__badge {
+  background: rgba(0,0,0,0.08);
 }
 
 .sidebar-nav-section {
@@ -356,6 +382,11 @@
   border: 1px solid var(--border);
 }
 
+[data-theme="light"] .sidebar-card {
+  background: var(--bg-card);
+  border-color: rgba(0,0,0,0.1);
+}
+
 .sidebar-card strong {
   display: block;
   color: var(--text-strong);
@@ -409,6 +440,10 @@
   overflow: hidden;
   border-bottom: 1px solid var(--border-strong);
   background: var(--bg-app);
+}
+
+[data-theme="light"] .top-bar {
+  box-shadow: var(--shadow-soft);
 }
 
 .top-bar-title {
@@ -471,6 +506,12 @@
   border-bottom: 1px solid var(--border-strong);
 }
 
+[data-theme="light"] .notice-bar {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-soft);
+}
+
 .notice-bar strong {
   color: var(--accent-strong);
   font-size: var(--fs-xs);
@@ -509,6 +550,13 @@
   -webkit-backdrop-filter: none;
 }
 
+@media (min-width: 769px) {
+  .sidebar-overlay.is-open {
+    pointer-events: none;
+    opacity: 0;
+  }
+}
+
 .sidebar-hover-trigger {
   position: fixed;
   top: 0;
@@ -539,6 +587,11 @@
   background: linear-gradient(to bottom, transparent, var(--accent), transparent);
   opacity: 1;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="light"] .sidebar-hover-trigger::before {
+  opacity: 0.6;
+  width: 3px;
 }
 
 .sidebar-hover-trigger::after {
@@ -586,9 +639,25 @@
 }
 
 @media (max-width: 768px) {
-  .hamburger-btn {
-    display: flex;
-  }
+.hamburger-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-strong);
+  cursor: pointer;
+  z-index: 500;
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .hamburger-btn {
+  background: var(--bg-card);
+  border-color: rgba(0,0,0,0.1);
+}
 }
 
 .hamburger-btn span {
