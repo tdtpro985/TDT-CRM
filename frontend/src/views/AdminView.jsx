@@ -4,8 +4,12 @@ import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
 import { apiFetch } from '../api'
 import { REGION_BRANCHES, ITEMS_PER_PAGE } from '../constants'
+<<<<<<< Updated upstream
 import { getPaginatedData } from '../utils'
 import { IconSearch } from '../components/Icons'
+=======
+import { getPaginatedData, isValidEmail } from '../utils'
+>>>>>>> Stashed changes
 
 import Pagination from '../components/Pagination'
 
@@ -13,7 +17,7 @@ const ROLES = ['Sales Rep', 'Sales Manager', 'Admin']
 
 const EMPTY_FORM  = { username: '', password: '', name: '', email: '', role: 'Sales Rep', branch: '' }
 
-export default function AdminView({ currentUser, showToast }) {
+export default function AdminView({ currentUser, showToast, onLoadingChange }) {
   const BRANCHES = useMemo(() => Object.values(REGION_BRANCHES).flat().sort(), [])
   const PAGE_SIZE = 5
   const [users, setUsers]             = useState([])
@@ -26,6 +30,7 @@ export default function AdminView({ currentUser, showToast }) {
   const [showForm, setShowForm]       = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [formError, setFormError]     = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [saving, setSaving]           = useState(false)
   const [importing, setImporting]     = useState(false)
   const [importResult, setImportResult] = useState(null)
@@ -33,11 +38,13 @@ export default function AdminView({ currentUser, showToast }) {
 
   async function loadUsers() {
     setLoading(true)
+    onLoadingChange?.(true)
     try {
       const res = await apiFetch(`/api/admin/users`)
       if (res.ok) setUsers(await res.json())
     } finally {
       setLoading(false)
+      onLoadingChange?.(false)
     }
   }
 
@@ -81,21 +88,25 @@ export default function AdminView({ currentUser, showToast }) {
     setShowForm(false)
     setEditingId(null)
     setFormError('')
+    setFieldErrors({})
   }
 
   function handleFormChange(e) {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }))
+    setFieldErrors((prev) => ({ ...prev, [e.target.name]: '' }))
     setFormError('')
   }
 
   async function handleSave(e) {
     e.preventDefault()
-    if (!form.name.trim() || !form.username.trim() || !form.branch) {
-      setFormError('Name, username, and branch are required.')
-      return
-    }
-    if (!editingId && !form.password.trim()) {
-      setFormError('Password is required for new accounts.')
+    const newFieldErrors = {}
+    if (!form.name.trim()) newFieldErrors.name = 'Full name is required'
+    if (!form.username.trim()) newFieldErrors.username = 'Username is required'
+    if (!editingId && !form.password.trim()) newFieldErrors.password = 'Password is required'
+    if (form.email && !isValidEmail(form.email)) newFieldErrors.email = 'Invalid email address'
+    if (!form.branch) newFieldErrors.branch = 'Branch is required'
+    if (Object.keys(newFieldErrors).length > 0) {
+      setFieldErrors(newFieldErrors)
       return
     }
     setSaving(true)
@@ -163,19 +174,23 @@ export default function AdminView({ currentUser, showToast }) {
           <div className="admin-form-grid">
             <label className="field">
               <span>Full name</span>
-              <input name="name" value={form.name} onChange={handleFormChange} placeholder="e.g. Juan dela Cruz" />
+              <input name="name" value={form.name} onChange={handleFormChange} placeholder="e.g. Juan dela Cruz" className={fieldErrors.name ? 'u-border-alert' : ''} />
+              {fieldErrors.name && <p className="u-fs-10 u-alert u-margin-t-4">{fieldErrors.name}</p>}
             </label>
             <label className="field">
               <span>Username</span>
-              <input name="username" value={form.username} onChange={handleFormChange} placeholder="e.g. manila.tdtpowersteel" />
+              <input name="username" value={form.username} onChange={handleFormChange} placeholder="e.g. manila.tdtpowersteel" className={fieldErrors.username ? 'u-border-alert' : ''} />
+              {fieldErrors.username && <p className="u-fs-10 u-alert u-margin-t-4">{fieldErrors.username}</p>}
             </label>
             <label className="field">
               <span>{editingId ? 'New password (leave blank to keep)' : 'Password'}</span>
-              <input name="password" type="password" value={form.password} onChange={handleFormChange} placeholder={editingId ? 'Leave blank to keep current' : 'Set a strong password'} />
+              <input name="password" type="password" value={form.password} onChange={handleFormChange} placeholder={editingId ? 'Leave blank to keep current' : 'Set a strong password'} className={fieldErrors.password ? 'u-border-alert' : ''} />
+              {fieldErrors.password && <p className="u-fs-10 u-alert u-margin-t-4">{fieldErrors.password}</p>}
             </label>
             <label className="field">
               <span>Email</span>
-              <input name="email" type="email" value={form.email} onChange={handleFormChange} placeholder="branch@tdt.com" />
+              <input name="email" value={form.email} onChange={handleFormChange} placeholder="branch@tdt.com" className={fieldErrors.email ? 'u-border-alert' : ''} />
+              {fieldErrors.email && <p className="u-fs-10 u-alert u-margin-t-4">{fieldErrors.email}</p>}
             </label>
             <label className="field">
               <span>Role</span>
@@ -185,10 +200,11 @@ export default function AdminView({ currentUser, showToast }) {
             </label>
             <label className="field">
               <span>Branch</span>
-              <select name="branch" value={form.branch} onChange={handleFormChange}>
+              <select name="branch" value={form.branch} onChange={handleFormChange} className={fieldErrors.branch ? 'u-border-alert' : ''}>
                 <option value="" disabled>Select branch…</option>
                 {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
+              {fieldErrors.branch && <p className="u-fs-10 u-alert u-margin-t-4">{fieldErrors.branch}</p>}
             </label>
           </div>
 
@@ -285,8 +301,31 @@ export default function AdminView({ currentUser, showToast }) {
           </div>
 
           {/* Users Table */}
-          {loading ? (
-            <p className="u-pad-32 u-text-muted">Loading accounts…</p>
+          {importing ? (
+            <div className="u-pad-32 u-text-center u-text-muted">
+              <p style={{ fontWeight: 600, marginBottom: 6 }}>Importing Excel file…</p>
+              <p style={{ fontSize: 'var(--fs-sm)' }}>This may take a moment. Please wait.</p>
+            </div>
+          ) : loading ? (
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr><th>Name</th><th>Username</th><th>Branch</th><th>Role</th><th>Email</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      <td><div className="sk sk--line" style={{ width: '130px' }} /></td>
+                      <td><div className="sk sk--line" style={{ width: '110px' }} /></td>
+                      <td><div className="sk sk--line" style={{ width: '70px' }} /></td>
+                      <td><div className="sk sk--pill" /></td>
+                      <td><div className="sk sk--line" style={{ width: '120px' }} /></td>
+                      <td><div className="sk sk--line" style={{ width: '55px' }} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : filteredUsers.length === 0 ? (
             <div className="admin-empty">
               <p>No accounts match your filter.</p>

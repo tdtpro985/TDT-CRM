@@ -2037,46 +2037,55 @@ def admin_analytics():
         deals_per_branch = rows_to_list(cursor)
 
         # Top SRs — leads, converted, deals won
+        # Uses owner_name as fallback for Excel-imported leads where owner_id is NULL
         if branch_filter:
             cursor.execute('''
-                SELECT t.name, t.branch,
+                SELECT COALESCE(t.name, l.owner_name)   AS name,
+                       COALESCE(t.branch, l.branch)     AS branch,
                        COUNT(DISTINCT l.id)                                            AS leads_count,
                        COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
                        COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
-                FROM team t
-                JOIN leads l ON l.owner_id = t.id
+                FROM leads l
+                LEFT JOIN team t ON l.owner_id = t.id
                 LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE t.role IN ('Sales Representative', 'Sales Rep') AND t.branch = %s
-                GROUP BY t.id, t.name, t.branch
+                WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
+                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Sales Rep'))
+                  AND LOWER(TRIM(l.branch)) = LOWER(TRIM(%s))
+                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
                 ORDER BY leads_count DESC
                 LIMIT 20
             ''', (branch_filter,))
         elif region_branches:
             in_ph = ', '.join(['%s'] * len(region_branches))
             cursor.execute(f'''
-                SELECT t.name, t.branch,
+                SELECT COALESCE(t.name, l.owner_name)   AS name,
+                       COALESCE(t.branch, l.branch)     AS branch,
                        COUNT(DISTINCT l.id)                                            AS leads_count,
                        COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
                        COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
-                FROM team t
-                JOIN leads l ON l.owner_id = t.id
+                FROM leads l
+                LEFT JOIN team t ON l.owner_id = t.id
                 LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE t.role IN ('Sales Representative', 'Sales Rep') AND t.branch IN ({in_ph})
-                GROUP BY t.id, t.name, t.branch
+                WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
+                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Sales Rep'))
+                  AND LOWER(TRIM(l.branch)) IN ({in_ph})
+                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
                 ORDER BY leads_count DESC
                 LIMIT 20
             ''', region_branches)
         else:
             cursor.execute('''
-                SELECT t.name, t.branch,
+                SELECT COALESCE(t.name, l.owner_name)   AS name,
+                       COALESCE(t.branch, l.branch)     AS branch,
                        COUNT(DISTINCT l.id)                                            AS leads_count,
                        COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
                        COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
-                FROM team t
-                JOIN leads l ON l.owner_id = t.id
+                FROM leads l
+                LEFT JOIN team t ON l.owner_id = t.id
                 LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE t.role IN ('Sales Representative', 'Sales Rep')
-                GROUP BY t.id, t.name, t.branch
+                WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
+                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Sales Rep'))
+                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
                 ORDER BY leads_count DESC
                 LIMIT 20
             ''')
