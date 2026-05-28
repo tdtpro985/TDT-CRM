@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { apiFetch } from '../api'
+import { apiFetch, API_BASE } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
+import { celebrateWon, celebrateLost } from '../celebration'
 
 const CURRENT_DATE = getTodayISO()
 
@@ -20,6 +21,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   const [loading, setLoading] = useState(true)
 
   const abortControllerRef = useRef(null)
+  const audioRef = useRef(null)
+  const musicRef = useRef({ won: null, lost: null })
 
   const getSignal = useCallback(() => {
     if (abortControllerRef.current) {
@@ -135,6 +138,23 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     } catch { /* best-effort background refresh */ }
   }
 
+  function playCelebrationSound(outcome) {
+    const entry = musicRef.current[outcome]
+    if (!entry?.url) return
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current = null
+    }
+    const audio = new Audio(
+      entry.url.startsWith('http') ? entry.url : `${API_BASE}${entry.url}`
+    )
+    audioRef.current = audio
+    audio.play().catch(() => {})
+    audio.addEventListener('ended', () => {
+      if (audioRef.current === audio) audioRef.current = null
+    })
+  }
+
   async function loadAll() {
     if (!currentUser) return
     setLoading(true)
@@ -149,13 +169,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         apiFetch(`/api/activities${buildQuery()}`, { signal }),
         apiFetch(`/api/team${buildQuery()}`, { signal }),
         apiFetch(`/api/deal-contacts`, { signal }),
+        apiFetch(`/api/celebration-music`, { signal }),
       ])
 
       if (responses.some(r => !r.ok)) {
         throw new Error('API or Database error')
       }
 
-      const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes, dealContactsRes] = responses
+      const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes, dealContactsRes, musicRes] = responses
 
       const fetchedLeads = await leadsRes.json()
       const fetchedCompanies = await companiesRes.json()
@@ -164,6 +185,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       const fetchedDeals = await dealsRes.json()
       const fetchedActivities = await activitiesRes.json()
       const fetchedDealContacts = await dealContactsRes.json()
+      const fetchedMusic = await musicRes.json()
 
       const dcm = {}
       fetchedDealContacts.forEach((dc) => {
@@ -171,6 +193,10 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         dcm[dc.deal_id].push(dc)
       })
       setDealContactMap(dcm)
+
+      const musicMap = { won: null, lost: null }
+      fetchedMusic.forEach((e) => { musicMap[e.outcome] = e })
+      musicRef.current = musicMap
 
       setLeads(fetchedLeads)
       setCompanies(fetchedCompanies)
@@ -595,6 +621,13 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         throw new Error(errData.error || `Server error: ${res.status}`)
       }
       showToast(`Deal stage updated to ${nextStage}`)
+      if (nextStage === 'Closed Won') {
+        playCelebrationSound('won')
+        celebrateWon()
+      } else if (nextStage === 'Closed Lost') {
+        playCelebrationSound('lost')
+        celebrateLost()
+      }
       await Promise.all([fetchDeals(), fetchCustomers()])
     } catch (err) {
       setDeals((current) => current.map((d) => (d.id === dealId ? snapshot : d)))

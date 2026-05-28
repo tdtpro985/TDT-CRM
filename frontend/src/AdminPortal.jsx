@@ -6,6 +6,7 @@ import AdminLoginPage from './components/AdminLoginPage'
 import AdminView from './views/AdminView'
 import AdminAnalyticsView from './views/AdminAnalyticsView'
 import AdminProfileView from './views/AdminProfileView'
+import AdminCelebrationMusicView from './views/AdminCelebrationMusicView'
 import { IconCheck } from './components/Icons'
 
 const REGION_BRANCHES = {
@@ -15,15 +16,17 @@ const REGION_BRANCHES = {
 }
 
 const NAV = [
-  { id: 'analytics', label: 'Analytics',          description: 'Branch stats and system overview' },
-  { id: 'accounts',  label: 'Account Management', description: 'Create and manage branch accounts' },
-  { id: 'profile',   label: 'Profile Settings',   description: 'Change your username and password' },
+  { id: 'analytics',          label: 'Analytics',          description: 'Branch stats and system overview' },
+  { id: 'accounts',           label: 'Account Management', description: 'Create and manage branch accounts' },
+  { id: 'celebration-music',  label: 'Celebration Music',  description: 'Configure win/lost sounds' },
+  { id: 'profile',            label: 'Profile Settings',   description: 'Change your username and password' },
 ]
 
 const VIEW_META = {
-  analytics: { eyebrow: 'System administration', title: 'Analytics' },
-  accounts:  { eyebrow: 'System administration', title: 'Account Management' },
-  profile:   { eyebrow: 'System administration', title: 'Profile Settings' },
+  analytics:         { eyebrow: 'System administration', title: 'Analytics' },
+  accounts:          { eyebrow: 'System administration', title: 'Account Management' },
+  'celebration-music': { eyebrow: 'System administration', title: 'Celebration Music' },
+  profile:           { eyebrow: 'System administration', title: 'Profile Settings' },
 }
 
 export default function AdminPortal() {
@@ -89,6 +92,13 @@ export default function AdminPortal() {
             onClick={() => setSidebarOpen(false)}
           >
             Analytics & Audits
+          </Link>
+          <Link 
+            to="/admin/celebration-music" 
+            className={`nav-item ${location.pathname.startsWith('/admin/celebration-music') ? 'is-active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            Celebration Music
           </Link>
 
           <div className="sidebar-nav-section">
@@ -158,6 +168,7 @@ export default function AdminPortal() {
             <Route path="/" element={<Navigate to="/admin/analytics" replace />} />
             <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} />} />
             <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} />} />
+            <Route path="/celebration-music" element={<AdminCelebrationMusicView showToast={showToast} />} />
             <Route path="/profile" element={<AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />} />
             <Route path="*" element={<Navigate to="/admin/analytics" replace />} />
           </Routes>
