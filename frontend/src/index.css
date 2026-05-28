@@ -27,6 +27,7 @@
   --alert: #fb7185;
   --shadow-soft: none;
   --shadow-strong: none;
+  --glow-md: 0 0 16px rgba(255, 152, 0, 0.35);
   --font-body: 'Manrope', 'Segoe UI', sans-serif;
   --font-heading: 'Sora', 'Segoe UI', sans-serif;
 
@@ -70,29 +71,31 @@
    ═══════════════════════════════════════════════════════════════ */
 [data-theme="light"] {
   color-scheme: only light;
-  --bg: #f4f5f7;
-  --bg-app: #d1d5db;
-  --bg-card: #f4f5f7;
-  --bg-card-alt: #e9ecef;
-  --bg-surface: #dee2e6;
-  --bg-input: #f8f9fa;
-  --bg-soft: #e9ecef;
+  --bg: #e8e2d5;
+  --bg-app: #d5ccc0;
+  --bg-card: #faf8f5;
+  --bg-card-alt: #faf8f5;
+  --bg-surface: #faf8f5;
+  --bg-input: #fdfcf9;
+  --bg-soft: #faf8f5;
   --accent: #ff9800;
-  --accent-strong: #e65100;
+  --accent-strong: #f57c00;
   --accent-soft: rgba(255, 152, 0, 0.12);
-  --text-strong: #111827;
-  --text: #374151;
-  --text-secondary: #4b5563;
-  --text-muted: #6b7280;
+  --text-strong: #1a1a1a;
+  --text: #3a3a3a;
+  --text-secondary: #5a5a5a;
+  --text-muted: #7a7a7a;
   --border: rgba(0, 0, 0, 0.12);
-  --border-strong: rgba(0, 0, 0, 0.2);
-  --positive: #059669;
-  --warning: #ea580c;
-  --caution: #d97706;
-  --alert: #dc2626;
-  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-strong: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --panel-bg: #f4f5f7;
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --positive: #10b981;
+  --warning: #f59e0b;
+  --caution: #fbbf24;
+  --alert: #ef4444;
+  --shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.06);
+  --shadow-strong: 0 4px 8px -1px rgba(0, 0, 0, 0.1);
+  --glow-md: 0 0 16px rgba(255, 152, 0, 0.3);
+  --glow-lg: 0 0 24px rgba(255, 152, 0, 0.4);
+  --panel-bg: #faf8f5;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -102,11 +105,11 @@
    color-scheme: dark;
    --bg: #0f0a1a;
    --bg-app: #0a0612;
-   --bg-card: #1a1030;
-   --bg-card-alt: #2a1a45;
-   --bg-surface: #151025;
-   --bg-input: #1a1030;
-   --bg-soft: #120d22;
+   --bg-card: #150d24;
+   --bg-card-alt: #1a1130;
+   --bg-surface: #0f0a1a;
+   --bg-input: #150d24;
+   --bg-soft: #1a1130;
    --accent: #a855f7;
    --accent-strong: #c084fc;
    --accent-soft: rgba(168, 85, 247, 0.18);
@@ -128,7 +131,7 @@
    --glow-md: 0 0 16px rgba(168, 85, 247, 0.5);
    --glow-lg: 0 0 24px rgba(168, 85, 247, 0.6);
    --glow-xl: 0 0 32px rgba(168, 85, 247, 0.7);
-   --panel-bg: linear-gradient(135deg, rgba(26,16,48,0.85), rgba(26,16,48,0.65));
+   --panel-bg: linear-gradient(135deg, rgba(21, 13, 36, 0.85), rgba(21, 13, 36, 0.65));
 }
 
 *,
@@ -162,7 +165,7 @@ body {
 [data-theme="light"] body {
   background:
     radial-gradient(circle at top left, rgba(255, 152, 0, 0.1), transparent 30%),
-    linear-gradient(180deg, var(--bg-app) 0%, #d1d5db 100%);
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-app) 100%);
 }
 
 /* Neon theme background */
@@ -171,6 +174,26 @@ body {
     radial-gradient(circle at top left, rgba(168, 85, 247, 0.18), transparent 26%),
     radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.08), transparent 34%),
     linear-gradient(180deg, #151025 0%, #0f0a1a 100%);
+}
+
+/* Disable transitions during theme switching to prevent flashes */
+html.is-theme-switching *,
+html.is-theme-switching *::before,
+html.is-theme-switching *::after {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px;
+  opacity: 0.38;
 }
 
 button,

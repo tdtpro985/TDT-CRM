@@ -29,6 +29,10 @@ const VIEW_META = {
   profile:           { eyebrow: 'System administration', title: 'Profile Settings' },
 }
 
+const IconArrowLeft = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+)
+
 export default function AdminPortal() {
   const location = useLocation()
   // Ensure we get the correct active view based on the path (e.g. /admin/analytics)
@@ -134,7 +138,9 @@ export default function AdminPortal() {
             <span className="sidebar-user__name">{adminUser.name}</span>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
-          <Link to="/" className="admin-back-link sidebar-back-link">← Go to Branch Portal</Link>
+          <Link to="/" className="admin-back-link sidebar-back-link u-flex-center-gap-sm">
+            <IconArrowLeft /> Go to Branch Portal
+          </Link>
         </div>
       </aside>
 

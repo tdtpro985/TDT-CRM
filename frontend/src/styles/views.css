@@ -915,12 +915,14 @@
 }
 
 .activity-card.is-highlighted {
-   box-shadow: 0 0 0 2px var(--accent), var(--glow-md);
-   transition: box-shadow 0.3s ease;
+   outline: 2px solid var(--accent);
+   box-shadow: var(--glow-md);
+   transition: box-shadow 0.3s ease, outline 0.3s ease;
 }
 
 [data-theme="neon"] .activity-card.is-highlighted {
-   box-shadow: 0 0 0 2px var(--accent), var(--glow-lg);
+   outline: 2px solid var(--accent);
+   box-shadow: var(--glow-lg);
 }
 
 .activity-card__deal-line {
