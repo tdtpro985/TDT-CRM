@@ -2,6 +2,9 @@
 
 :root {
   color-scheme: dark;
+  /* ═══════════════════════════════════════════════════════════════
+     DARK THEME (Default)
+     ═══════════════════════════════════════════════════════════════ */
   --bg: #1a1a2e;
   --bg-app: #0a0e17;
   --bg-card: #16213e;
@@ -155,10 +158,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   THEME BACKGROUND OVERRIDES
-   ═══════════════════════════════════════════════════════════════ */
-
 /* Light theme background */
 [data-theme="light"] body {
   background:
@@ -238,6 +237,16 @@ p {
   background: rgba(255, 181, 71, 0.9);
 }
 
+/* ── Theme Switching ────────────────────────────────────────── */
+
+/* Disable all transitions during theme switching to prevent flashes */
+html.is-theme-switching *,
+html.is-theme-switching *::before,
+html.is-theme-switching *::after {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
+}
+
 /* Light theme selection */
 [data-theme="light"] ::selection {
   color: #ffffff;
@@ -262,6 +271,6 @@ p {
 }
 
 /* Priority Signaling */
-.is-priority-high { border-left-color: #fb7185 !important; }
-.is-priority-medium { border-left-color: #fbbf24 !important; }
-.is-priority-low { border-left-color: #34d399 !important; }
+.is-priority-high { border-left-color: var(--alert) !important; }
+.is-priority-medium { border-left-color: var(--caution) !important; }
+.is-priority-low { border-left-color: var(--positive) !important; }

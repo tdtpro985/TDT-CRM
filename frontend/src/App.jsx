@@ -27,10 +27,7 @@ import PageSkeleton  from './components/SkeletonLoader'
 import LeadForm      from './components/forms/LeadForm'
 import TaskForm      from './components/forms/TaskForm'
 import ThemeToggle   from './components/ThemeToggle'
-
-const IconCheck = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-)
+import { IconCheck } from './components/Icons'
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -50,8 +47,9 @@ export default function App() {
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarLocked, setSidebarLocked] = useState(false)
   const sidebarCloseTimer = useRef(null)
-
+  
   // Theme management
   const { theme, setTheme } = useTheme()
 
@@ -138,11 +136,11 @@ export default function App() {
     .join(' | '), [stageSummary])
 
   const topKpis = useMemo(() => [
-    { label: 'New Customers',   value: newLeads.length.toLocaleString(),    meta: 'Customers added this month',                                   accent: 'accent'  },
-    { label: 'Active Deals',    value: activeDeals.length.toLocaleString(), meta: 'Open opportunities being worked',                              accent: 'surface' },
-    { label: 'Deals per Stage', value: `${stageSummary.filter((s) => s.count > 0).length} stages`, meta: stageBreakdown,                         accent: 'alt'     },
-    { label: 'Conversion Rate', value: `${conversionRate}%`,                meta: `${convertedLeads.length} of ${leads.length} customers converted`,  accent: 'surface' },
-    { label: 'Pipeline Value',  value: formatCurrencyCompact(pipelineValue), meta: 'Expected revenue across active deals',                        accent: 'accent'  },
+    { label: 'New Customers',   value: newLeads.length.toLocaleString(),    meta: 'Customers added this month',                                   accent: 'accent',  route: '/database'  },
+    { label: 'Active Deals',    value: activeDeals.length.toLocaleString(), meta: 'Open opportunities being worked',                              accent: 'surface', route: '/pipeline'  },
+    { label: 'Deals per Stage', value: `${stageSummary.filter((s) => s.count > 0).length} stages`, meta: stageBreakdown,                         accent: 'alt',     route: '/pipeline'  },
+    { label: 'Conversion Rate', value: `${conversionRate}%`,                meta: `${convertedLeads.length} of ${leads.length} customers converted`,  accent: 'surface', route: '/database'  },
+    { label: 'Pipeline Value',  value: formatCurrencyCompact(pipelineValue), meta: 'Expected revenue across active deals',                        accent: 'accent',  route: '/pipeline'  },
   ], [newLeads.length, activeDeals.length, stageSummary, stageBreakdown, conversionRate, convertedLeads.length, leads.length, pipelineValue])
 
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
@@ -189,7 +187,9 @@ export default function App() {
     setShowLeadForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId]?.title || viewId} is active.`)
-    setSidebarOpen(false)
+    if (!sidebarLocked) {
+      setSidebarOpen(false)
+    }
   }
 
   function handlePrimaryAction() {
@@ -242,6 +242,7 @@ export default function App() {
   }
 
   const closeSidebarWithDelay = () => {
+    if (sidebarLocked) return
     sidebarCloseTimer.current = setTimeout(() => {
       setSidebarOpen(false)
     }, 100)
@@ -345,7 +346,7 @@ export default function App() {
 
   return (
     <div className={`crm-shell ${sidebarOpen ? 'sidebar-is-open' : ''}`} data-theme={theme}>
-      {/* Invisible hover trigger zone for sidebar */}
+      {/* Combined Trigger: Visible at viewport edge when closed, at sidebar edge when open */}
       <div 
         className="sidebar-hover-trigger" 
         onMouseEnter={openSidebar}
