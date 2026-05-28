@@ -2429,6 +2429,107 @@ def admin_delete_user(user_id):
         close_connection(conn)
 
 
+# ─── Excel Customer Import ────────────────────────────────────────────────────
+
+@app.route('/api/admin/import/customers', methods=['POST'])
+@jwt_required()
+@admin_required
+def import_customers():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'Only .xlsx and .xls files are accepted'}), 400
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(file, read_only=True, data_only=True)
+        ws = wb['Sheet1']
+    except Exception as e:
+        return jsonify({'error': f'Could not read file: {str(e)}'}), 400
+
+    branch_to_region = {}
+    for region, branches in REGION_BRANCHES.items():
+        for b in branches:
+            branch_to_region[b] = region
+
+    inserted = 0
+    skipped  = 0
+    errors   = []
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+
+        for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            # Right-side clean columns (0-indexed): 22=Customer, 23=Bill to, 25=Main Phone, 26=Rep, 27=Class
+            if not row or len(row) < 28:
+                skipped += 1
+                continue
+
+            customer_name = str(row[22]).strip().replace('\xa0', '').strip() if row[22] else ''
+            address       = str(row[23]).strip() if row[23] else ''
+            contact_num   = str(row[25]).strip() if row[25] else ''
+            owner_name    = str(row[26]).strip() if row[26] else ''
+            branch        = str(row[27]).strip() if row[27] else ''
+
+            if not customer_name or not branch:
+                if customer_name or branch:
+                    errors.append(f'Row {i}: customer name and branch are required')
+                skipped += 1
+                continue
+
+            region = branch_to_region.get(branch, '')
+
+            cursor.execute(
+                'SELECT id FROM leads WHERE customer_name = %s AND branch = %s LIMIT 1',
+                (customer_name, branch)
+            )
+            if cursor.fetchone():
+                skipped += 1
+                continue
+
+            lead_id = str(uuid.uuid4())
+
+            cursor.execute('''
+                INSERT INTO leads (id, customer_name, contact_num, address, region, branch, owner_name, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'New')
+            ''', (lead_id, customer_name, contact_num, address, region, branch, owner_name))
+
+            # companies table only stores id + name (address/branch/region live on leads)
+            cursor.execute('''
+                INSERT INTO companies (id, name)
+                VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE name=name
+            ''', (lead_id, customer_name))
+
+            # column 24 = Primary Contact person name
+            contact_name = str(row[24]).strip() if row[24] else ''
+            if contact_name:
+                contact_id = str(uuid.uuid4())
+                cursor.execute('''
+                    INSERT INTO contacts (id, name, company_id, phone, role, status)
+                    VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
+                ''', (contact_id, contact_name, lead_id, contact_num))
+
+            inserted += 1
+
+            if inserted % 500 == 0:
+                conn.commit()
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+    return jsonify({'inserted': inserted, 'skipped': skipped, 'errors': errors[:50]})
+
+
 # ─── Deal Attachments ─────────────────────────────────────────────────────────
 
 @app.route('/api/deals/<deal_id>/attachments', methods=['POST'])

@@ -325,8 +325,8 @@ export default function CustomersView({
                     <p className="u-margin-b-24 u-fs-sm u-text-muted u-max-w-240">
                       Transactional history and contacts are only visible for companies with at least one active deal.
                     </p>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       className="primary-button"
                       onClick={() => setShowQuickTaskForm(true)}
                     >
