@@ -10,3 +10,4 @@ bcrypt
 flask-limiter
 werkzeug
 tzdata
+openpyxl
