@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
 import { apiFetch } from '../api'
 import { REGION_BRANCHES, ITEMS_PER_PAGE } from '../constants'
 import { getPaginatedData } from '../utils'
+import { IconSearch } from '../components/Icons'
 
 import Pagination from '../components/Pagination'
 
@@ -26,6 +27,9 @@ export default function AdminView({ currentUser, showToast }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [formError, setFormError]     = useState('')
   const [saving, setSaving]           = useState(false)
+  const [importing, setImporting]     = useState(false)
+  const [importResult, setImportResult] = useState(null)
+  const importFileRef = useRef(null)
 
   async function loadUsers() {
     setLoading(true)
@@ -122,6 +126,28 @@ export default function AdminView({ currentUser, showToast }) {
     }
   }
 
+  async function handleImportCustomers(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    e.target.value = ''
+    const form = new FormData()
+    form.append('file', file)
+    setImporting(true)
+    try {
+      const res  = await apiFetch('/api/admin/import/customers', { method: 'POST', body: form })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast(data.error || 'Import failed')
+      } else {
+        setImportResult(data)
+      }
+    } catch {
+      showToast('Import failed — check your file and try again.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const roleColor = { Admin: 'accent', 'Sales Manager': 'alt', 'Sales Rep': 'surface' }
 
   return (
@@ -177,6 +203,32 @@ export default function AdminView({ currentUser, showToast }) {
         </form>
       </Modal>
 
+      {/* Import Result Modal */}
+      <Modal
+        isOpen={!!importResult}
+        onClose={() => setImportResult(null)}
+        title="Import Complete"
+        kicker="Excel customer import"
+      >
+        {importResult && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <span className="admin-role-pill admin-role-pill--positive">{importResult.inserted} inserted</span>
+              <span className="admin-role-pill admin-role-pill--surface">{importResult.skipped} skipped (already exist)</span>
+            </div>
+            {importResult.errors?.length > 0 && (
+              <div>
+                <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', marginBottom: '6px' }}>Row errors (first 50 shown):</p>
+                <ul style={{ fontSize: 'var(--fs-xs)', color: 'var(--alert)', listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {importResult.errors.map((err, i) => <li key={i}>{err}</li>)}
+                </ul>
+              </div>
+            )}
+            <button type="button" className="primary-button" onClick={() => setImportResult(null)}>Done</button>
+          </div>
+        )}
+      </Modal>
+
       {/* KPI row */}
       <section className="metrics-grid metrics-grid--compact">
         <MetricCard label="Total Accounts"  value={users.length.toLocaleString()} meta="All user accounts across every branch" accent="accent" />
@@ -199,18 +251,37 @@ export default function AdminView({ currentUser, showToast }) {
                   <option key={b} value={b}>{b} ({branchCounts[b]})</option>
                 ) : null)}
               </select>
-              <input
-                className="admin-search"
-                type="search"
-                placeholder="Search name, username, role…"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value)
-                  setPage(1)
-                }}
-              />
+              <label className="search-field">
+                <span className="search-icon" aria-hidden="true"><IconSearch size={16} /></span>
+                <input
+                  type="search"
+                  placeholder="Search name, username, role…"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value)
+                    setPage(1)
+                  }}
+                />
+              </label>
             </div>
-            <button type="button" className="primary-button" onClick={openCreate}>+ New Account</button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                className="ghost-button u-fs-sm u-pad-4-10"
+                disabled={importing}
+                onClick={() => importFileRef.current?.click()}
+              >
+                {importing ? 'Importing…' : '↑ Import Excel'}
+              </button>
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".xlsx,.xls"
+                style={{ display: 'none' }}
+                onChange={handleImportCustomers}
+              />
+              <button type="button" className="primary-button" onClick={openCreate}>+ New Account</button>
+            </div>
           </div>
 
           {/* Users Table */}
