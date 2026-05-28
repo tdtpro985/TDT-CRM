@@ -312,3 +312,111 @@
   text-decoration: underline;
 }
 
+/* Login page theme toggle */
+.login-theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.login-theme-label {
+  margin: 0;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.login-theme-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.login-theme-btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-full);
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: var(--fs-sm);
+  line-height: 1;
+}
+
+.login-theme-btn:hover {
+  border-color: var(--accent);
+  transform: scale(1.1);
+}
+
+.login-theme-btn.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* Neon Theme Login Overrides */
+[data-theme="neon"] .login-brand-panel {
+  background:
+    linear-gradient(135deg, rgba(168, 85, 247, 0.35) 0%, rgba(10, 6, 18, 0.95) 100%),
+    url('/src/assets/hero.png') center/cover no-repeat;
+}
+
+[data-theme="neon"] .login-form-panel {
+  background:
+    radial-gradient(circle at 85% 15%, rgba(168, 85, 247, 0.15) 0%, transparent 60%),
+    radial-gradient(circle at 15% 85%, rgba(168, 85, 247, 0.1) 0%, transparent 60%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03)),
+    var(--bg-app);
+}
+
+[data-theme="neon"] .login-theme-btn.is-active {
+  box-shadow: 0 0 6px rgba(168, 85, 247, 0.4);
+}
+
+/* Light Theme Login Overrides */
+[data-theme="light"] .login-brand-panel {
+  background: 
+    linear-gradient(135deg, rgba(213, 204, 192, 0.8) 0%, rgba(240, 235, 227, 0.9) 100%),
+    url('/src/assets/hero.png') center/cover no-repeat;
+}
+
+[data-theme="light"] .login-form-panel {
+  background: 
+    radial-gradient(circle at 85% 15%, rgba(255, 152, 0, 0.05) 0%, transparent 60%),
+    radial-gradient(circle at 15% 85%, rgba(255, 152, 0, 0.1) 0%, transparent 60%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.1)),
+    var(--bg-app);
+}
+
+[data-theme="light"] .login-card {
+  background: var(--bg-card);
+}
+
+[data-theme="light"] .login-id-badge {
+  opacity: 0.8;
+  color: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+[data-theme="light"] .admin-login-shell .login-brand-panel {
+  background: 
+    linear-gradient(135deg, rgba(200, 190, 175, 0.85) 0%, rgba(220, 215, 205, 0.95) 100%),
+    url('/src/assets/hero.png') center/cover no-repeat;
+  border-right-color: var(--border);
+}
+
+[data-theme="light"] .admin-login-shell .login-form-panel {
+  background: 
+    radial-gradient(circle at 85% 15%, rgba(100, 160, 255, 0.05) 0%, transparent 60%),
+    radial-gradient(circle at 15% 85%, rgba(100, 160, 255, 0.1) 0%, transparent 60%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.1)),
+    var(--bg-app);
+}
+

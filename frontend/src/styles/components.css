@@ -47,6 +47,11 @@
   border-color: rgba(255,152,0,0.42);
 }
 
+[data-theme="neon"] .search-field:focus-within {
+   border-color: var(--accent);
+   box-shadow: var(--glow-xs);
+}
+
 .search-icon {
   color: var(--text-muted);
   font-size: var(--fs-xs);
@@ -103,10 +108,19 @@
   border-color: rgba(255,152,0,0.4);
 }
 
+[data-theme="neon"] .field input:focus,
+[data-theme="neon"] .field select:focus,
+[data-theme="neon"] .field textarea:focus {
+   border-color: var(--accent);
+   box-shadow: var(--glow-sm);
+}
+
 .input--readonly {
-  opacity: 0.6;
-  cursor: not-allowed;
+  background: var(--bg-soft);
+  border-color: var(--border);
   border-style: dashed !important;
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 /* ── 3. Buttons ─────────────────────────────────────────────── */
@@ -129,6 +143,12 @@
 .ghost-button:hover {
   opacity: 0.85;
   transform: translateY(-1px);
+}
+
+[data-theme="neon"] .primary-button:hover,
+[data-theme="neon"] .secondary-button:hover,
+[data-theme="neon"] .ghost-button:hover {
+   box-shadow: var(--glow-sm);
 }
 
 .primary-button {
@@ -173,8 +193,8 @@
 .panel {
   padding: var(--pad-panel);
   border-radius: var(--r-lg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(135deg, rgba(22,33,62,0.8), rgba(22,33,62,0.6));
+  border: 1px solid var(--border);
+  background: var(--panel-bg);
   display: flex;
   flex-direction: column;
   min-height: 240px;
@@ -279,14 +299,14 @@
 .metric-card {
   padding: 18px;
   border-radius: var(--r-lg);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  border: 1px solid var(--border);
+  background: var(--bg-card);
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
 
 .metric-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.2);
+  border-color: var(--accent);
 }
 
 .metric-card p {
@@ -317,10 +337,27 @@
 }
 
 .metric-card--accent {
-  background:
+  background-color: var(--bg-card);
+  background-image:
     radial-gradient(circle at top right, rgba(255,152,0,0.2), transparent 60%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
   border-color: rgba(255,152,0,0.25);
+}
+
+[data-theme="light"] .metric-card--accent {
+  background-color: #fdfcf9;
+  background-image:
+    radial-gradient(circle at top right, rgba(255,152,0,0.18), transparent 60%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.15));
+  border-color: rgba(255,152,0,0.3);
+}
+
+[data-theme="neon"] .metric-card--accent {
+   background-color: var(--bg-card);
+   background-image:
+     radial-gradient(circle at top right, rgba(168, 85, 247, 0.3), transparent 60%),
+     linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+   border-color: rgba(168, 85, 247, 0.35);
 }
 
 .metric-card--accent strong {
@@ -328,15 +365,43 @@
 }
 
 .metric-card--alt {
-  background:
-    radial-gradient(circle at bottom left, rgba(15,52,96,0.4), transparent 60%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  background-color: var(--bg-card);
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
   border-color: rgba(100, 160, 255, 0.2);
 }
 
+[data-theme="light"] .metric-card--alt {
+  background-color: #fdfcf9;
+  background-image: linear-gradient(135deg, rgba(59, 130, 246, 0.12), rgba(59, 130, 246, 0.04));
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+[data-theme="neon"] .metric-card--alt {
+  background-color: var(--bg-card);
+  background-image:
+    radial-gradient(circle at bottom left, rgba(168, 85, 247, 0.3), transparent 60%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+  border-color: rgba(168, 85, 247, 0.25);
+}
+
 .metric-card--surface {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-  border-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--bg-card);
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  border-color: var(--border);
+}
+
+[data-theme="light"] .metric-card--surface {
+  background-color: #fdfcf9;
+  background-image: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 152, 0, 0.04));
+  border-color: rgba(255, 152, 0, 0.25);
+}
+
+[data-theme="neon"] .metric-card--surface {
+  background-color: var(--bg-card);
+  background-image:
+    radial-gradient(circle at top right, rgba(168, 85, 247, 0.15), transparent 60%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  border-color: rgba(168, 85, 247, 0.2);
 }
 
 /* ── 5. Layout Helpers & Grids ──────────────────────────────── */
@@ -475,8 +540,25 @@ section.content-grid--primary {
 .task-item {
   padding: var(--pad-card);
   border-radius: var(--r-md);
-  background: rgba(255,255,255,0.02);
+  background: var(--bg-card);
   border: 1px solid var(--border);
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.activity-card:hover {
+  transform: translateX(4px);
+  background: linear-gradient(135deg, rgba(255, 152, 0, 0.08), rgba(255, 255, 255, 0.04));
+  border-color: rgba(255, 152, 0, 0.2);
+}
+
+[data-theme="light"] .activity-card:hover {
+  background: var(--bg-soft);
+  border-color: var(--accent);
+}
+
+[data-theme="neon"] .activity-card:hover {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(255, 255, 255, 0.02));
+  border-color: var(--accent);
 }
 
 .contact-card {
@@ -489,6 +571,16 @@ section.content-grid--primary {
 .contact-card:hover {
   border-color: rgba(255,152,0,0.3);
   background: rgba(255,152,0,0.04);
+}
+
+[data-theme="light"] .contact-card:hover {
+  background: var(--bg-card-alt);
+  border-color: var(--accent);
+}
+
+[data-theme="neon"] .contact-card:hover {
+  background: rgba(168, 85, 247, 0.06);
+  border-color: var(--accent);
 }
 
 .contact-card.is-selected {
@@ -517,13 +609,12 @@ section.content-grid--primary {
 
 .simple-list__item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 12px;
   border-radius: var(--r-md);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
   cursor: pointer;
 }
@@ -532,6 +623,16 @@ section.content-grid--primary {
   background: linear-gradient(135deg, rgba(255, 152, 0, 0.08), rgba(255, 255, 255, 0.04));
   border-color: rgba(255, 152, 0, 0.2);
   transform: translateX(4px);
+}
+
+[data-theme="light"] .simple-list__item:hover {
+  background: var(--bg-card-alt);
+  border-color: var(--accent);
+}
+
+[data-theme="neon"] .simple-list__item:hover {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(255, 255, 255, 0.02));
+  border-color: var(--accent);
 }
 
 .simple-list__item > div {
@@ -559,7 +660,7 @@ section.content-grid--primary {
   gap: 8px;
   padding: var(--pad-item);
   border-radius: var(--r-md);
-  background: rgba(255,255,255,0.03);
+  background: var(--bg-card);
   border: 1px solid var(--border);
 }
 
@@ -619,7 +720,7 @@ section.content-grid--primary {
   font-weight: 700;
 }
 
-.tone-pill.is-neutral { background: rgba(255, 255, 255, 0.203); color: var(--text-muted); border: 1px solid rgba(255, 255, 255, 0.4); color: darkgray; }
+.tone-pill.is-neutral { background: var(--bg-soft); color: var(--text-muted); border: 1px solid var(--border); }
 .tone-pill.is-positive { background: rgba(52,211,153,0.1); color: var(--positive); border: 1px solid rgba(52,211,153,0.2); }
 .tone-pill.is-warning { background: rgba(255,181,71,0.1); color: var(--warning); border: 1px solid rgba(255,181,71,0.2); }
 .tone-pill.is-alert { background: rgba(251,113,133,0.1); color: var(--alert); border: 1px solid rgba(251,113,133,0.2); }
@@ -646,7 +747,7 @@ section.content-grid--primary {
 .data-table th,
 .data-table td {
   padding: 10px 12px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid var(--border);
   text-align: left;
 }
 
@@ -675,7 +776,7 @@ section.content-grid--primary {
 .deal-modal {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow-strong);
   border-radius: var(--r-lg);
   width: min(840px, 96vw);
   max-height: 90vh;
@@ -764,7 +865,7 @@ section.content-grid--primary {
   justify-content: center;
   border-radius: var(--r-sm);
   border: 1px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.05);
+  background: var(--border);
   color: var(--text-muted);
   font-size: var(--fs-sm);
   cursor: pointer;
@@ -774,7 +875,7 @@ section.content-grid--primary {
 .deal-modal__close:hover {
   background: rgba(255,255,255,0.1);
   color: var(--text-strong);
-  border-color: rgba(255,255,255,0.18);
+  border-color: var(--border-strong);
 }
 
 .modal-body-scroll {
@@ -871,7 +972,7 @@ section.content-grid--primary {
   padding: 14px 16px;
   border-radius: var(--r-md);
   background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
 }
 
 .deal-modal__label {
@@ -947,7 +1048,7 @@ section.content-grid--primary {
 
 .deal-modal__stage-btn:hover {
   background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.18);
+  border-color: var(--border-strong);
   color: var(--text-strong);
 }
 
@@ -983,7 +1084,7 @@ section.content-grid--primary {
   justify-content: space-between;
   align-items: flex-start;
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
 }
@@ -1017,7 +1118,7 @@ section.content-grid--primary {
 .deal-modal__empty-history {
   padding: 24px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-surface);
   border: 1px dashed var(--border);
   border-radius: var(--r-md);
   color: var(--text-secondary);
@@ -1176,6 +1277,10 @@ section.content-grid--primary {
   box-shadow: 0 0 0 1px var(--accent), 0 4px 12px rgba(255, 152, 0, 0.12);
 }
 
+[data-theme="neon"] .dev-card:hover {
+   box-shadow: 0 0 0 1px var(--accent), var(--glow-md);
+}
+
 /* ── Loading Indicators ──────────────────────────────────────── */
 
 /* Give top-bar a stacking context for the loader bar */
@@ -1310,7 +1415,7 @@ section.content-grid--primary {
 }
 
 .custom-select-option:hover:not(.is-selected) {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-soft);
 }
 
 .custom-select-option.is-selected {

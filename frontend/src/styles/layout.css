@@ -5,8 +5,8 @@
   overflow: hidden;
   display: grid;
   grid-template-columns: 0 1fr;
-  transition: grid-template-columns 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-  background: #0a0e17;
+  transition: grid-template-columns 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  background: var(--bg-app);
 }
 
 .crm-shell.sidebar-is-open {
@@ -24,15 +24,13 @@
   padding: var(--pad-panel);
   overflow-y: auto;
   scrollbar-width: none;
-  background:
-    linear-gradient(160deg, rgba(255,255,255,0.03) 0%, transparent 60%),
-    var(--bg-card);
+  background: var(--bg-card);
   border-right: 1px solid var(--border);
   flex-shrink: 0;
   visibility: hidden;
   opacity: 0;
   transform: translateX(-100%);
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.35s, opacity 0.35s;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.25s, opacity 0.25s;
   will-change: transform, opacity;
 }
 
@@ -157,6 +155,11 @@
   letter-spacing: 0.05em;
 }
 
+[data-theme="neon"] .brand-branch-badge {
+   background: rgba(168, 85, 247, 0.15);
+   border-color: rgba(168, 85, 247, 0.3);
+}
+
 .brand-branch-badge.is-role {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
@@ -225,15 +228,33 @@
 
 .nav-item:hover:not(.is-active),
 .nav-item:focus-visible:not(.is-active) {
-  background: rgba(255,255,255,0.06);
-  border-color: rgba(255, 152, 0, 0.34);
   background: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 255, 255, 0.05));
+  border-color: rgba(255, 152, 0, 0.34);
+  outline: none;
+}
+
+[data-theme="light"] .nav-item:hover:not(.is-active),
+[data-theme="light"] .nav-item:focus-visible:not(.is-active) {
+  background: var(--bg-soft);
+  border-color: var(--accent);
+  outline: none;
+}
+
+[data-theme="neon"] .nav-item:hover:not(.is-active),
+[data-theme="neon"] .nav-item:focus-visible:not(.is-active) {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.18), rgba(255, 255, 255, 0.04));
+  border-color: var(--accent);
   outline: none;
 }
 
 .nav-item.is-active {
-  background: rgba(255,152,0,0.12);
-  border-color: rgba(255,152,0,0.3);
+  background: var(--accent-soft);
+  border-color: var(--accent-strong);
+}
+
+[data-theme="neon"] .nav-item.is-active {
+   background: var(--accent-soft);
+   border-color: var(--accent-strong);
 }
 
 .nav-item.is-active .nav-item__label {
@@ -386,9 +407,8 @@
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-panel);
-  box-shadow: 0 1px 10px rgba(0,0,0,0.2);
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-app);
 }
 
 .top-bar-title {
@@ -442,15 +462,13 @@
   gap: 10px;
   align-items: center;
   padding: 8px var(--pad-panel);
-  border-radius: var(--r-md);
-  background: rgba(255,255,255,0.015);
-  border: 1px solid var(--border);
   font-size: var(--fs-xs);
   color: var(--text-muted);
   flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  border-bottom: 1px solid var(--border-strong);
 }
 
 .notice-bar strong {
@@ -503,6 +521,12 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.crm-shell.sidebar-is-open .sidebar-hover-trigger {
+  left: 280px;
+  pointer-events: none;
 }
 
 .sidebar-hover-trigger::before {
@@ -511,33 +535,33 @@
   left: 0;
   top: 0;
   height: 100vh;
-  width: 2px;
+  width: 4px;
   background: linear-gradient(to bottom, transparent, var(--accent), transparent);
-  opacity: 0.3;
-  transition: opacity 0.3s ease, width 0.3s ease;
+  opacity: 1;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-hover-trigger::after {
   content: '';
   position: absolute;
-  left: 2px;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 0;
   height: 0;
   border-top: 6px solid transparent;
   border-bottom: 6px solid transparent;
   border-left: 6px solid var(--accent);
-  opacity: 0.4;
-  transition: all 0.3s ease;
+  opacity: 1;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-hover-trigger:hover::before {
-  opacity: 1;
-  width: 4px;
+  width: 6px;
 }
 
 .sidebar-hover-trigger:hover::after {
-  opacity: 1;
-  transform: translateX(6px);
+  transform: translateY(-50%) translateX(6px);
 }
 
 @media (max-width: 768px) {
