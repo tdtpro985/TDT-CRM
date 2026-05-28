@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
 
 :root {
+  color-scheme: dark;
   --bg: #1a1a2e;
   --bg-app: #0a0e17;
   --bg-card: #16213e;
@@ -58,6 +59,73 @@
 
   /* Gap */
   --gap-fluid: clamp(12px, 2vw, 24px);
+  --panel-bg: linear-gradient(135deg, rgba(22,33,62,0.8), rgba(22,33,62,0.6));
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LIGHT THEME (White, Orange, Black)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="light"] {
+  color-scheme: only light;
+  --bg: #e8e2d5;
+  --bg-app: #d5ccc0;
+  --bg-card: #faf8f5;
+  --bg-card-alt: #faf8f5;
+  --bg-surface: #faf8f5;
+  --bg-input: #fdfcf9;
+  --bg-soft: #faf8f5;
+  --accent: #ff9800;
+  --accent-strong: #f57c00;
+  --accent-soft: rgba(255, 152, 0, 0.22);
+  --text-strong: #1a1a1a;
+  --text: #3a3a3a;
+  --text-secondary: #5a5a5a;
+  --text-muted: #7a7a7a;
+  --border: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.18);
+  --positive: #10b981;
+  --warning: #f59e0b;
+  --caution: #fbbf24;
+  --alert: #ef4444;
+  --shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.06);
+  --shadow-strong: 0 4px 8px -1px rgba(0, 0, 0, 0.1);
+  --panel-bg: #faf8f5;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   NEON THEME (Deep Purple with Vibrant Neon Accents)
+   ═══════════════════════════════════════════════════════════════ */
+[data-theme="neon"] {
+   color-scheme: dark;
+   --bg: #0f0a1a;
+   --bg-app: #0a0612;
+   --bg-card: #150d24;
+   --bg-card-alt: #1a1130;
+   --bg-surface: #0f0a1a;
+   --bg-input: #150d24;
+   --bg-soft: #1a1130;
+   --accent: #a855f7;
+   --accent-strong: #c084fc;
+   --accent-soft: rgba(168, 85, 247, 0.18);
+   --text-strong: #f0eaff;
+   --text: #ddd6fe;
+   --text-secondary: #c4b5fd;
+   --text-muted: #9a8bbf;
+   --border: rgba(168, 85, 247, 0.2);
+   --border-strong: rgba(168, 85, 247, 0.35);
+   --positive: #4ade80;
+   --warning: #c084fc;
+   --caution: #facc15;
+   --alert: #f472b6;
+   --shadow-soft: 0 0 10px rgba(168, 85, 247, 0.15);
+   --shadow-strong: 0 0 20px rgba(168, 85, 247, 0.25);
+   /* Neon Glow Effects */
+   --glow-xs: 0 0 8px rgba(168, 85, 247, 0.3);
+   --glow-sm: 0 0 12px rgba(168, 85, 247, 0.4);
+   --glow-md: 0 0 16px rgba(168, 85, 247, 0.5);
+   --glow-lg: 0 0 24px rgba(168, 85, 247, 0.6);
+   --glow-xl: 0 0 32px rgba(168, 85, 247, 0.7);
+   --panel-bg: linear-gradient(135deg, rgba(21, 13, 36, 0.85), rgba(21, 13, 36, 0.65));
 }
 
 *,
@@ -85,6 +153,33 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   THEME BACKGROUND OVERRIDES
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Light theme background */
+[data-theme="light"] body {
+  background:
+    radial-gradient(circle at top left, rgba(255, 152, 0, 0.08), transparent 26%),
+    linear-gradient(180deg, #fafafa 0%, #ffffff 100%);
+}
+
+/* Neon theme background */
+[data-theme="neon"] body {
+  background:
+    radial-gradient(circle at top left, rgba(168, 85, 247, 0.18), transparent 26%),
+    radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.08), transparent 34%),
+    linear-gradient(180deg, #151025 0%, #0f0a1a 100%);
+}
+
+/* Disable transitions during theme switching to prevent flashes */
+html.is-theme-switching *,
+html.is-theme-switching *::before,
+html.is-theme-switching *::after {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
 }
 
 body::before {
@@ -141,6 +236,18 @@ p {
 ::selection {
   color: #10131f;
   background: rgba(255, 181, 71, 0.9);
+}
+
+/* Light theme selection */
+[data-theme="light"] ::selection {
+  color: #ffffff;
+  background: rgba(255, 152, 0, 0.8);
+}
+
+/* Neon theme selection */
+[data-theme="neon"] ::selection {
+  color: #0f0a1a;
+  background: rgba(168, 85, 247, 0.9);
 }
 
 @keyframes revealUp {
