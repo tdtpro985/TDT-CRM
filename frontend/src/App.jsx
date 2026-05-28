@@ -27,7 +27,7 @@ import PageSkeleton  from './components/SkeletonLoader'
 import LeadForm      from './components/forms/LeadForm'
 import TaskForm      from './components/forms/TaskForm'
 import ThemeToggle   from './components/ThemeToggle'
-import { IconCheck } from './components/Icons'
+import { IconCheck, IconSearch } from './components/Icons'
 
 // ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -47,7 +47,7 @@ export default function App() {
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarLocked, setSidebarLocked] = useState(false)
+  const [sidebarClosing, setSidebarClosing] = useState(false)
   const sidebarCloseTimer = useRef(null)
   
   // Theme management
@@ -187,9 +187,7 @@ export default function App() {
     setShowLeadForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId]?.title || viewId} is active.`)
-    if (!sidebarLocked) {
-      setSidebarOpen(false)
-    }
+    setSidebarOpen(false)
   }
 
   function handlePrimaryAction() {
@@ -242,10 +240,11 @@ export default function App() {
   }
 
   const closeSidebarWithDelay = () => {
-    if (sidebarLocked) return
     sidebarCloseTimer.current = setTimeout(() => {
       setSidebarOpen(false)
-    }, 100)
+      setSidebarClosing(true)
+      setTimeout(() => setSidebarClosing(false), 300)
+    }, 30)
   }
 
   // ─── View routing ────────────────────────────────────────────────────────────
@@ -348,7 +347,7 @@ export default function App() {
     <div className={`crm-shell ${sidebarOpen ? 'sidebar-is-open' : ''}`} data-theme={theme}>
       {/* Combined Trigger: Visible at viewport edge when closed, at sidebar edge when open */}
       <div 
-        className="sidebar-hover-trigger" 
+        className={`sidebar-hover-trigger ${sidebarClosing ? 'is-closing' : ''}`} 
         onMouseEnter={openSidebar}
       />
 
@@ -494,7 +493,7 @@ export default function App() {
           )}
           <div className="top-bar-actions">
             <label className="search-field" htmlFor="global-search-input">
-              <span className="search-icon" aria-hidden="true">Search</span>
+              <span className="search-icon" aria-hidden="true"><IconSearch size={16} /></span>
               <input
                 id="global-search-input"
                 name="searchInput"

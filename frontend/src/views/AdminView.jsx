@@ -5,6 +5,7 @@ import Modal from '../components/Modal'
 import { apiFetch } from '../api'
 import { REGION_BRANCHES, ITEMS_PER_PAGE } from '../constants'
 import { getPaginatedData } from '../utils'
+import { IconSearch } from '../components/Icons'
 
 import Pagination from '../components/Pagination'
 
@@ -199,16 +200,18 @@ export default function AdminView({ currentUser, showToast }) {
                   <option key={b} value={b}>{b} ({branchCounts[b]})</option>
                 ) : null)}
               </select>
-              <input
-                className="admin-search"
-                type="search"
-                placeholder="Search name, username, role…"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value)
-                  setPage(1)
-                }}
-              />
+              <label className="search-field">
+                <span className="search-icon" aria-hidden="true"><IconSearch size={16} /></span>
+                <input
+                  type="search"
+                  placeholder="Search name, username, role…"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value)
+                    setPage(1)
+                  }}
+                />
+              </label>
             </div>
             <button type="button" className="primary-button" onClick={openCreate}>+ New Account</button>
           </div>
