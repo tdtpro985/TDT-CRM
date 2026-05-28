@@ -31,7 +31,9 @@
   visibility: hidden;
   opacity: 0;
   transform: translateX(-100%);
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.25s, opacity 0.25s;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), 
+              visibility 0.25s, 
+              opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform, opacity;
 }
 
@@ -46,6 +48,7 @@
 .sidebar.is-open {
   visibility: visible;
   opacity: 1;
+  transform: translateX(0);
 }
 
 .dashboard {
@@ -253,7 +256,6 @@
 
 [data-theme="light"] .nav-item:hover:not(.is-active),
 [data-theme="light"] .nav-item:focus-visible:not(.is-active) {
-  background: var(--bg-soft);
   border-color: var(--accent);
   outline: none;
 }
@@ -274,6 +276,11 @@
   border-color: var(--accent-strong);
 }
 
+[data-theme="light"] .nav-item.is-active {
+  background: transparent;
+  border-color: var(--accent);
+}
+
 [data-theme="neon"] .nav-item.is-active {
    background: var(--accent-soft);
    border-color: var(--accent-strong);
@@ -281,6 +288,10 @@
 
 .nav-item.is-active .nav-item__label {
   color: var(--accent-strong);
+}
+
+[data-theme="light"] .nav-item.is-active .nav-item__label {
+  color: var(--accent);
 }
 
 .nav-item__copy {
@@ -442,8 +453,9 @@
   background: var(--bg-app);
 }
 
+/* No lift/shadow on top-bar for light theme, keeps only border-bottom */
 [data-theme="light"] .top-bar {
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 }
 
 .top-bar-title {
@@ -506,12 +518,7 @@
   border-bottom: 1px solid var(--border-strong);
 }
 
-[data-theme="light"] .notice-bar {
-  background: var(--bg-card);
-  color: var(--text-secondary);
-  box-shadow: var(--shadow-soft);
-}
-
+/* notice-bar override removed to match dark/neon minimal look */
 .notice-bar strong {
   color: var(--accent-strong);
   font-size: var(--fs-xs);
@@ -577,6 +584,10 @@
   pointer-events: none;
 }
 
+.sidebar-hover-trigger.is-closing {
+  pointer-events: none;
+}
+
 .sidebar-hover-trigger::before {
   content: '';
   position: absolute;
@@ -590,8 +601,13 @@
 }
 
 [data-theme="light"] .sidebar-hover-trigger::before {
-  opacity: 0.6;
-  width: 3px;
+  opacity: 1;
+  width: 4px;
+  background: linear-gradient(to bottom, transparent, var(--accent), transparent);
+}
+
+[data-theme="light"] .sidebar-hover-trigger::after {
+  border-left-color: var(--accent);
 }
 
 .sidebar-hover-trigger::after {

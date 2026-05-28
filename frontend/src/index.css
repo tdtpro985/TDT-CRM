@@ -27,6 +27,7 @@
   --alert: #fb7185;
   --shadow-soft: none;
   --shadow-strong: none;
+  --glow-md: 0 0 16px rgba(255, 152, 0, 0.35);
   --font-body: 'Manrope', 'Segoe UI', sans-serif;
   --font-heading: 'Sora', 'Segoe UI', sans-serif;
 
@@ -79,7 +80,7 @@
   --bg-soft: #faf8f5;
   --accent: #ff9800;
   --accent-strong: #f57c00;
-  --accent-soft: rgba(255, 152, 0, 0.22);
+  --accent-soft: rgba(255, 152, 0, 0.12);
   --text-strong: #1a1a1a;
   --text: #3a3a3a;
   --text-secondary: #5a5a5a;
@@ -92,6 +93,8 @@
   --alert: #ef4444;
   --shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.06);
   --shadow-strong: 0 4px 8px -1px rgba(0, 0, 0, 0.1);
+  --glow-md: 0 0 16px rgba(255, 152, 0, 0.3);
+  --glow-lg: 0 0 24px rgba(255, 152, 0, 0.4);
   --panel-bg: #faf8f5;
 }
 
@@ -161,8 +164,8 @@ body {
 /* Light theme background */
 [data-theme="light"] body {
   background:
-    radial-gradient(circle at top left, rgba(255, 152, 0, 0.08), transparent 26%),
-    linear-gradient(180deg, #fafafa 0%, #ffffff 100%);
+    radial-gradient(circle at top left, rgba(255, 152, 0, 0.1), transparent 30%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-app) 100%);
 }
 
 /* Neon theme background */
