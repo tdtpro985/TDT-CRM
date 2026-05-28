@@ -110,6 +110,10 @@ def ensure_schema():
             )
         """)
         conn.commit()
+
+        # Migrate 'Sales Rep' role → 'Branch Account'
+        cursor.execute("UPDATE team SET role = 'Branch Account' WHERE role = 'Sales Rep'")
+        conn.commit()
     except Exception as e:
         print(f"Error during schema verification: {e}")
     finally:
@@ -242,18 +246,12 @@ def has_branch_filter(branch):
     return bool(normalized and normalized != 'headquarters')
 
 
-REGION_BRANCHES = {
-    'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
-    'North Luzon': ['Ilocos', 'Isabela'],
-    'Vis&Min':     ['Gensan', 'Iloilo', 'Cebu', 'Davao', 'CDO'],
-}
-
-
 ROLE_RANK = {
     'Admin': 100,
     'Head of Sales': 80,
     'Regional Sales Manager': 60,
     'Sales Representative': 40,
+    'Branch Account': 40,
     'Sales Rep': 40,
 }
 
@@ -285,11 +283,11 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
     restrict_owner: True for Sales Rep/Representative — callers add own-alias owner_id filter.
     params: positional values for where_parts.
     """
-    role        = claims.get('role', 'Sales Rep')
+    role        = claims.get('role', 'Branch Account')
     user_region = claims.get('region', '')
     user_branch = claims.get('branch', '')
 
-    if role in ('Sales Rep', 'Sales Representative'):
+    if role in ('Branch Account', 'Sales Rep', 'Sales Representative'):
         return ([f'{col} = %s'], True, [normalize_branch(user_branch)])
 
     if role == 'Regional Sales Manager':
@@ -312,7 +310,7 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
             return ([f'{col} IN ({ph})'], False, region_branches)
         return ([], False, [])
 
-    # Default: branch accounts ('Sales Rep') and any unrecognised role
+    # Default: branch accounts ('Branch Account') and any unrecognised role
     if has_branch_filter(requested_branch):
         return ([f'{col} = %s'], False, [normalize_branch(requested_branch)])
     return ([], False, [])
@@ -691,13 +689,13 @@ def get_team():
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
         claims = get_jwt()
-        role = claims.get('role', 'Sales Rep')
+        role = claims.get('role', 'Branch Account')
         user_region = claims.get('region', '')
         user_branch = claims.get('branch', '')
 
-        if role in ('Sales Representative', 'Sales Rep'):
+        if role in ('Branch Account', 'Sales Representative', 'Sales Rep'):
             cursor.execute(
-                'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ("Sales Representative", "Sales Rep") ORDER BY name',
+                'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ("Sales Representative", "Branch Account", "Sales Rep") ORDER BY name',
                 (user_branch,),
             )
         elif role == 'Regional Sales Manager':
@@ -705,7 +703,7 @@ def get_team():
             req = normalize_branch(branch)
             allowed_normalized = [normalize_branch(b) for b in region_branches]
             # RSM can only assign to SR
-            target_roles = ('Sales Representative', 'Sales Rep')
+            target_roles = ('Sales Representative', 'Branch Account', 'Sales Rep')
             ph_roles = ', '.join(['%s'] * len(target_roles))
             if req and req in allowed_normalized:
                 match = next((b for b in region_branches if normalize_branch(b) == req), None)
@@ -723,7 +721,7 @@ def get_team():
                 cursor.execute('SELECT id, name, role, branch, region FROM team WHERE 1=0')
         elif role == 'Head of Sales':
             # HoS can assign to RSM and SR
-            target_roles = ('Regional Sales Manager', 'Sales Representative', 'Sales Rep')
+            target_roles = ('Regional Sales Manager', 'Sales Representative', 'Branch Account', 'Sales Rep')
             ph_roles = ', '.join(['%s'] * len(target_roles))
             if branch and branch != 'Headquarters':
                 cursor.execute(
@@ -2049,7 +2047,7 @@ def admin_analytics():
                 LEFT JOIN team t ON l.owner_id = t.id
                 LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
-                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Sales Rep'))
+                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
                   AND LOWER(TRIM(l.branch)) = LOWER(TRIM(%s))
                 GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
                 ORDER BY leads_count DESC
@@ -2067,7 +2065,7 @@ def admin_analytics():
                 LEFT JOIN team t ON l.owner_id = t.id
                 LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
-                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Sales Rep'))
+                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
                   AND LOWER(TRIM(l.branch)) IN ({in_ph})
                 GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
                 ORDER BY leads_count DESC
@@ -2084,7 +2082,7 @@ def admin_analytics():
                 LEFT JOIN team t ON l.owner_id = t.id
                 LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
-                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Sales Rep'))
+                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
                 GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
                 ORDER BY leads_count DESC
                 LIMIT 20
@@ -2387,7 +2385,7 @@ def admin_create_user():
                 hashed_password,
                 data['name'].strip(),
                 data.get('email', '').strip(),
-                data.get('role', 'Sales Rep'),
+                data.get('role', 'Branch Account'),
                 data['branch'],
             )
         )
@@ -2507,7 +2505,7 @@ def import_customers():
 
             if not customer_name or not branch:
                 if customer_name or branch:
-                    errors.append(f'Row {i}: customer name and branch are required')
+                    errors.append(f'Row {i}: missing {"branch" if not branch else "customer name"}')
                 skipped += 1
                 continue
 

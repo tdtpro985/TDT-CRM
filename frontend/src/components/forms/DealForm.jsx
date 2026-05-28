@@ -3,7 +3,7 @@ import { DEAL_STAGES } from '../../constants'
 import Select from '../Select'
 
 export default function DealForm({ onSubmit, onCancel, companies, contacts, teamMembers, currentUser, dealStages = DEAL_STAGES }) {
-  const isSalesRep = currentUser?.role === 'Sales Representative' || currentUser?.role === 'Sales Rep'
+  const isSalesRep = currentUser?.role === 'Sales Representative' || currentUser?.role === 'Branch Account' || currentUser?.role === 'Sales Rep'
 
   const [dealForm, setDealForm] = useState({
     name: '',

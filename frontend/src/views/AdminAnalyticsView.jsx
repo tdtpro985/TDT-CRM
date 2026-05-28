@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import MetricCard from '../components/MetricCard'
 import Panel from '../components/Panel'
 import { apiFetch } from '../api'
-import { formatCurrencyCompact, formatDateTimePHT, getPaginatedData } from '../utils'
+import { formatCurrencyCompact, formatDateTimePHT } from '../utils'
 import Pagination from '../components/Pagination'
 
 async function downloadCSV(url, filename) {
@@ -91,7 +91,6 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
-  const [page, setPage]       = useState(1)
 
   // Audit log state
   const [auditLogs, setAuditLogs]     = useState([])
@@ -165,14 +164,9 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
     })
   }
 
-  const branchRows   = Object.values(branchMap).sort((a, b) => a.branch?.localeCompare(b.branch))
-  const totalPages   = Math.ceil(branchRows.length / PAGE_SIZE)
-  const pagedRows    = useMemo(() => getPaginatedData(branchRows, page, PAGE_SIZE), [branchRows, page])
+  const branchRows      = Object.values(branchMap).sort((a, b) => a.branch?.localeCompare(b.branch))
   const auditTotalPages = Math.ceil(auditTotal / AUDIT_PAGE_SIZE)
-  const sortedSRs    = useMemo(
-    () => (topSRs ? [...topSRs].sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0)).slice(0, 10) : []),
-    [topSRs, srSort]
-  )
+  const sortedSRs = topSRs ? [...topSRs].sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0)).slice(0, 10) : []
 
   const ratesWithData = branchRows.filter((r) => r.win_rate != null)
   const overallWinRate = ratesWithData.length
@@ -253,7 +247,7 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
           }
         >
           <div className="branch-card-grid">
-            {pagedRows.map((r) => {
+            {branchRows.map((r) => {
               const rate = r.leads ? Math.round((r.converted / r.leads) * 100) : 0
               const barW = rate
               return (
@@ -298,14 +292,6 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
             })}
           </div>
 
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-            prevLabel="← Prev"
-            nextLabel="Next →"
-            className="analytics-pagination"
-          />
         </Panel>
 
         {/* Right column */}

@@ -146,14 +146,10 @@ export default function AdminPortal() {
             <span className="sidebar-user__name">{adminUser.name}</span>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
-<<<<<<< Updated upstream
+          <button type="button" className="about-button" onClick={() => setShowAbout(true)}>About this system</button>
           <Link to="/" className="admin-back-link sidebar-back-link u-flex-center-gap-sm">
             <IconArrowLeft /> Go to Branch Portal
           </Link>
-=======
-          <button type="button" className="about-button" onClick={() => setShowAbout(true)}>About this system</button>
-          <Link to="/" className="admin-back-link sidebar-back-link">← Go to Branch Portal</Link>
->>>>>>> Stashed changes
         </div>
       </aside>
 
@@ -186,14 +182,9 @@ export default function AdminPortal() {
         <div className="view-content">
           <Routes>
             <Route path="/" element={<Navigate to="/admin/analytics" replace />} />
-<<<<<<< Updated upstream
-            <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} />} />
-            <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} />} />
-            <Route path="/celebration-music" element={<AdminCelebrationMusicView showToast={showToast} />} />
-=======
             <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} onLoadingChange={setAdminLoading} />} />
             <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} onLoadingChange={setAdminLoading} />} />
->>>>>>> Stashed changes
+            <Route path="/celebration-music" element={<AdminCelebrationMusicView showToast={showToast} />} />
             <Route path="/profile" element={<AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />} />
             <Route path="*" element={<Navigate to="/admin/analytics" replace />} />
           </Routes>
