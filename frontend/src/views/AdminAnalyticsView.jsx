@@ -87,7 +87,7 @@ function DonutChart({ data }) {
   )
 }
 
-export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '' }) {
+export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '', onLoadingChange }) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
@@ -108,14 +108,15 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
     setLoading(true)
     setData(null)
     setError('')
+    onLoadingChange?.(true)
     const params = new URLSearchParams()
     if (activeBranch)      params.set('branch', activeBranch)
     else if (activeRegion) params.set('region', activeRegion)
     const qs = params.toString()
     apiFetch(`/api/admin/analytics${qs ? '?' + qs : ''}`)
       .then((r) => r.json())
-      .then((d) => { if (isCurrent) { setData(d); setLoading(false) } })
-      .catch(() => { if (isCurrent) { setError('Failed to load analytics.'); setLoading(false) } })
+      .then((d) => { if (isCurrent) { setData(d); setLoading(false); onLoadingChange?.(false) } })
+      .catch(() => { if (isCurrent) { setError('Failed to load analytics.'); setLoading(false); onLoadingChange?.(false) } })
     return () => { isCurrent = false }
   }, [activeBranch, activeRegion])
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -186,7 +187,34 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
     return `/api/admin/export/audit-log${qs ? '?' + qs : ''}`
   }
 
-  if (loading) return <p className="u-pad-32 u-text-muted">Loading analytics…</p>
+  if (loading) return (
+    <div className="sk-page">
+      <div className="sk-metrics-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', marginBottom: 16 }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="sk-panel" style={{ padding: 16 }}>
+            <div className="sk sk--line-sm u-margin-b-8" style={{ width: '60%' }} />
+            <div className="sk sk--value" />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+        <div className="sk-panel" style={{ padding: 16 }}>
+          <div className="sk sk--line u-margin-b-16" style={{ width: '40%' }} />
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="sk sk--line u-margin-b-8" />)}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="sk-panel" style={{ padding: 16 }}>
+            <div className="sk sk--line u-margin-b-16" style={{ width: '60%' }} />
+            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="sk sk--line u-margin-b-8" />)}
+          </div>
+          <div className="sk-panel" style={{ padding: 16 }}>
+            <div className="sk sk--line u-margin-b-16" style={{ width: '50%' }} />
+            {Array.from({ length: 5 }).map((_, i) => <div key={i} className="sk sk--line u-margin-b-8" />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
   if (error)   return <p className="u-pad-32 u-alert">{error}</p>
 
   const actionLabel    = { status_change: 'Status', stage_change: 'Stage', create: 'Created', delete: 'Deleted' }
