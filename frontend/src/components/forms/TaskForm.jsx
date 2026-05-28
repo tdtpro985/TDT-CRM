@@ -4,6 +4,14 @@ import { apiFetch } from '../../api'
 import { TASK_TYPES, TASK_PRIORITIES, STAGE_WORKFLOW } from '../../constants'
 import Select from '../Select'
 
+const IconAlert = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+)
+
+const IconDot = () => (
+  <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+)
+
 function CompanyCombobox({ companies, companyId, onChange }) {
   const displayValue = companies.find((c) => c.id === companyId)?.name ?? companyId
 
@@ -439,8 +447,8 @@ export default function TaskForm({
         {addingContact && (
           <div className="u-bg-white-03 u-r-md u-pad-16 u-margin-b-16 u-border">
             {contactErrors.global && (
-              <div className="u-alert-bg-soft u-alert u-pad-10-14 u-r-md u-fs-11 u-font-600 u-margin-b-12 u-border-alert-soft">
-                ⚠ {contactErrors.global}
+              <div className="u-alert-bg-soft u-alert u-pad-10-14 u-r-md u-fs-11 u-font-600 u-margin-b-12 u-border-alert-soft u-flex-center-gap-sm">
+                <IconAlert /> {contactErrors.global}
               </div>
             )}
             <div className="form-grid u-margin-0 u-gap-12">
@@ -695,15 +703,15 @@ export default function TaskForm({
         <>
           {/* CASE: NO DEALS - DEAL SECTION FIRST (AUTO-EXPANDED) */}
           <div className="form-section-header">
-            <span className="form-section-label">
-              ◉ Deal (New)
+            <span className="form-section-label u-flex-center-gap-sm">
+              <IconDot /> Deal (New)
             </span>
           </div>
           {dealFields}
 
           <div className="form-section-header u-margin-v-8">
-            <span className="form-section-label">
-              ◉ Task
+            <span className="form-section-label u-flex-center-gap-sm">
+              <IconDot /> Task
             </span>
           </div>
           {taskFields}
@@ -712,15 +720,15 @@ export default function TaskForm({
         <>
           {/* CASE: HAS DEALS - TASK SECTION FIRST */}
           <div className="form-section-header">
-            <span className="form-section-label">
-              ◉ Task
+            <span className="form-section-label u-flex-center-gap-sm">
+              <IconDot /> Task
             </span>
           </div>
           {taskFields}
 
           <div className="form-section-header is-flex u-margin-v-8">
-            <span className="form-section-label">
-              ◉ Deal ({activeDeals.length} Linked)
+            <span className="form-section-label u-flex-center-gap-sm">
+              <IconDot /> Deal ({activeDeals.length} Linked)
             </span>
             <button 
               type="button" 

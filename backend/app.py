@@ -95,6 +95,21 @@ def ensure_schema():
             print("Adding missing 'owner_name' column to 'leads' table...")
             cursor.execute("ALTER TABLE leads ADD COLUMN owner_name VARCHAR(255) NULL")
             conn.commit()
+
+        # Ensure celebration_music table exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS celebration_music (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                outcome ENUM('won','lost') NOT NULL,
+                source_type ENUM('url','internal') NOT NULL DEFAULT 'url',
+                url VARCHAR(500) NOT NULL,
+                original_filename VARCHAR(255),
+                stored_filename VARCHAR(255),
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
     except Exception as e:
         print(f"Error during schema verification: {e}")
     finally:
@@ -115,6 +130,11 @@ jwt = JWTManager(app)
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+MUSIC_UPLOAD_FOLDER = os.path.join(UPLOAD_FOLDER, 'celebration-music')
+os.makedirs(MUSIC_UPLOAD_FOLDER, exist_ok=True)
+
+ALLOWED_AUDIO_EXTENSIONS = {'.mp3', '.wav', '.ogg', '.m4a', '.aac', '.webm'}
 
 REGION_BRANCHES = {
     'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
@@ -2716,6 +2736,122 @@ def remove_deal_contact(deal_id):
 def health_check():
     return jsonify({'status': 'healthy'}), 200
 
+
+# ─── Celebration Music ─────────────────────────────────────────────────────────
+
+@app.route('/api/admin/settings/celebration-music', methods=['GET'])
+@jwt_required()
+@admin_required
+def admin_get_celebration_music():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, outcome, source_type, url, original_filename, is_active FROM celebration_music WHERE outcome IN (%s, %s) ORDER BY outcome', ('won', 'lost'))
+        return jsonify(rows_to_list(cursor))
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/settings/celebration-music/<outcome>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def admin_update_celebration_music(outcome):
+    if outcome not in ('won', 'lost'):
+        return jsonify({'error': 'Outcome must be "won" or "lost"'}), 400
+    data = request.get_json()
+    if not data or not data.get('url'):
+        return jsonify({'error': 'url is required'}), 400
+
+    source_type = data.get('sourceType', 'url')
+    original_filename = data.get('originalFilename', '')
+    stored_filename = data.get('storedFilename', '')
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM celebration_music WHERE outcome = %s', (outcome,))
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute(
+                'UPDATE celebration_music SET url = %s, source_type = %s, original_filename = %s, stored_filename = %s, is_active = 1 WHERE outcome = %s',
+                (data['url'], source_type, original_filename, stored_filename, outcome),
+            )
+        else:
+            cursor.execute(
+                'INSERT INTO celebration_music (outcome, url, source_type, original_filename, stored_filename) VALUES (%s, %s, %s, %s, %s)',
+                (outcome, data['url'], source_type, original_filename, stored_filename),
+            )
+        conn.commit()
+        return jsonify({'message': f'{outcome} music updated'})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/settings/celebration-music/upload', methods=['POST'])
+@jwt_required()
+@admin_required
+def admin_upload_celebration_music():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file or file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_AUDIO_EXTENSIONS:
+        return jsonify({'error': f'Audio format not allowed. Allowed: {", ".join(sorted(ALLOWED_AUDIO_EXTENSIONS))}'}), 400
+
+    safe_name = secure_filename(file.filename)
+    file_id = str(uuid.uuid4())
+    stored_name = f"{file_id}{ext}"
+    file.save(os.path.join(MUSIC_UPLOAD_FOLDER, stored_name))
+
+    return jsonify({
+        'url': f'/api/uploads/celebration-music/{stored_name}',
+        'originalFilename': safe_name,
+        'storedFilename': stored_name,
+    }), 201
+
+
+@app.route('/api/admin/settings/celebration-music/<outcome>', methods=['DELETE'])
+@jwt_required()
+@admin_required
+def admin_delete_celebration_music(outcome):
+    if outcome not in ('won', 'lost'):
+        return jsonify({'error': 'Outcome must be "won" or "lost"'}), 400
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM celebration_music WHERE outcome = %s', (outcome,))
+        conn.commit()
+        return jsonify({'message': f'{outcome} music deleted'})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/celebration-music', methods=['GET'])
+@jwt_required()
+def get_celebration_music():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT outcome, source_type, url, original_filename FROM celebration_music WHERE is_active = 1')
+        return jsonify(rows_to_list(cursor))
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/uploads/celebration-music/<filename>', methods=['GET'])
+def serve_celebration_music(filename):
+    return send_from_directory(MUSIC_UPLOAD_FOLDER, filename, as_attachment=False)
 
 
 if __name__ == '__main__':
