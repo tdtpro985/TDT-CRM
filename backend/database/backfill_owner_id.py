@@ -25,7 +25,7 @@ def backfill_all_owner_ids():
             UPDATE leads l
             JOIN companies c ON c.id = l.id
             JOIN team t ON LOWER(TRIM(t.branch)) = LOWER(TRIM(l.branch))
-                AND t.role IN ('Sales Rep', 'Sales Representative')
+                AND t.role IN ('Branch Account', 'Sales Rep', 'Sales Representative')
             SET l.owner_id = t.id, l.owner_name = COALESCE(l.owner_name, t.name), c.owner_id = t.id
             WHERE (l.owner_id IS NULL OR c.owner_id IS NULL)
               AND l.branch IS NOT NULL AND l.branch != ''
@@ -61,7 +61,7 @@ def backfill_all_owner_ids():
             SELECT t.branch, t.name, COUNT(l.id) as leads
             FROM team t
             JOIN leads l ON l.owner_id = t.id
-            WHERE t.role IN ('Sales Representative', 'Sales Rep')
+            WHERE t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep')
             GROUP BY t.branch, t.name
             ORDER BY t.branch, leads DESC
         ''')

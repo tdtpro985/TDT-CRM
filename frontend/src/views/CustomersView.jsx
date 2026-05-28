@@ -3,12 +3,20 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import { formatDateTimePHT, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole } from '../utils'
+import { formatDateTimePHT, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole, isValidPhone, isValidEmail } from '../utils'
 import { STAGE_COLORS, ITEMS_PER_PAGE } from '../constants'
 import LeadForm from '../components/forms/LeadForm'
 import TaskForm from '../components/forms/TaskForm'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
+
+// Inline SVG Icons
+const IconArrowRight = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 4px', verticalAlign: 'middle' }}><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+)
+const IconDot = () => (
+  <svg width="4" height="4" viewBox="0 0 24 24" fill="currentColor" style={{ margin: '0 4px', verticalAlign: 'middle', opacity: 0.5 }}><circle cx="12" cy="12" r="12"/></svg>
+)
 
 const CUSTOMER_ITEMS_PER_PAGE = 10
 
@@ -114,10 +122,10 @@ export default function CustomersView({
 
     if (oldVal && newVal && typeof oldVal === 'object' && typeof newVal === 'object') {
       const changes = []
-      if (oldVal.name !== newVal.name) changes.push(<span key="name">Name: <em>{oldVal.name}</em> → <strong>{newVal.name}</strong></span>)
-      if (oldVal.role !== newVal.role) changes.push(<span key="role">Role: <em>{oldVal.role}</em> → <strong>{newVal.role}</strong></span>)
-      if (oldVal.email !== newVal.email) changes.push(<span key="email">Email: <em>{oldVal.email}</em> → <strong>{newVal.email}</strong></span>)
-      if (oldVal.phone !== newVal.phone) changes.push(<span key="phone">Phone: <em>{oldVal.phone}</em> → <strong>{newVal.phone}</strong></span>)
+      if (oldVal.name !== newVal.name) changes.push(<span key="name">Name: <em>{oldVal.name}</em> <IconArrowRight /> <strong>{newVal.name}</strong></span>)
+      if (oldVal.role !== newVal.role) changes.push(<span key="role">Role: <em>{oldVal.role}</em> <IconArrowRight /> <strong>{newVal.role}</strong></span>)
+      if (oldVal.email !== newVal.email) changes.push(<span key="email">Email: <em>{oldVal.email}</em> <IconArrowRight /> <strong>{newVal.email}</strong></span>)
+      if (oldVal.phone !== newVal.phone) changes.push(<span key="phone">Phone: <em>{oldVal.phone}</em> <IconArrowRight /> <strong>{newVal.phone}</strong></span>)
       
       return (
         <>
@@ -283,7 +291,7 @@ export default function CustomersView({
                             <span>{Number(customer.totalDealCount || 0)} total</span>
                             {Number(customer.activeDealCount) > 0 && (
                               <>
-                                <span className="u-opacity-05">•</span>
+                                <IconDot />
                                 <span className="u-text-accent u-font-600">
                                   {customer.activeDealCount} active
                                 </span>
@@ -317,8 +325,8 @@ export default function CustomersView({
                     <p className="u-margin-b-24 u-fs-sm u-text-muted u-max-w-240">
                       Transactional history and contacts are only visible for companies with at least one active deal.
                     </p>
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       className="primary-button"
                       onClick={() => setShowQuickTaskForm(true)}
                     >
@@ -744,12 +752,11 @@ export default function CustomersView({
                                       const errors = {}
                                       if (!c.name?.trim()) errors.name = 'Name is required'
                                       if (!c.email?.trim() && !c.phone?.trim()) {
-                                        errors.email = 'Need phone or email'
-                                        errors.phone = 'Need phone or email'
+                                        errors.email = 'Phone or email is required'
+                                        errors.phone = 'Phone or email is required'
                                       }
-                                      if (c.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) {
-                                        errors.email = 'Invalid email'
-                                      }
+                                      if (c.phone?.trim() && !isValidPhone(c.phone)) errors.phone = 'Invalid phone number'
+                                      if (c.email?.trim() && !isValidEmail(c.email)) errors.email = 'Invalid email address'
 
                                       if (Object.keys(errors).length > 0) {
                                         setContactErrors(prev => ({ ...prev, [c.id]: errors }))

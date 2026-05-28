@@ -1,8 +1,16 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { createRecordId } from '../../utils'
+import { createRecordId, isValidPhone, isValidEmail } from '../../utils'
 import { apiFetch } from '../../api'
 import { TASK_TYPES, TASK_PRIORITIES, STAGE_WORKFLOW } from '../../constants'
 import Select from '../Select'
+
+const IconAlert = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+)
+
+const IconDot = () => (
+  <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+)
 
 function CompanyCombobox({ companies, companyId, onChange }) {
   const displayValue = companies.find((c) => c.id === companyId)?.name ?? companyId
@@ -53,6 +61,7 @@ export default function TaskForm({
     dealName: '',
   })
 
+  const [errors, setErrors] = useState({})
   const [selectedContactIds, setSelectedContactIds] = useState([])
   const [hasManuallyInteracted, setHasManuallyInteracted] = useState(false)
   const hasManuallyInteractedRef = useRef(false)
@@ -225,6 +234,7 @@ export default function TaskForm({
 
   function handleChange(e) {
     const { name, value } = e.target
+    setErrors(prev => ({ ...prev, [name]: '' }))
     setTaskForm(prev => {
       const next = { ...prev, [name]: value }
       
@@ -263,28 +273,16 @@ export default function TaskForm({
   }, [taskForm.dealValue])
 
   async function handleAddContact() {
-    const errors = {}
-    if (!newContact.name.trim()) errors.name = 'Required'
-    
-    // Philippines format check: +63 or 09
-    const phonePattern = /^(?:\+63|0)9\d{9}$/
-    if (newContact.phone && !phonePattern.test(newContact.phone.replace(/\s/g, ''))) {
-      errors.phone = 'Invalid (+639...)'
-    }
-
-    // Basic email check
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (newContact.email && !emailPattern.test(newContact.email)) {
-      errors.email = 'Invalid email'
-    }
-
+    const cErrors = {}
+    if (!newContact.name.trim()) cErrors.name = 'Name is required'
+    if (newContact.phone && !isValidPhone(newContact.phone)) cErrors.phone = 'Invalid phone number'
+    if (newContact.email && !isValidEmail(newContact.email)) cErrors.email = 'Invalid email address'
     if (!newContact.email && !newContact.phone) {
-      errors.phone = 'Need phone or email'
-      errors.email = 'Need phone or email'
+      cErrors.phone = 'Phone or email is required'
+      cErrors.email = 'Phone or email is required'
     }
-
-    if (Object.keys(errors).length > 0) {
-      setContactErrors(errors)
+    if (Object.keys(cErrors).length > 0) {
+      setContactErrors(cErrors)
       return
     }
 
@@ -363,23 +361,30 @@ export default function TaskForm({
   async function handleSubmit(e) {
     e.preventDefault()
 
-    if (taskForm.expectedClose && taskForm.dueDate > taskForm.expectedClose) {
-      alert(`The task due date (${taskForm.dueDate}) cannot be later than the deal's expected close date (${taskForm.expectedClose}).`)
-      return
+    const newErrors = {}
+    if (!taskForm.companyId) newErrors.companyId = 'Company is required'
+    if (!taskForm.title.trim()) newErrors.title = 'Task title is required'
+    if (!taskForm.dueDate) newErrors.dueDate = 'Due date is required'
+    else if (taskForm.expectedClose && taskForm.dueDate > taskForm.expectedClose) {
+      newErrors.dueDate = `Due date cannot be later than expected close (${taskForm.expectedClose})`
     }
+    if (!taskForm.notes.trim()) newErrors.notes = 'Notes are required'
 
     if (taskForm.dealName.trim()) {
       const selectedCompany = companies.find(c => c.id === taskForm.companyId || c.name === taskForm.companyId)
-      const duplicate = deals.find(d => 
-        d.name.toLowerCase() === taskForm.dealName.trim().toLowerCase() && 
+      const duplicate = deals.find(d =>
+        d.name.toLowerCase() === taskForm.dealName.trim().toLowerCase() &&
         (selectedCompany ? d.companyId === selectedCompany.id : false) &&
         d.id !== taskForm.dealId
       )
-      if (duplicate) {
-        alert(`A deal named "${taskForm.dealName}" already exists for this company. Please use a unique name or select the existing deal.`)
-        return
-      }
+      if (duplicate) newErrors.dealName = `"${taskForm.dealName}" already exists for this company. Use a unique name or select the existing deal.`
     }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
+    setErrors({})
 
     const contactNames = selectedContactIds
       .map(id => companyContacts.find(c => c.id === id)?.name)
@@ -427,63 +432,69 @@ export default function TaskForm({
               </span>
             )}
           </div>
-          <button 
-            type="button" 
-            className="ghost-button u-fs-11 u-pad-2-6" 
-            onClick={() => setAddingContact(!addingContact)}
+          <button
+            type="button"
+            className="ghost-button u-fs-11 u-pad-2-6"
+            onClick={() => {
+              if (!taskForm.companyId) {
+                setErrors(prev => ({ ...prev, contact: 'Select a company first before adding a contact' }))
+                return
+              }
+              setErrors(prev => ({ ...prev, contact: '' }))
+              setAddingContact(!addingContact)
+            }}
           >
             {addingContact ? 'Cancel' : '+ Add Contact'}
           </button>
         </div>
 
+        {errors.contact && <p className="u-fs-10 u-alert u-margin-t-4 u-margin-b-8">{errors.contact}</p>}
+
         {addingContact && (
           <div className="u-bg-white-03 u-r-md u-pad-16 u-margin-b-16 u-border">
             {contactErrors.global && (
-              <div className="u-alert-bg-soft u-alert u-pad-10-14 u-r-md u-fs-11 u-font-600 u-margin-b-12 u-border-alert-soft">
-                ⚠ {contactErrors.global}
+              <div className="u-alert-bg-soft u-alert u-pad-10-14 u-r-md u-fs-11 u-font-600 u-margin-b-12 u-border-alert-soft u-flex-center-gap-sm">
+                <IconAlert /> {contactErrors.global}
               </div>
             )}
             <div className="form-grid u-margin-0 u-gap-12">
               <label className="field">
-                <span className="u-flex-between">
-                  Contact Name {contactErrors.name && <span className="u-text-red u-fs-10">{contactErrors.name}</span>}
-                </span>
-                <input 
-                  placeholder="Full name" 
-                  value={newContact.name} 
-                  onChange={e => setNewContact({...newContact, name: e.target.value})} 
-                  className={contactErrors.name ? 'u-border-red' : ''}
+                <span>Contact Name</span>
+                <input
+                  placeholder="Full name"
+                  value={newContact.name}
+                  onChange={e => { setNewContact({...newContact, name: e.target.value}); setContactErrors(p => ({...p, name: ''})) }}
+                  className={contactErrors.name ? 'u-border-alert' : ''}
                 />
+                {contactErrors.name && <p className="u-fs-10 u-alert u-margin-t-4">{contactErrors.name}</p>}
               </label>
               <label className="field">
                 <span>Role</span>
-                <input 
-                  placeholder="e.g. Manager, Owner" 
-                  value={newContact.role} 
-                  onChange={e => setNewContact({...newContact, role: e.target.value})} 
+                <input
+                  placeholder="e.g. Manager, Owner"
+                  value={newContact.role}
+                  onChange={e => setNewContact({...newContact, role: e.target.value})}
                 />
               </label>
               <label className="field">
-                <span className="u-flex-between">
-                  Phone number {contactErrors.phone && <span className="u-text-red u-fs-10">{contactErrors.phone}</span>}
-                </span>
-                <input 
-                  placeholder="+63..." 
-                  value={newContact.phone} 
-                  onChange={e => setNewContact({...newContact, phone: e.target.value})} 
-                  className={contactErrors.phone ? 'u-border-red' : ''}
+                <span>Phone number</span>
+                <input
+                  placeholder="e.g. 0965 033 5781"
+                  value={newContact.phone}
+                  onChange={e => { setNewContact({...newContact, phone: e.target.value}); setContactErrors(p => ({...p, phone: ''})) }}
+                  className={contactErrors.phone ? 'u-border-alert' : ''}
                 />
+                {contactErrors.phone && <p className="u-fs-10 u-alert u-margin-t-4">{contactErrors.phone}</p>}
               </label>
               <label className="field">
-                <span className="u-flex-between">
-                  Email address {contactErrors.email && <span className="u-text-red u-fs-10">{contactErrors.email}</span>}
-                </span>
-                <input 
-                  placeholder="name@company.com" 
-                  value={newContact.email} 
-                  onChange={e => setNewContact({...newContact, email: e.target.value})} 
-                  className={contactErrors.email ? 'u-border-red' : ''}
+                <span>Email address</span>
+                <input
+                  placeholder="name@company.com"
+                  value={newContact.email}
+                  onChange={e => { setNewContact({...newContact, email: e.target.value}); setContactErrors(p => ({...p, email: ''})) }}
+                  className={contactErrors.email ? 'u-border-alert' : ''}
                 />
+                {contactErrors.email && <p className="u-fs-10 u-alert u-margin-t-4">{contactErrors.email}</p>}
               </label>
             </div>
             <div className="u-flex u-flex-gap-sm u-justify-end u-margin-t-16">
@@ -569,7 +580,8 @@ export default function TaskForm({
     <>
       <label className="field">
         <span>Task title</span>
-        <input name="title" value={taskForm.title} onChange={handleChange} placeholder="Enter task title" required />
+        <input name="title" value={taskForm.title} onChange={handleChange} placeholder="Enter task title" className={errors.title ? 'u-border-alert' : ''} />
+        {errors.title && <p className="u-fs-10 u-alert u-margin-t-4">{errors.title}</p>}
       </label>
 
       <label className="field">
@@ -641,14 +653,15 @@ export default function TaskForm({
 
       <label className="field">
         <span>Due date</span>
-        <input 
-          name="dueDate" 
-          type="date" 
-          value={taskForm.dueDate} 
-          onChange={handleChange} 
-          required 
+        <input
+          name="dueDate"
+          type="date"
+          value={taskForm.dueDate}
+          onChange={handleChange}
           max={taskForm.expectedClose || undefined}
+          className={errors.dueDate ? 'u-border-alert' : ''}
         />
+        {errors.dueDate && <p className="u-fs-10 u-alert u-margin-t-4">{errors.dueDate}</p>}
       </label>
 
       <label className="field">
@@ -662,7 +675,8 @@ export default function TaskForm({
 
       <label className="field field--span-2">
         <span>Description / Notes</span>
-        <textarea name="notes" value={taskForm.notes} onChange={handleChange} placeholder="Enter task details..." required className="u-min-h-80" />
+        <textarea name="notes" value={taskForm.notes} onChange={handleChange} placeholder="Enter task details..." className={`u-min-h-80 ${errors.notes ? 'u-border-alert' : ''}`} />
+        {errors.notes && <p className="u-fs-10 u-alert u-margin-t-4">{errors.notes}</p>}
       </label>
     </>
   )
@@ -675,35 +689,36 @@ export default function TaskForm({
       <label className="field">
         <span>Company</span>
         <CompanyCombobox companies={companies} companyId={taskForm.companyId} onChange={handleChange} />
+        {errors.companyId && <p className="u-fs-10 u-alert u-margin-t-4">{errors.companyId}</p>}
       </label>
 
       <label className="field">
         <span>Deal Name</span>
-        <input 
-          name="dealName" 
-          value={taskForm.dealName} 
-          onChange={handleChange} 
-          placeholder="Deal name" 
-          required 
+        <input
+          name="dealName"
+          value={taskForm.dealName}
+          onChange={handleChange}
+          placeholder="Deal name"
           autoComplete="off"
           readOnly={!isNewDeal && !section1Expanded}
-          className={!isNewDeal && !section1Expanded ? 'input--readonly' : ''}
+          className={`${!isNewDeal && !section1Expanded ? 'input--readonly' : ''} ${errors.dealName ? 'u-border-alert' : ''}`}
         />
+        {errors.dealName && <p className="u-fs-10 u-alert u-margin-t-4">{errors.dealName}</p>}
       </label>
 
       {!hasDeals ? (
         <>
           {/* CASE: NO DEALS - DEAL SECTION FIRST (AUTO-EXPANDED) */}
           <div className="form-section-header">
-            <span className="form-section-label">
-              ◉ Deal (New)
+            <span className="form-section-label u-flex-center-gap-sm">
+              <IconDot /> Deal (New)
             </span>
           </div>
           {dealFields}
 
           <div className="form-section-header u-margin-v-8">
-            <span className="form-section-label">
-              ◉ Task
+            <span className="form-section-label u-flex-center-gap-sm">
+              <IconDot /> Task
             </span>
           </div>
           {taskFields}
@@ -712,15 +727,15 @@ export default function TaskForm({
         <>
           {/* CASE: HAS DEALS - TASK SECTION FIRST */}
           <div className="form-section-header">
-            <span className="form-section-label">
-              ◉ Task
+            <span className="form-section-label u-flex-center-gap-sm">
+              <IconDot /> Task
             </span>
           </div>
           {taskFields}
 
           <div className="form-section-header is-flex u-margin-v-8">
-            <span className="form-section-label">
-              ◉ Deal ({activeDeals.length} Linked)
+            <span className="form-section-label u-flex-center-gap-sm">
+              <IconDot /> Deal ({activeDeals.length} Linked)
             </span>
             <button 
               type="button" 

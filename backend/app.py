@@ -95,6 +95,25 @@ def ensure_schema():
             print("Adding missing 'owner_name' column to 'leads' table...")
             cursor.execute("ALTER TABLE leads ADD COLUMN owner_name VARCHAR(255) NULL")
             conn.commit()
+
+        # Ensure celebration_music table exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS celebration_music (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                outcome ENUM('won','lost') NOT NULL,
+                source_type ENUM('url','internal') NOT NULL DEFAULT 'url',
+                url VARCHAR(500) NOT NULL,
+                original_filename VARCHAR(255),
+                stored_filename VARCHAR(255),
+                is_active TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
+
+        # Migrate 'Sales Rep' role → 'Branch Account'
+        cursor.execute("UPDATE team SET role = 'Branch Account' WHERE role = 'Sales Rep'")
+        conn.commit()
     except Exception as e:
         print(f"Error during schema verification: {e}")
     finally:
@@ -115,6 +134,11 @@ jwt = JWTManager(app)
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+MUSIC_UPLOAD_FOLDER = os.path.join(UPLOAD_FOLDER, 'celebration-music')
+os.makedirs(MUSIC_UPLOAD_FOLDER, exist_ok=True)
+
+ALLOWED_AUDIO_EXTENSIONS = {'.mp3', '.wav', '.ogg', '.m4a', '.aac', '.webm'}
 
 REGION_BRANCHES = {
     'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
@@ -222,18 +246,12 @@ def has_branch_filter(branch):
     return bool(normalized and normalized != 'headquarters')
 
 
-REGION_BRANCHES = {
-    'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
-    'North Luzon': ['Ilocos', 'Isabela'],
-    'Vis&Min':     ['Gensan', 'Iloilo', 'Cebu', 'Davao', 'CDO'],
-}
-
-
 ROLE_RANK = {
     'Admin': 100,
     'Head of Sales': 80,
     'Regional Sales Manager': 60,
     'Sales Representative': 40,
+    'Branch Account': 40,
     'Sales Rep': 40,
 }
 
@@ -265,11 +283,11 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
     restrict_owner: True for Sales Rep/Representative — callers add own-alias owner_id filter.
     params: positional values for where_parts.
     """
-    role        = claims.get('role', 'Sales Rep')
+    role        = claims.get('role', 'Branch Account')
     user_region = claims.get('region', '')
     user_branch = claims.get('branch', '')
 
-    if role in ('Sales Rep', 'Sales Representative'):
+    if role in ('Branch Account', 'Sales Rep', 'Sales Representative'):
         return ([f'{col} = %s'], True, [normalize_branch(user_branch)])
 
     if role == 'Regional Sales Manager':
@@ -292,7 +310,7 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
             return ([f'{col} IN ({ph})'], False, region_branches)
         return ([], False, [])
 
-    # Default: branch accounts ('Sales Rep') and any unrecognised role
+    # Default: branch accounts ('Branch Account') and any unrecognised role
     if has_branch_filter(requested_branch):
         return ([f'{col} = %s'], False, [normalize_branch(requested_branch)])
     return ([], False, [])
@@ -671,13 +689,13 @@ def get_team():
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
         claims = get_jwt()
-        role = claims.get('role', 'Sales Rep')
+        role = claims.get('role', 'Branch Account')
         user_region = claims.get('region', '')
         user_branch = claims.get('branch', '')
 
-        if role in ('Sales Representative', 'Sales Rep'):
+        if role in ('Branch Account', 'Sales Representative', 'Sales Rep'):
             cursor.execute(
-                'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ("Sales Representative", "Sales Rep") ORDER BY name',
+                'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ("Sales Representative", "Branch Account", "Sales Rep") ORDER BY name',
                 (user_branch,),
             )
         elif role == 'Regional Sales Manager':
@@ -685,7 +703,7 @@ def get_team():
             req = normalize_branch(branch)
             allowed_normalized = [normalize_branch(b) for b in region_branches]
             # RSM can only assign to SR
-            target_roles = ('Sales Representative', 'Sales Rep')
+            target_roles = ('Sales Representative', 'Branch Account', 'Sales Rep')
             ph_roles = ', '.join(['%s'] * len(target_roles))
             if req and req in allowed_normalized:
                 match = next((b for b in region_branches if normalize_branch(b) == req), None)
@@ -703,7 +721,7 @@ def get_team():
                 cursor.execute('SELECT id, name, role, branch, region FROM team WHERE 1=0')
         elif role == 'Head of Sales':
             # HoS can assign to RSM and SR
-            target_roles = ('Regional Sales Manager', 'Sales Representative', 'Sales Rep')
+            target_roles = ('Regional Sales Manager', 'Sales Representative', 'Branch Account', 'Sales Rep')
             ph_roles = ', '.join(['%s'] * len(target_roles))
             if branch and branch != 'Headquarters':
                 cursor.execute(
@@ -2017,46 +2035,55 @@ def admin_analytics():
         deals_per_branch = rows_to_list(cursor)
 
         # Top SRs — leads, converted, deals won
+        # Uses owner_name as fallback for Excel-imported leads where owner_id is NULL
         if branch_filter:
             cursor.execute('''
-                SELECT t.name, t.branch,
+                SELECT COALESCE(t.name, l.owner_name)   AS name,
+                       COALESCE(t.branch, l.branch)     AS branch,
                        COUNT(DISTINCT l.id)                                            AS leads_count,
                        COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
                        COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
-                FROM team t
-                JOIN leads l ON l.owner_id = t.id
+                FROM leads l
+                LEFT JOIN team t ON l.owner_id = t.id
                 LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE t.role IN ('Sales Representative', 'Sales Rep') AND t.branch = %s
-                GROUP BY t.id, t.name, t.branch
+                WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
+                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
+                  AND LOWER(TRIM(l.branch)) = LOWER(TRIM(%s))
+                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
                 ORDER BY leads_count DESC
                 LIMIT 20
             ''', (branch_filter,))
         elif region_branches:
             in_ph = ', '.join(['%s'] * len(region_branches))
             cursor.execute(f'''
-                SELECT t.name, t.branch,
+                SELECT COALESCE(t.name, l.owner_name)   AS name,
+                       COALESCE(t.branch, l.branch)     AS branch,
                        COUNT(DISTINCT l.id)                                            AS leads_count,
                        COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
                        COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
-                FROM team t
-                JOIN leads l ON l.owner_id = t.id
+                FROM leads l
+                LEFT JOIN team t ON l.owner_id = t.id
                 LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE t.role IN ('Sales Representative', 'Sales Rep') AND t.branch IN ({in_ph})
-                GROUP BY t.id, t.name, t.branch
+                WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
+                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
+                  AND LOWER(TRIM(l.branch)) IN ({in_ph})
+                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
                 ORDER BY leads_count DESC
                 LIMIT 20
             ''', region_branches)
         else:
             cursor.execute('''
-                SELECT t.name, t.branch,
+                SELECT COALESCE(t.name, l.owner_name)   AS name,
+                       COALESCE(t.branch, l.branch)     AS branch,
                        COUNT(DISTINCT l.id)                                            AS leads_count,
                        COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
                        COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
-                FROM team t
-                JOIN leads l ON l.owner_id = t.id
+                FROM leads l
+                LEFT JOIN team t ON l.owner_id = t.id
                 LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
-                WHERE t.role IN ('Sales Representative', 'Sales Rep')
-                GROUP BY t.id, t.name, t.branch
+                WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
+                  AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
+                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
                 ORDER BY leads_count DESC
                 LIMIT 20
             ''')
@@ -2358,7 +2385,7 @@ def admin_create_user():
                 hashed_password,
                 data['name'].strip(),
                 data.get('email', '').strip(),
-                data.get('role', 'Sales Rep'),
+                data.get('role', 'Branch Account'),
                 data['branch'],
             )
         )
@@ -2427,6 +2454,107 @@ def admin_delete_user(user_id):
         return jsonify({'message': 'User deleted'})
     finally:
         close_connection(conn)
+
+
+# ─── Excel Customer Import ────────────────────────────────────────────────────
+
+@app.route('/api/admin/import/customers', methods=['POST'])
+@jwt_required()
+@admin_required
+def import_customers():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if not file.filename.lower().endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'Only .xlsx and .xls files are accepted'}), 400
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(file, read_only=True, data_only=True)
+        ws = wb['Sheet1']
+    except Exception as e:
+        return jsonify({'error': f'Could not read file: {str(e)}'}), 400
+
+    branch_to_region = {}
+    for region, branches in REGION_BRANCHES.items():
+        for b in branches:
+            branch_to_region[b] = region
+
+    inserted = 0
+    skipped  = 0
+    errors   = []
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+
+        for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            # Right-side clean columns (0-indexed): 22=Customer, 23=Bill to, 25=Main Phone, 26=Rep, 27=Class
+            if not row or len(row) < 28:
+                skipped += 1
+                continue
+
+            customer_name = str(row[22]).strip().replace('\xa0', '').strip() if row[22] else ''
+            address       = str(row[23]).strip() if row[23] else ''
+            contact_num   = str(row[25]).strip() if row[25] else ''
+            owner_name    = str(row[26]).strip() if row[26] else ''
+            branch        = str(row[27]).strip() if row[27] else ''
+
+            if not customer_name or not branch:
+                if customer_name or branch:
+                    errors.append(f'Row {i}: missing {"branch" if not branch else "customer name"}')
+                skipped += 1
+                continue
+
+            region = branch_to_region.get(branch, '')
+
+            cursor.execute(
+                'SELECT id FROM leads WHERE customer_name = %s AND branch = %s LIMIT 1',
+                (customer_name, branch)
+            )
+            if cursor.fetchone():
+                skipped += 1
+                continue
+
+            lead_id = str(uuid.uuid4())
+
+            cursor.execute('''
+                INSERT INTO leads (id, customer_name, contact_num, address, region, branch, owner_name, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'New')
+            ''', (lead_id, customer_name, contact_num, address, region, branch, owner_name))
+
+            # companies table only stores id + name (address/branch/region live on leads)
+            cursor.execute('''
+                INSERT INTO companies (id, name)
+                VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE name=name
+            ''', (lead_id, customer_name))
+
+            # column 24 = Primary Contact person name
+            contact_name = str(row[24]).strip() if row[24] else ''
+            if contact_name:
+                contact_id = str(uuid.uuid4())
+                cursor.execute('''
+                    INSERT INTO contacts (id, name, company_id, phone, role, status)
+                    VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
+                ''', (contact_id, contact_name, lead_id, contact_num))
+
+            inserted += 1
+
+            if inserted % 500 == 0:
+                conn.commit()
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+    return jsonify({'inserted': inserted, 'skipped': skipped, 'errors': errors[:50]})
 
 
 # ─── Deal Attachments ─────────────────────────────────────────────────────────
@@ -2615,6 +2743,122 @@ def remove_deal_contact(deal_id):
 def health_check():
     return jsonify({'status': 'healthy'}), 200
 
+
+# ─── Celebration Music ─────────────────────────────────────────────────────────
+
+@app.route('/api/admin/settings/celebration-music', methods=['GET'])
+@jwt_required()
+@admin_required
+def admin_get_celebration_music():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, outcome, source_type, url, original_filename, is_active FROM celebration_music WHERE outcome IN (%s, %s) ORDER BY outcome', ('won', 'lost'))
+        return jsonify(rows_to_list(cursor))
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/settings/celebration-music/<outcome>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def admin_update_celebration_music(outcome):
+    if outcome not in ('won', 'lost'):
+        return jsonify({'error': 'Outcome must be "won" or "lost"'}), 400
+    data = request.get_json()
+    if not data or not data.get('url'):
+        return jsonify({'error': 'url is required'}), 400
+
+    source_type = data.get('sourceType', 'url')
+    original_filename = data.get('originalFilename', '')
+    stored_filename = data.get('storedFilename', '')
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id FROM celebration_music WHERE outcome = %s', (outcome,))
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute(
+                'UPDATE celebration_music SET url = %s, source_type = %s, original_filename = %s, stored_filename = %s, is_active = 1 WHERE outcome = %s',
+                (data['url'], source_type, original_filename, stored_filename, outcome),
+            )
+        else:
+            cursor.execute(
+                'INSERT INTO celebration_music (outcome, url, source_type, original_filename, stored_filename) VALUES (%s, %s, %s, %s, %s)',
+                (outcome, data['url'], source_type, original_filename, stored_filename),
+            )
+        conn.commit()
+        return jsonify({'message': f'{outcome} music updated'})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/settings/celebration-music/upload', methods=['POST'])
+@jwt_required()
+@admin_required
+def admin_upload_celebration_music():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file or file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_AUDIO_EXTENSIONS:
+        return jsonify({'error': f'Audio format not allowed. Allowed: {", ".join(sorted(ALLOWED_AUDIO_EXTENSIONS))}'}), 400
+
+    safe_name = secure_filename(file.filename)
+    file_id = str(uuid.uuid4())
+    stored_name = f"{file_id}{ext}"
+    file.save(os.path.join(MUSIC_UPLOAD_FOLDER, stored_name))
+
+    return jsonify({
+        'url': f'/api/uploads/celebration-music/{stored_name}',
+        'originalFilename': safe_name,
+        'storedFilename': stored_name,
+    }), 201
+
+
+@app.route('/api/admin/settings/celebration-music/<outcome>', methods=['DELETE'])
+@jwt_required()
+@admin_required
+def admin_delete_celebration_music(outcome):
+    if outcome not in ('won', 'lost'):
+        return jsonify({'error': 'Outcome must be "won" or "lost"'}), 400
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM celebration_music WHERE outcome = %s', (outcome,))
+        conn.commit()
+        return jsonify({'message': f'{outcome} music deleted'})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/celebration-music', methods=['GET'])
+@jwt_required()
+def get_celebration_music():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT outcome, source_type, url, original_filename FROM celebration_music WHERE is_active = 1')
+        return jsonify(rows_to_list(cursor))
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/uploads/celebration-music/<filename>', methods=['GET'])
+def serve_celebration_music(filename):
+    return send_from_directory(MUSIC_UPLOAD_FOLDER, filename, as_attachment=False)
 
 
 if __name__ == '__main__':

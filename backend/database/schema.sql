@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS team (
     password VARCHAR(255) NOT NULL,
     name     VARCHAR(255) NOT NULL,
     email    VARCHAR(255),
-    role     VARCHAR(100) DEFAULT 'Sales Rep',
+    role     VARCHAR(100) DEFAULT 'Branch Account',
     branch   VARCHAR(100) NOT NULL,
     region   ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'Central'
 );
@@ -133,6 +133,18 @@ CREATE TABLE IF NOT EXISTS audit_log (
     user_id     INT,
     changed_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES team(id) ON DELETE SET NULL
+);
+
+-- ─── Celebration Music ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS celebration_music (
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    outcome           ENUM('won','lost') NOT NULL,
+    source_type       ENUM('url','internal') NOT NULL DEFAULT 'url',
+    url               VARCHAR(500) NOT NULL,
+    original_filename VARCHAR(255),
+    stored_filename   VARCHAR(255),
+    is_active         TINYINT(1) DEFAULT 1,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- User seeds are managed by backend bootstrap script for cross-device consistency:

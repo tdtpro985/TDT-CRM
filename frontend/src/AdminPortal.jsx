@@ -6,7 +6,12 @@ import AdminLoginPage from './components/AdminLoginPage'
 import AdminView from './views/AdminView'
 import AdminAnalyticsView from './views/AdminAnalyticsView'
 import AdminProfileView from './views/AdminProfileView'
+import AdminCelebrationMusicView from './views/AdminCelebrationMusicView'
 import { IconCheck } from './components/Icons'
+import { useTheme } from './hooks/useTheme'
+import ThemeToggle from './components/ThemeToggle'
+import Modal from './components/Modal'
+import AboutContent from './components/AboutContent'
 
 const REGION_BRANCHES = {
   'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
@@ -15,27 +20,36 @@ const REGION_BRANCHES = {
 }
 
 const NAV = [
-  { id: 'analytics', label: 'Analytics',          description: 'Branch stats and system overview' },
-  { id: 'accounts',  label: 'Account Management', description: 'Create and manage branch accounts' },
-  { id: 'profile',   label: 'Profile Settings',   description: 'Change your username and password' },
+  { id: 'analytics',          label: 'Analytics',          description: 'Branch stats and system overview' },
+  { id: 'accounts',           label: 'Account Management', description: 'Create and manage branch accounts' },
+  { id: 'celebration-music',  label: 'Celebration Music',  description: 'Configure win/lost sounds' },
+  { id: 'profile',            label: 'Profile Settings',   description: 'Change your username and password' },
 ]
 
 const VIEW_META = {
-  analytics: { eyebrow: 'System administration', title: 'Analytics' },
-  accounts:  { eyebrow: 'System administration', title: 'Account Management' },
-  profile:   { eyebrow: 'System administration', title: 'Profile Settings' },
+  analytics:         { eyebrow: 'System administration', title: 'Analytics' },
+  accounts:          { eyebrow: 'System administration', title: 'Account Management' },
+  'celebration-music': { eyebrow: 'System administration', title: 'Celebration Music' },
+  profile:           { eyebrow: 'System administration', title: 'Profile Settings' },
 }
+
+const IconArrowLeft = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+)
 
 export default function AdminPortal() {
   const location = useLocation()
   // Ensure we get the correct active view based on the path (e.g. /admin/analytics)
   const activeView = location.pathname.split('/')[2] || 'analytics'
 
-  const [adminUser, setAdminUser]     = useState(getUser())
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [toast, setToast]             = useState(null)
+  const { theme, setTheme } = useTheme()
+  const [adminUser, setAdminUser]       = useState(getUser())
+  const [sidebarOpen, setSidebarOpen]   = useState(false)
+  const [toast, setToast]               = useState(null)
   const [activeBranch, setActiveBranch] = useState('')
   const [activeRegion, setActiveRegion] = useState('')
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [showAbout, setShowAbout]       = useState(false)
 
   function showToast(message) {
     setToast(message)
@@ -90,6 +104,13 @@ export default function AdminPortal() {
           >
             Analytics & Audits
           </Link>
+          <Link 
+            to="/admin/celebration-music" 
+            className={`nav-item ${location.pathname.startsWith('/admin/celebration-music') ? 'is-active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            Celebration Music
+          </Link>
 
           <div className="sidebar-nav-section">
             <p className="nav-section-label u-margin-b-8">Viewing Branch</p>
@@ -119,12 +140,16 @@ export default function AdminPortal() {
 
 
         <div className="sidebar-footer u-margin-t-auto">
+          <ThemeToggle theme={theme} onThemeChange={setTheme} />
           <p className="sidebar-label">Signed in as</p>
           <div className="sidebar-user">
             <span className="sidebar-user__name">{adminUser.name}</span>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
-          <Link to="/" className="admin-back-link sidebar-back-link">← Go to Branch Portal</Link>
+          <button type="button" className="about-button" onClick={() => setShowAbout(true)}>About this system</button>
+          <Link to="/" className="admin-back-link sidebar-back-link u-flex-center-gap-sm">
+            <IconArrowLeft /> Go to Branch Portal
+          </Link>
         </div>
       </aside>
 
@@ -151,13 +176,15 @@ export default function AdminPortal() {
             <span className="context-sep">/</span>
             {activeBranch || 'All Branches'}
           </div>
+          {adminLoading && <div className="top-bar-loader" aria-hidden="true" />}
         </header>
 
         <div className="view-content">
           <Routes>
             <Route path="/" element={<Navigate to="/admin/analytics" replace />} />
-            <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} />} />
-            <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} />} />
+            <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} onLoadingChange={setAdminLoading} />} />
+            <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} onLoadingChange={setAdminLoading} />} />
+            <Route path="/celebration-music" element={<AdminCelebrationMusicView showToast={showToast} />} />
             <Route path="/profile" element={<AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />} />
             <Route path="*" element={<Navigate to="/admin/analytics" replace />} />
           </Routes>
@@ -170,6 +197,10 @@ export default function AdminPortal() {
           <span>{toast}</span>
         </div>
       )}
+
+      <Modal isOpen={showAbout} onClose={() => setShowAbout(false)} title="Meet the Team" kicker="Internship Project · TDT Powersteel CRM">
+        <AboutContent />
+      </Modal>
     </div>
   )
 }
