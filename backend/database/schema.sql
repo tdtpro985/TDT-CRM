@@ -135,5 +135,17 @@ CREATE TABLE IF NOT EXISTS audit_log (
     FOREIGN KEY (user_id) REFERENCES team(id) ON DELETE SET NULL
 );
 
+-- ─── Celebration Music ─────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS celebration_music (
+    id                INT AUTO_INCREMENT PRIMARY KEY,
+    outcome           ENUM('won','lost') NOT NULL,
+    source_type       ENUM('url','internal') NOT NULL DEFAULT 'url',
+    url               VARCHAR(500) NOT NULL,
+    original_filename VARCHAR(255),
+    stored_filename   VARCHAR(255),
+    is_active         TINYINT(1) DEFAULT 1,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- User seeds are managed by backend bootstrap script for cross-device consistency:
 -- python -m database.bootstrap_users
