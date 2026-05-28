@@ -210,12 +210,12 @@ export function getPaginatedData(data, page, pageSize) {
 }
 
 export function displayRole(role) {
-  if (role === 'Sales Rep' || role === 'Sales Manager') return 'Branch Account'
+  if (role === 'Branch Account' || role === 'Sales Rep' || role === 'Sales Manager') return 'Branch Account'
   return role
 }
 
 export function isSrRole(role) {
-  return role === 'Sales Rep' || role === 'Sales Representative'
+  return role === 'Branch Account' || role === 'Sales Rep' || role === 'Sales Representative'
 }
 
 export function shortStageLabel(stage, SHORT_STAGE_LABEL) {

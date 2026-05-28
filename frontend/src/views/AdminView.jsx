@@ -4,18 +4,14 @@ import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
 import { apiFetch } from '../api'
 import { REGION_BRANCHES, ITEMS_PER_PAGE } from '../constants'
-<<<<<<< Updated upstream
-import { getPaginatedData } from '../utils'
-import { IconSearch } from '../components/Icons'
-=======
 import { getPaginatedData, isValidEmail } from '../utils'
->>>>>>> Stashed changes
+import { IconSearch } from '../components/Icons'
 
 import Pagination from '../components/Pagination'
 
-const ROLES = ['Sales Rep', 'Sales Manager', 'Admin']
+const ROLES = ['Branch Account', 'Sales Manager', 'Admin']
 
-const EMPTY_FORM  = { username: '', password: '', name: '', email: '', role: 'Sales Rep', branch: '' }
+const EMPTY_FORM  = { username: '', password: '', name: '', email: '', role: 'Branch Account', branch: '' }
 
 export default function AdminView({ currentUser, showToast, onLoadingChange }) {
   const BRANCHES = useMemo(() => Object.values(REGION_BRANCHES).flat().sort(), [])
@@ -159,7 +155,7 @@ export default function AdminView({ currentUser, showToast, onLoadingChange }) {
     }
   }
 
-  const roleColor = { Admin: 'accent', 'Sales Manager': 'alt', 'Sales Rep': 'surface' }
+  const roleColor = { Admin: 'accent', 'Sales Manager': 'alt', 'Branch Account': 'surface', 'Sales Rep': 'surface' }
 
   return (
     <>
