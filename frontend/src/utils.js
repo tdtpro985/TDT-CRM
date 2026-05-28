@@ -234,3 +234,12 @@ export function parseAuditValue(val) {
     }
   }
 }
+
+export function isValidPhone(val) {
+  const digits = (val || '').replace(/[\s\-+().]/g, '')
+  return /^\d{7,}$/.test(digits)
+}
+
+export function isValidEmail(val) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val || '')
+}

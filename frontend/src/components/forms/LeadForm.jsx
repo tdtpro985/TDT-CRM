@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { isSrRole } from '../../utils'
+import { isSrRole, isValidPhone } from '../../utils'
 
 export default function LeadForm({ onSubmit, onCancel, teamMembers, branch, currentUser }) {
   const isSr = isSrRole(currentUser?.role)
@@ -11,13 +11,15 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, branch, curr
     sr: isSr ? currentUser?.name || '' : '',
     ownerId: isSr ? currentUser?.id || '' : '',
   })
+  const [errors, setErrors] = useState({})
 
   function handleChange(e) {
     const { name, value } = e.target
+    setErrors((prev) => ({ ...prev, [name]: '' }))
     if (name === 'ownerId') {
       const selectedMember = teamMembers.find(m => String(m.id) === value)
-      setLeadForm((f) => ({ 
-        ...f, 
+      setLeadForm((f) => ({
+        ...f,
         ownerId: value,
         sr: selectedMember ? selectedMember.name : ''
       }))
@@ -28,11 +30,22 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, branch, curr
 
   function handleSubmit(e) {
     e.preventDefault()
+    const newErrors = {}
+    if (!leadForm.customerName.trim()) newErrors.customerName = 'Customer name is required'
+    else if (leadForm.customerName.trim().length < 2) newErrors.customerName = 'Name is too short'
+    if (!leadForm.contactNum.trim()) newErrors.contactNum = 'Contact number is required'
+    else if (!isValidPhone(leadForm.contactNum)) newErrors.contactNum = 'Invalid phone number'
+    if (!leadForm.region.trim()) newErrors.region = 'Region is required'
+    if (!leadForm.address.trim()) newErrors.address = 'Address is required'
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
     onSubmit({ ...leadForm, branch })
   }
 
   return (
-    <form className="form-grid form-body" onSubmit={handleSubmit}>
+    <form className="form-grid form-body" onSubmit={handleSubmit} noValidate>
 
       <label className="field field--span-2">
         <span>Customer Name</span>
@@ -41,11 +54,10 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, branch, curr
           value={leadForm.customerName}
           onChange={handleChange}
           placeholder="Full name of the customer or business"
-          required
-          minLength={2}
-          maxLength={200}
+          className={errors.customerName ? 'u-border-alert' : ''}
           autoFocus
         />
+        {errors.customerName && <p className="u-fs-10 u-alert u-margin-t-4">{errors.customerName}</p>}
       </label>
 
       <label className="field">
@@ -56,9 +68,9 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, branch, curr
           value={leadForm.contactNum}
           onChange={handleChange}
           placeholder="+63 9XX XXX XXXX"
-          pattern="[0-9+\-\s()]{7,20}"
-          required
+          className={errors.contactNum ? 'u-border-alert' : ''}
         />
+        {errors.contactNum && <p className="u-fs-10 u-alert u-margin-t-4">{errors.contactNum}</p>}
       </label>
 
       <label className="field">
@@ -68,8 +80,9 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, branch, curr
           value={leadForm.region}
           onChange={handleChange}
           placeholder="e.g. NCR, Region III, Region VII"
-          required
+          className={errors.region ? 'u-border-alert' : ''}
         />
+        {errors.region && <p className="u-fs-10 u-alert u-margin-t-4">{errors.region}</p>}
       </label>
 
       <label className="field field--span-2">
@@ -79,8 +92,9 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, branch, curr
           value={leadForm.address}
           onChange={handleChange}
           placeholder="Street, Barangay, City, Province"
-          required
+          className={errors.address ? 'u-border-alert' : ''}
         />
+        {errors.address && <p className="u-fs-10 u-alert u-margin-t-4">{errors.address}</p>}
       </label>
 
       {isSr ? (
