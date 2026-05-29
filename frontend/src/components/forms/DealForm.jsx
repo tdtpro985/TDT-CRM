@@ -3,8 +3,8 @@ import { DEAL_STAGES } from '../../constants'
 import Select from '../Select'
 
 export default function DealForm({ onSubmit, onCancel, companies, contacts, teamMembers, currentUser, dealStages = DEAL_STAGES }) {
-  const isSalesRep = currentUser?.role === 'Sales Representative' || currentUser?.role === 'Sales Rep'
-  
+  const isSalesRep = currentUser?.role === 'Sales Representative' || currentUser?.role === 'Branch Account' || currentUser?.role === 'Sales Rep'
+
   const [dealForm, setDealForm] = useState({
     name: '',
     companyName: '',
@@ -15,9 +15,11 @@ export default function DealForm({ onSubmit, onCancel, companies, contacts, team
     owner: isSalesRep ? currentUser.name : '',
     ownerId: isSalesRep ? currentUser.id : ''
   })
+  const [errors, setErrors] = useState({})
 
   function handleChange(e) {
     const { name, value } = e.target
+    setErrors((prev) => ({ ...prev, [name]: '' }))
     setDealForm((current) => {
       let next = { ...current, [name]: value }
       if (name === 'ownerId') {
@@ -47,14 +49,25 @@ export default function DealForm({ onSubmit, onCancel, companies, contacts, team
 
   function handleSubmit(e) {
     e.preventDefault()
+    const newErrors = {}
+    if (!dealForm.name.trim()) newErrors.name = 'Deal name is required'
+    if (dealForm.value === '' || isNaN(Number(dealForm.value)) || Number(dealForm.value) < 0) {
+      newErrors.value = 'Enter a valid value (0 or more)'
+    }
+    if (!dealForm.expectedClose) newErrors.expectedClose = 'Close date is required'
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
     onSubmit(dealForm)
   }
 
   return (
-    <form className="form-grid form-body" onSubmit={handleSubmit}>
+    <form className="form-grid form-body" onSubmit={handleSubmit} noValidate>
       <label className="field field--span-2">
         <span>Deal name</span>
-        <input name="name" value={dealForm.name} onChange={handleChange} placeholder="Enter opportunity name" required autoFocus />
+        <input name="name" value={dealForm.name} onChange={handleChange} placeholder="Enter opportunity name" className={errors.name ? 'u-border-alert' : ''} autoFocus />
+        {errors.name && <p className="u-fs-10 u-alert u-margin-t-4">{errors.name}</p>}
       </label>
 
       <label className="field">
@@ -78,12 +91,14 @@ export default function DealForm({ onSubmit, onCancel, companies, contacts, team
 
       <label className="field">
         <span>Value</span>
-        <input name="value" type="number" min="0" value={dealForm.value} onChange={handleChange} placeholder="Enter value" required />
+        <input name="value" type="number" min="0" value={dealForm.value} onChange={handleChange} placeholder="Enter value" className={errors.value ? 'u-border-alert' : ''} />
+        {errors.value && <p className="u-fs-10 u-alert u-margin-t-4">{errors.value}</p>}
       </label>
 
       <label className="field">
         <span>Expected close</span>
-        <input name="expectedClose" type="date" value={dealForm.expectedClose} onChange={handleChange} required />
+        <input name="expectedClose" type="date" value={dealForm.expectedClose} onChange={handleChange} className={errors.expectedClose ? 'u-border-alert' : ''} />
+        {errors.expectedClose && <p className="u-fs-10 u-alert u-margin-t-4">{errors.expectedClose}</p>}
       </label>
 
       {!isSalesRep && (

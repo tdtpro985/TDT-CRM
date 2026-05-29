@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import MetricCard from '../components/MetricCard'
 import Panel from '../components/Panel'
 import { apiFetch } from '../api'
-import { formatCurrencyCompact, formatDateTimePHT, getPaginatedData } from '../utils'
+import { formatCurrencyCompact, formatDateTimePHT } from '../utils'
 import Pagination from '../components/Pagination'
 
 async function downloadCSV(url, filename) {
@@ -87,11 +87,10 @@ function DonutChart({ data }) {
   )
 }
 
-export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '' }) {
+export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '', onLoadingChange }) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState('')
-  const [page, setPage]       = useState(1)
 
   // Audit log state
   const [auditLogs, setAuditLogs]     = useState([])
@@ -108,14 +107,15 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
     setLoading(true)
     setData(null)
     setError('')
+    onLoadingChange?.(true)
     const params = new URLSearchParams()
     if (activeBranch)      params.set('branch', activeBranch)
     else if (activeRegion) params.set('region', activeRegion)
     const qs = params.toString()
     apiFetch(`/api/admin/analytics${qs ? '?' + qs : ''}`)
       .then((r) => r.json())
-      .then((d) => { if (isCurrent) { setData(d); setLoading(false) } })
-      .catch(() => { if (isCurrent) { setError('Failed to load analytics.'); setLoading(false) } })
+      .then((d) => { if (isCurrent) { setData(d); setLoading(false); onLoadingChange?.(false) } })
+      .catch(() => { if (isCurrent) { setError('Failed to load analytics.'); setLoading(false); onLoadingChange?.(false) } })
     return () => { isCurrent = false }
   }, [activeBranch, activeRegion])
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -164,14 +164,9 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
     })
   }
 
-  const branchRows   = Object.values(branchMap).sort((a, b) => a.branch?.localeCompare(b.branch))
-  const totalPages   = Math.ceil(branchRows.length / PAGE_SIZE)
-  const pagedRows    = useMemo(() => getPaginatedData(branchRows, page, PAGE_SIZE), [branchRows, page])
+  const branchRows      = Object.values(branchMap).sort((a, b) => a.branch?.localeCompare(b.branch))
   const auditTotalPages = Math.ceil(auditTotal / AUDIT_PAGE_SIZE)
-  const sortedSRs    = useMemo(
-    () => (topSRs ? [...topSRs].sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0)).slice(0, 10) : []),
-    [topSRs, srSort]
-  )
+  const sortedSRs = topSRs ? [...topSRs].sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0)).slice(0, 10) : []
 
   const ratesWithData = branchRows.filter((r) => r.win_rate != null)
   const overallWinRate = ratesWithData.length
@@ -186,7 +181,34 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
     return `/api/admin/export/audit-log${qs ? '?' + qs : ''}`
   }
 
-  if (loading) return <p className="u-pad-32 u-text-muted">Loading analytics…</p>
+  if (loading) return (
+    <div className="sk-page">
+      <div className="sk-metrics-row" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', marginBottom: 16 }}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="sk-panel" style={{ padding: 16 }}>
+            <div className="sk sk--line-sm u-margin-b-8" style={{ width: '60%' }} />
+            <div className="sk sk--value" />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+        <div className="sk-panel" style={{ padding: 16 }}>
+          <div className="sk sk--line u-margin-b-16" style={{ width: '40%' }} />
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="sk sk--line u-margin-b-8" />)}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="sk-panel" style={{ padding: 16 }}>
+            <div className="sk sk--line u-margin-b-16" style={{ width: '60%' }} />
+            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="sk sk--line u-margin-b-8" />)}
+          </div>
+          <div className="sk-panel" style={{ padding: 16 }}>
+            <div className="sk sk--line u-margin-b-16" style={{ width: '50%' }} />
+            {Array.from({ length: 5 }).map((_, i) => <div key={i} className="sk sk--line u-margin-b-8" />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
   if (error)   return <p className="u-pad-32 u-alert">{error}</p>
 
   const actionLabel    = { status_change: 'Status', stage_change: 'Stage', create: 'Created', delete: 'Deleted' }
@@ -225,7 +247,7 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
           }
         >
           <div className="branch-card-grid">
-            {pagedRows.map((r) => {
+            {branchRows.map((r) => {
               const rate = r.leads ? Math.round((r.converted / r.leads) * 100) : 0
               const barW = rate
               return (
@@ -270,14 +292,6 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
             })}
           </div>
 
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-            prevLabel="← Prev"
-            nextLabel="Next →"
-            className="analytics-pagination"
-          />
         </Panel>
 
         {/* Right column */}

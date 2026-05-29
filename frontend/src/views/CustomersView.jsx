@@ -3,7 +3,7 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import { formatDateTimePHT, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole } from '../utils'
+import { formatDateTimePHT, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole, isValidPhone, isValidEmail } from '../utils'
 import { STAGE_COLORS, ITEMS_PER_PAGE } from '../constants'
 import LeadForm from '../components/forms/LeadForm'
 import TaskForm from '../components/forms/TaskForm'
@@ -752,12 +752,11 @@ export default function CustomersView({
                                       const errors = {}
                                       if (!c.name?.trim()) errors.name = 'Name is required'
                                       if (!c.email?.trim() && !c.phone?.trim()) {
-                                        errors.email = 'Need phone or email'
-                                        errors.phone = 'Need phone or email'
+                                        errors.email = 'Phone or email is required'
+                                        errors.phone = 'Phone or email is required'
                                       }
-                                      if (c.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) {
-                                        errors.email = 'Invalid email'
-                                      }
+                                      if (c.phone?.trim() && !isValidPhone(c.phone)) errors.phone = 'Invalid phone number'
+                                      if (c.email?.trim() && !isValidEmail(c.email)) errors.email = 'Invalid email address'
 
                                       if (Object.keys(errors).length > 0) {
                                         setContactErrors(prev => ({ ...prev, [c.id]: errors }))

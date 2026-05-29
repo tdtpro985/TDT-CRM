@@ -8,6 +8,10 @@ import AdminAnalyticsView from './views/AdminAnalyticsView'
 import AdminProfileView from './views/AdminProfileView'
 import AdminCelebrationMusicView from './views/AdminCelebrationMusicView'
 import { IconCheck } from './components/Icons'
+import { useTheme } from './hooks/useTheme'
+import ThemeToggle from './components/ThemeToggle'
+import Modal from './components/Modal'
+import AboutContent from './components/AboutContent'
 
 const REGION_BRANCHES = {
   'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
@@ -38,11 +42,14 @@ export default function AdminPortal() {
   // Ensure we get the correct active view based on the path (e.g. /admin/analytics)
   const activeView = location.pathname.split('/')[2] || 'analytics'
 
-  const [adminUser, setAdminUser]     = useState(getUser())
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [toast, setToast]             = useState(null)
+  const { theme, setTheme } = useTheme()
+  const [adminUser, setAdminUser]       = useState(getUser())
+  const [sidebarOpen, setSidebarOpen]   = useState(false)
+  const [toast, setToast]               = useState(null)
   const [activeBranch, setActiveBranch] = useState('')
   const [activeRegion, setActiveRegion] = useState('')
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [showAbout, setShowAbout]       = useState(false)
 
   function showToast(message) {
     setToast(message)
@@ -133,11 +140,13 @@ export default function AdminPortal() {
 
 
         <div className="sidebar-footer u-margin-t-auto">
+          <ThemeToggle theme={theme} onThemeChange={setTheme} />
           <p className="sidebar-label">Signed in as</p>
           <div className="sidebar-user">
             <span className="sidebar-user__name">{adminUser.name}</span>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
+          <button type="button" className="about-button" onClick={() => setShowAbout(true)}>About this system</button>
           <Link to="/" className="admin-back-link sidebar-back-link u-flex-center-gap-sm">
             <IconArrowLeft /> Go to Branch Portal
           </Link>
@@ -167,13 +176,14 @@ export default function AdminPortal() {
             <span className="context-sep">/</span>
             {activeBranch || 'All Branches'}
           </div>
+          {adminLoading && <div className="top-bar-loader" aria-hidden="true" />}
         </header>
 
         <div className="view-content">
           <Routes>
             <Route path="/" element={<Navigate to="/admin/analytics" replace />} />
-            <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} />} />
-            <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} />} />
+            <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} onLoadingChange={setAdminLoading} />} />
+            <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} onLoadingChange={setAdminLoading} />} />
             <Route path="/celebration-music" element={<AdminCelebrationMusicView showToast={showToast} />} />
             <Route path="/profile" element={<AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />} />
             <Route path="*" element={<Navigate to="/admin/analytics" replace />} />
@@ -187,6 +197,10 @@ export default function AdminPortal() {
           <span>{toast}</span>
         </div>
       )}
+
+      <Modal isOpen={showAbout} onClose={() => setShowAbout(false)} title="Meet the Team" kicker="Internship Project · TDT Powersteel CRM">
+        <AboutContent />
+      </Modal>
     </div>
   )
 }
