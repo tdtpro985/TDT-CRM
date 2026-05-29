@@ -583,34 +583,31 @@ export default function PipelineView({
                 )}
                 {selectedDeal.contactId && (
                   <div className="deal-modal__field">
-                    <span className="deal-modal__label">Primary Contact</span>
                     <strong className="deal-modal__value">{contactMap[selectedDeal.contactId]?.name ?? selectedDeal.contactId}</strong>
                   </div>
                 )}
                 {dealContacts.length > 0 && (
                   <div className="deal-modal__field u-span-2">
-                    <span className="deal-modal__label">All Associated Contacts</span>
+                    <span className="deal-modal__label">Associated Contacts</span>
                     <div className="deal-modal__contact-list">
                       {dealContacts.map(c => (
-                        <div key={c.id} className="tone-pill is-neutral deal-modal__contact-item">
+                        <div key={c.id} className="deal-modal__contact-item">
                           <div className="deal-modal__contact-header">
-                            <span>{c.name}</span>
-                            {c.deal_role && <span className="deal-modal__contact-role-tag">{c.deal_role}</span>}
+                            <span className="deal-modal__contact-name">{c.name}</span>
+                            {(c.phone || c.email) && (
+                               <div className="deal-modal__contact-details">
+                                 {c.phone && <span title="Phone"><IconPhone /> {c.phone}</span>}
+                                 {c.email && <span title="Email">
+                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                     <polyline points="22,6 12,13 2,6"/>
+                                   </svg>
+                                   {c.email}
+                                 </span>}
+                               </div>
+                            )}
                           </div>
                           {c.role && <div className="deal-modal__contact-sub">{c.role}</div>}
-                          {(c.phone || c.email) && (
-                             <div className="deal-modal__contact-details">
-                               {c.phone && <span title="Phone"><IconPhone /> {c.phone}</span>}
-                               {c.email && <span title="Email">
-                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: '4px' }}>
-                                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                                   <polyline points="22,6 12,13 2,6"/>
-                                 </svg>
-                                 {c.email}
-                               </span>}
-                             </div>
-
-                          )}
                         </div>
                       ))}
                     </div>
@@ -748,7 +745,24 @@ export default function PipelineView({
                     <div className="deal-modal__empty-history">No activity logs found for this deal.</div>
                   ) : (
                     auditLogs.map(log => {
-                      const dotColor = STAGE_COLORS[selectedDeal?.stage] || 'var(--accent)'
+                      const stageContext = (log.action === 'stage_change' || log.action === 'deal_created')
+                        ? log.newValue
+                        : (log.stage || selectedDeal?.stage)
+
+                      // Improved dynamic dot color logic
+                      let dotColor = 'var(--accent)'
+                      if (log.action.includes('contact')) {
+                        dotColor = 'var(--text-muted)'
+                      } else if (STAGE_COLORS[stageContext]) {
+                        dotColor = STAGE_COLORS[stageContext]
+                      } else {
+                        const tone = getToneClass(log.newValue)
+                        if (tone === 'is-positive') dotColor = 'var(--positive)'
+                        else if (tone === 'is-warning') dotColor = 'var(--warning)'
+                        else if (tone === 'is-alert') dotColor = 'var(--alert)'
+                        else if (tone === 'is-converted') dotColor = '#a78bfa'
+                      }
+
                       const ACTION_LABELS = {
                         'stage_change': 'Stage changed',
                         'value_change': 'Value changed',
@@ -758,6 +772,9 @@ export default function PipelineView({
                         'status_change': 'Status changed',
                         'lost_reason': 'Lost reason',
                         'deal_created': 'Deal created',
+                        'bulk_task_completion': 'Bulk Task Completion',
+                        'contact_added': 'Contact added',
+                        'contact_removed': 'Contact removed',
                       }
 
                       return (
@@ -788,6 +805,22 @@ export default function PipelineView({
                                   <>
                                     <strong>Task status updated</strong>:{' '}
                                     <span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong>
+                                  </>
+                                ) : log.action === 'bulk_task_completion' ? (
+                                  <>
+                                    <strong>Automatically completed all open tasks</strong> (Deal closed)
+                                  </>
+                                ) : log.action === 'contact_added' ? (
+                                  <>
+                                    <strong>Added contact</strong>: <strong>{log.newValue}</strong>
+                                  </>
+                                ) : log.action === 'contact_removed' ? (
+                                  <>
+                                    <strong>Removed contact</strong>: <strong>{log.oldValue}</strong>
+                                  </>
+                                ) : log.action.startsWith('contact_role_change') ? (
+                                  <>
+                                    <strong>{log.action.split(':')[1]}</strong> role: <span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong>
                                   </>
                                 ) : (
                                   <>

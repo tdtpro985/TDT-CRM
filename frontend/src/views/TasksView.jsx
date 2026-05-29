@@ -135,6 +135,7 @@ export default function TasksView({
   dealContactMap,
   handleTaskStatusToggle,
   searchQuery,
+  onClearSearch,
   currentUser
 }) {
   const navigate = useNavigate()
@@ -143,16 +144,20 @@ export default function TasksView({
   const [currentPage, setCurrentPage] = useState(1)
   const [highlightedTaskId, setHighlightedTaskId] = useState(null)
   const [pinnedTaskId, setPinnedTaskId] = useState(null)
+  const [clearingSearch, setClearingSearch] = useState(false)
   const isSr = isSrRole(currentUser?.role)
 
   const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
 
   // Reset page on search change (adjusting state during render)
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
-  if (searchQuery !== prevSearchQuery) {
+  if (searchQuery !== prevSearchQuery && !clearingSearch) {
     setPrevSearchQuery(searchQuery)
     setCurrentPage(1)
     setPinnedTaskId(null)
+  } else if (clearingSearch && searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(searchQuery)
+    setClearingSearch(false)
   }
 
   const filteredTasks = useMemo(() => {
@@ -173,7 +178,7 @@ export default function TasksView({
            (taskFilter === 'open' && t.status === 'Open') || 
            (taskFilter === 'completed' && t.status === 'Completed') ||
            (taskFilter === 'reopened' && t.status === 'Reopened')) &&
-          matchesSearch(searchQuery, [t.title, t.type, t.owner, deal?.name, t.resolvedCompanyName])
+          matchesSearch(searchQuery, [t.resolvedCompanyName])
         )
       }
     ).sort((a, b) => {
@@ -214,6 +219,8 @@ export default function TasksView({
   const handleFocusTaskClick = useCallback((task) => {
     setHighlightedTaskId(task.id)
     setPinnedTaskId(task.id)
+    setClearingSearch(true)
+    onClearSearch()
 
     // Ensure filter allows the task to be seen
     if (taskFilter !== 'all' && taskFilter !== 'open') {
@@ -222,7 +229,7 @@ export default function TasksView({
 
     // Task will now be at the top of page 1 due to pinning
     setCurrentPage(1)
-  }, [taskFilter])
+  }, [taskFilter, onClearSearch])
 
   // Handle cross-view navigation highlights (e.g. from Dashboard)
   useEffect(() => {
@@ -315,7 +322,11 @@ export default function TasksView({
                     <div key={task.id}>
                       {showHeader && (
                         <div className={`activity-group-header ${idx > 0 ? 'u-margin-t-24' : ''}`}>
-                          {task.resolvedCompanyName}
+                          <div className="activity-group-header__content">
+                            <span className="activity-group-header__kicker">Company</span>
+                            <strong className="activity-group-header__title">{task.resolvedCompanyName}</strong>
+                          </div>
+                          <div className="activity-group-header__line" />
                         </div>
                       )}
                       

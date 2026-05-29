@@ -1562,6 +1562,15 @@ def update_deal_stage(deal_id):
 
         params.append(deal_id)
         cursor.execute(f'UPDATE deals SET {", ".join(updates)} WHERE id = %s', params)
+
+        # Automatically close all open tasks if deal is closed
+        if new_stage in ('Closed Won', 'Closed Lost'):
+            cursor.execute(
+                "UPDATE activities SET status = 'Completed' WHERE deal_id = %s AND status IN ('Open', 'Reopened')",
+                (deal_id,)
+            )
+            log_audit(conn, 'deal', deal_id, 'bulk_task_completion', 'Open/Reopened', 'Completed', user_id)
+
         conn.commit()
 
         # Log activity for edit-detail changes (value, closeDate, probability)
@@ -2699,12 +2708,31 @@ def add_deal_contact(deal_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+        
+        # Get old role if exists for audit
+        cursor.execute("SELECT role FROM deal_contacts WHERE deal_id = %s AND contact_id = %s", (deal_id, contact_id))
+        old_row = cursor.fetchone()
+        old_role = old_row[0] if old_row else None
+
         cursor.execute(
             '''INSERT INTO deal_contacts (deal_id, contact_id, role) 
                VALUES (%s, %s, %s)
                ON DUPLICATE KEY UPDATE role = VALUES(role)''',
             (deal_id, contact_id, role),
         )
+
+        # Log audit
+        cursor.execute("SELECT name FROM contacts WHERE id = %s", (contact_id,))
+        c_row = cursor.fetchone()
+        c_name = c_row[0] if c_row else "Unknown Contact"
+        
+        user_id = get_jwt_identity()
+        if old_role:
+            if old_role != role:
+                log_audit(conn, 'deal', deal_id, f'contact_role_change:{c_name}', old_role, role, user_id)
+        else:
+            log_audit(conn, 'deal', deal_id, 'contact_added', None, f"{c_name} ({role})", user_id)
+
         conn.commit()
         return jsonify({'message': 'Contact added to deal'}), 201
     except Exception as e:
@@ -2726,10 +2754,19 @@ def remove_deal_contact(deal_id):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
+
+        # Get contact name for audit
+        cursor.execute("SELECT name FROM contacts WHERE id = %s", (contact_id,))
+        c_row = cursor.fetchone()
+        c_name = c_row[0] if c_row else "Unknown Contact"
+
         cursor.execute(
             'DELETE FROM deal_contacts WHERE deal_id = %s AND contact_id = %s',
             (deal_id, contact_id),
         )
+        
+        log_audit(conn, 'deal', deal_id, 'contact_removed', c_name, None, get_jwt_identity())
+        
         conn.commit()
         return jsonify({'message': 'Contact removed from deal'}), 200
     except Exception as e:

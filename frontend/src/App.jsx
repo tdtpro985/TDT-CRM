@@ -143,6 +143,15 @@ export default function App() {
     { label: 'Pipeline Value',  value: formatCurrencyCompact(pipelineValue), meta: 'Expected revenue across active deals',                        accent: 'accent',  route: '/pipeline'  },
   ], [newLeads.length, activeDeals.length, stageSummary, stageBreakdown, conversionRate, convertedLeads.length, leads.length, pipelineValue])
 
+  const searchSuggestions = useMemo(() => {
+    if (activeView !== 'tasks') return []
+    const companyNames = openTasks.map(t => {
+      const deal = deals.find(d => d.id === t.dealId)
+      return t.companyName || companies.find(c => c.id === deal?.companyId)?.name
+    }).filter(Boolean)
+    return [...new Set(companyNames)].sort()
+  }, [activeView, openTasks, deals, companies])
+
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
 
   const handleCreateLead = async (form) => {
@@ -328,6 +337,24 @@ export default function App() {
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
             searchQuery={searchQuery}
+            onClearSearch={() => { setSearchInput(''); setSearchQuery(''); }}
+            currentUser={currentUser}
+          />
+        } />
+        <Route path="/tasks" element={
+          <TasksView
+            tasks={tasks}
+            contacts={contacts}
+            openTasks={openTasks}
+            dueToday={dueToday}
+            deals={deals}
+            companies={companies}
+            teamMembers={teamMembers}
+            dealContactMap={dealContactMap}
+            onCreateTask={handleCreateTask}
+            handleTaskStatusToggle={actions.toggleTaskStatus}
+            searchQuery={searchQuery}
+            onClearSearch={() => { setSearchInput(''); setSearchQuery(''); }}
             currentUser={currentUser}
           />
         } />
@@ -498,11 +525,15 @@ export default function App() {
                 id="global-search-input"
                 name="searchInput"
                 type="search"
+                list="global-search-suggestions"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder={currentMeta.searchPlaceholder}
                 aria-label={currentMeta.searchPlaceholder}
               />
+              <datalist id="global-search-suggestions">
+                {searchSuggestions.map(s => <option key={s} value={s} />)}
+              </datalist>
             </label>
             <button type="button" className="secondary-button" onClick={handleShareCurrentView}>Share view</button>
             {activeView !== 'pipeline' && (
