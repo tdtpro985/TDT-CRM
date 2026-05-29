@@ -337,24 +337,10 @@ export default function App() {
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
             searchQuery={searchQuery}
-            onClearSearch={() => { setSearchInput(''); setSearchQuery(''); }}
-            currentUser={currentUser}
-          />
-        } />
-        <Route path="/tasks" element={
-          <TasksView
-            tasks={tasks}
-            contacts={contacts}
-            openTasks={openTasks}
-            dueToday={dueToday}
-            deals={deals}
-            companies={companies}
-            teamMembers={teamMembers}
-            dealContactMap={dealContactMap}
-            onCreateTask={handleCreateTask}
-            handleTaskStatusToggle={actions.toggleTaskStatus}
-            searchQuery={searchQuery}
-            onClearSearch={() => { setSearchInput(''); setSearchQuery(''); }}
+            onClearSearch={() => {
+              setSearchInput('')
+              setSearchQuery('')
+            }}
             currentUser={currentUser}
           />
         } />
@@ -531,6 +517,19 @@ export default function App() {
                 placeholder={currentMeta.searchPlaceholder}
                 aria-label={currentMeta.searchPlaceholder}
               />
+              {searchInput && (
+                <button
+                  type="button"
+                  className="search-clear"
+                  aria-label="Clear search"
+                  onClick={() => { setSearchInput(''); setSearchQuery(''); }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
               <datalist id="global-search-suggestions">
                 {searchSuggestions.map(s => <option key={s} value={s} />)}
               </datalist>
