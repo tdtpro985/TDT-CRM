@@ -223,6 +223,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           status: ['Completed', 'Open', 'Reopened'].includes(a.status) ? a.status : 'Open',
           companyName: a.companyName ?? '',
           contact: a.contact_name ?? '',
+          createdAt: a.created_at ?? '',
         })),
       )
       setTeamMembers(await teamRes.json())

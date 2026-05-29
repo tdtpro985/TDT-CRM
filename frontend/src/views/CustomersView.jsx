@@ -147,7 +147,18 @@ export default function CustomersView({
     )
   }
 
-  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) ?? customers[0] ?? null
+  // Derive selected customer primarily from filtered list to handle search correctly
+  const selectedCustomer = useMemo(() => {
+    const found = filteredCustomers.find(c => c.id === selectedCustomerId)
+    return found || filteredCustomers[0] || null
+  }, [filteredCustomers, selectedCustomerId])
+
+  // Sync selectedCustomerId if it falls out of filtered set (e.g. via search)
+  useEffect(() => {
+    if (selectedCustomer && selectedCustomer.id !== selectedCustomerId) {
+      setSelectedCustomerId(selectedCustomer.id)
+    }
+  }, [selectedCustomer, selectedCustomerId, setSelectedCustomerId])
 
   useEffect(() => {
     if (selectedCustomer?.id) {
@@ -279,7 +290,7 @@ export default function CustomersView({
                     {paginatedCustomers.map((customer) => (
                       <div
                         key={customer.id}
-                        className={`contact-card ${selectedCustomerId === customer.id ? 'is-selected' : ''}`}
+                        className={`contact-card ${selectedCustomer?.id === customer.id ? 'is-selected' : ''}`}
                         onClick={() => setSelectedCustomerId(customer.id)}
                         onDoubleClick={() => setDetailModalOpen(true)}
                       >
@@ -350,7 +361,7 @@ export default function CustomersView({
                               <MetricCard label="Lost Value" value={lostCount === 0 ? '-' : formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
                             </div>
 
-                            <div className="detail-section__body">
+                            <div className="detail-section__body" style={{ overflowY: dealHistoryExpanded ? 'auto' : 'hidden' }}>
                               <div className={`admin-table-wrap u-margin-b-16 ${dealHistoryExpanded ? 'deal-table-wrap--expanded' : ''}`}>
                                 <table className="admin-table">
                                   <thead>
@@ -407,7 +418,7 @@ export default function CustomersView({
                           return true
                         }).sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt))
 
-                        const displayLogs = activityLogExpanded ? filteredLogs : filteredLogs.slice(0, 7)
+                        const displayLogs = activityLogExpanded ? filteredLogs : filteredLogs.slice(0, 6)
 
                         return (
                           <>
@@ -464,7 +475,7 @@ export default function CustomersView({
                               </div>
                             </div>
 
-                            <div className="detail-section__body">
+                            <div className="detail-section__body" style={{ overflowY: activityLogExpanded ? 'auto' : 'hidden' }}>
                               <div className={`timeline ${activityLogExpanded ? 'timeline--expanded' : ''}`}>
                                 {displayLogs.length === 0 ? (
                                   <p className="u-pad-16 u-text-center u-text-muted u-fs-sm">No significant activity recorded.</p>
@@ -477,9 +488,23 @@ export default function CustomersView({
                                       ? parseAuditValue(item.newValue)
                                       : (item.stage || linkedDeal?.stage)
                                     
-                                    const dotColor = item.entityType === 'contact' ? 'var(--text-muted)' : (STAGE_COLORS[stageContext] || 'var(--accent)')
+                                    // Improved dynamic dot color logic
+                                    let dotColor = 'var(--accent)'
+                                    if (item.entityType === 'contact') {
+                                      dotColor = 'var(--text-muted)'
+                                    } else if (STAGE_COLORS[stageContext]) {
+                                      dotColor = STAGE_COLORS[stageContext]
+                                    } else {
+                                      const tone = getToneClass(item.newValue)
+                                      if (tone === 'is-positive') dotColor = 'var(--positive)'
+                                      else if (tone === 'is-warning') dotColor = 'var(--warning)'
+                                      else if (tone === 'is-alert') dotColor = 'var(--alert)'
+                                      else if (tone === 'is-open') dotColor = 'var(--accent)'
+                                      else if (tone === 'is-converted') dotColor = '#a78bfa'
+                                    }
 
                                     const ACTION_LABELS = {
+
                                       'stage_change': 'Stage changed',
                                       'deal_created': 'Deal created',
                                       'value_change': 'Value changed',

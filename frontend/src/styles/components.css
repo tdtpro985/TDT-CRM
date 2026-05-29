@@ -611,6 +611,10 @@ section.content-grid--primary {
   flex: 1;
 }
 
+[data-theme="light"] .detail-card {
+  background: var(--bg-card);
+}
+
 .detail-card strong {
   display: block;
   font-size: var(--fs-xs);
@@ -890,6 +894,10 @@ section.content-grid--primary {
   border: 1px solid var(--border);
 }
 
+[data-theme="light"] .empty-state {
+  background: var(--bg-card);
+}
+
 /* ── 7. Modals & Toasts ─────────────────────────────────────── */
 
 .deal-modal-overlay {
@@ -997,6 +1005,10 @@ section.content-grid--primary {
   margin-top: 16px;
 }
 
+[data-theme="light"] .deal-modal__footer {
+  background: var(--bg-card);
+}
+
 
 .deal-modal__header-actions {
   display: flex;
@@ -1022,10 +1034,19 @@ section.content-grid--primary {
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
+[data-theme="light"] .deal-modal__close {
+  border-color: rgba(0,0,0,0.15);
+  background: var(--bg-card);
+}
+
 .deal-modal__close:hover {
   background: rgba(255,255,255,0.1);
   color: var(--text-strong);
   border-color: var(--border-strong);
+}
+
+[data-theme="light"] .deal-modal__close:hover {
+  background: rgba(0,0,0,0.06);
 }
 
 .modal-body-scroll {
@@ -1046,6 +1067,10 @@ section.content-grid--primary {
   border: 1px solid rgba(255,255,255,0.07);
 }
 
+[data-theme="light"] .deal-modal__stage-track {
+  border-color: rgba(0,0,0,0.1);
+}
+
 .deal-modal__stage-pip {
   flex: 1;
   padding: 8px 4px;
@@ -1053,6 +1078,11 @@ section.content-grid--primary {
   background: rgba(255,255,255,0.03);
   border-right: 1px solid rgba(255,255,255,0.06);
   transition: background 0.2s;
+}
+
+[data-theme="light"] .deal-modal__stage-pip {
+  background: rgba(0,0,0,0.02);
+  border-right-color: rgba(0,0,0,0.06);
 }
 
 .deal-modal__stage-pip:last-child {
@@ -1137,6 +1167,10 @@ section.content-grid--primary {
   border: 1px solid var(--border);
 }
 
+[data-theme="light"] .deal-modal__field {
+  background: var(--bg-card);
+}
+
 .deal-modal__label {
   font-size: var(--fs-2xs);
   font-weight: 700;
@@ -1187,6 +1221,11 @@ section.content-grid--primary {
   background: rgba(255,255,255,0.015);
 }
 
+[data-theme="light"] .deal-modal__footer {
+  border-top-color: rgba(0,0,0,0.08);
+  background: var(--bg-card);
+}
+
 .deal-modal__footer-label {
   margin: 0 0 12px;
   font-size: var(--fs-2xs);
@@ -1198,9 +1237,9 @@ section.content-grid--primary {
 
 .deal-modal__stage-buttons {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 6px;
-  overflow-x: auto;
+  width: 100%;
 }
 
 .deal-modal__stage-btn {
@@ -1220,6 +1259,16 @@ section.content-grid--primary {
   background: rgba(255,255,255,0.08);
   border-color: var(--border-strong);
   color: var(--text-strong);
+}
+
+[data-theme="light"] .deal-modal__stage-btn {
+  border-color: rgba(0,0,0,0.12);
+  background: var(--bg-card);
+}
+
+[data-theme="light"] .deal-modal__stage-btn:hover {
+  background: var(--bg-card-alt);
+  border-color: var(--accent);
 }
 
 [data-theme="neon"] .deal-modal__stage-btn:hover {
@@ -1325,6 +1374,10 @@ section.content-grid--primary {
   gap: 12px;
   animation: toastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: none;
+}
+
+[data-theme="light"] .toast {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 /* ── About Modal ─────────────────────────────────────────────── */
@@ -1682,6 +1735,15 @@ section.content-grid--primary {
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
   border-radius: var(--r-sm);
+}
+
+[data-theme="light"] .sk {
+  background: linear-gradient(
+    90deg,
+    var(--bg-surface) 25%,
+    rgba(0, 0, 0, 0.06) 50%,
+    var(--bg-surface) 75%
+  );
 }
 
 .sk--line     { height: 14px; margin-bottom: 10px; }
