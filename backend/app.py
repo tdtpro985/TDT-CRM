@@ -241,6 +241,35 @@ def normalize_branch(branch):
     return str(branch or '').strip().lower()
 
 
+def _parse_contact_name(raw):
+    """Return a non-empty string if raw is a real name; return '' for None, 0, 0.0, '0.00', etc."""
+    if raw is None:
+        return ''
+    s = str(raw).strip()
+    if not s:
+        return ''
+    try:
+        if float(s.replace(',', '')) == 0:
+            return ''
+    except ValueError:
+        pass
+    return s
+
+
+def _parse_phone(raw):
+    """Clean a phone value from Excel: strip whitespace, convert numeric floats to int strings."""
+    if raw is None:
+        return ''
+    s = str(raw).strip()
+    # Excel stores phone numbers as floats (e.g. 93120000.0) — strip the trailing .0
+    if s.endswith('.0'):
+        try:
+            s = str(int(float(s)))
+        except (ValueError, OverflowError):
+            pass
+    return s if s not in ('0', '0.0', '0.00', '') else ''
+
+
 def has_branch_filter(branch):
     normalized = normalize_branch(branch)
     return bool(normalized and normalized != 'headquarters')
@@ -287,8 +316,11 @@ def build_scope(claims, requested_branch, col='LOWER(TRIM(l.branch))', requested
     user_region = claims.get('region', '')
     user_branch = claims.get('branch', '')
 
-    if role in ('Branch Account', 'Sales Rep', 'Sales Representative'):
+    if role == 'Sales Representative':
         return ([f'{col} = %s'], True, [normalize_branch(user_branch)])
+
+    if role in ('Branch Account', 'Sales Rep'):
+        return ([f'{col} = %s'], False, [normalize_branch(user_branch)])
 
     if role == 'Regional Sales Manager':
         region_branches = REGION_BRANCHES.get(user_region, [])
@@ -516,7 +548,7 @@ def get_customers():
         where_clauses = ["1=1"] + list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_clauses.append("(l.owner_id = %s OR l.owner_id IS NULL)")
+            where_clauses.append("l.owner_id = %s")
             params.append(user_id)
 
         if where_clauses:
@@ -546,7 +578,7 @@ def get_customer_detail(customer_id):
         where_parts = list(scope_parts) + ['c.id = %s']
         params = list(scope_params) + [customer_id]
         if restrict_owner:
-            where_parts.append('(l.owner_id = %s OR l.owner_id IS NULL)')
+            where_parts.append('l.owner_id = %s')
             params.append(user_id)
         
         where_sql = 'WHERE ' + ' AND '.join(where_parts)
@@ -601,8 +633,8 @@ def get_customer_detail(customer_id):
         deal_where = ["d.company_id = %s"]
         deal_params = [customer_id]
         if restrict_owner:
-            deal_where.append("(d.owner_id = %s OR (d.owner_id IS NULL AND (l.owner_id = %s OR l.owner_id IS NULL)))")
-            deal_params.extend([user_id, user_id])
+            deal_where.append("d.owner_id = %s")
+            deal_params.append(user_id)
             
         cursor.execute(f"""
             SELECT d.id, d.name, d.stage, d.value, d.close_date AS closeDate, d.probability, 
@@ -631,12 +663,11 @@ def get_customer_detail(customer_id):
             """, tuple(deal_ids))
             activities = rows_to_list(cursor)
             
-        # 4. Fetch contacts for this "Account" (all companies sharing the same customer name)
+        # 4. Fetch contacts for this customer
         cursor.execute(
             """SELECT c.id, c.name, c.role, c.email, c.phone, c.company_id AS companyId
                FROM contacts c
-               JOIN leads l ON c.company_id = l.id
-               WHERE l.customer_name = (SELECT customer_name FROM leads WHERE id = %s)
+               WHERE c.company_id = %s
                ORDER BY c.name""",
             (customer_id,)
         )
@@ -762,7 +793,7 @@ def get_companies():
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('(l.owner_id = %s OR l.owner_id IS NULL)')
+            where_parts.append('l.owner_id = %s')
             params.append(user_id)
         where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
         cursor.execute(f'''
@@ -866,7 +897,7 @@ def get_contacts():
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('(l.owner_id = %s OR l.owner_id IS NULL)')
+            where_parts.append('l.owner_id = %s')
             params.append(user_id)
         where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
         cursor.execute(f'''
@@ -1095,7 +1126,7 @@ def get_leads():
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('(l.owner_id = %s OR l.owner_id IS NULL)')
+            where_parts.append('l.owner_id = %s')
             params.append(user_id)
         where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
 
@@ -1312,8 +1343,8 @@ def get_deals():
         where_parts = list(scope_parts) + ['l.branch IS NOT NULL']
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('(d.owner_id = %s OR (d.owner_id IS NULL AND (l.owner_id = %s OR l.owner_id IS NULL)))')
-            params.extend([user_id, user_id])
+            where_parts.append('d.owner_id = %s')
+            params.append(user_id)
         where_sql = 'WHERE ' + ' AND '.join(where_parts)
         cursor.execute(f'''
             SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
@@ -1652,7 +1683,7 @@ def get_activities():
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('(a.owner_id = %s OR a.owner_id IS NULL)')
+            where_parts.append('a.owner_id = %s')
             params.append(user_id)
         where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else 'WHERE 1=1'
         cursor.execute(f'''
@@ -1817,14 +1848,14 @@ def get_dashboard():
         deal_where = list(scope_parts) + ['l.branch IS NOT NULL']
         deal_params = list(scope_params)
         if restrict_owner:
-            deal_where.append('(d.owner_id = %s OR (d.owner_id IS NULL AND (l.owner_id = %s OR l.owner_id IS NULL)))')
-            deal_params.extend([user_id, user_id])
+            deal_where.append('d.owner_id = %s')
+            deal_params.append(user_id)
         deal_where_sql = 'WHERE ' + ' AND '.join(deal_where)
 
         lead_where = ["DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"] + list(direct_parts)
         lead_params = list(direct_params)
         if restrict_owner:
-            lead_where.append('(owner_id = %s OR owner_id IS NULL)')
+            lead_where.append('owner_id = %s')
             lead_params.append(user_id)
 
         cursor.execute(
@@ -1852,7 +1883,7 @@ def get_dashboard():
         total_leads_where = ['1=1'] + list(direct_parts)
         total_leads_params = list(direct_params)
         if restrict_owner:
-            total_leads_where.append('(owner_id = %s OR owner_id IS NULL)')
+            total_leads_where.append('owner_id = %s')
             total_leads_params.append(user_id)
 
         cursor.execute(
@@ -2508,7 +2539,7 @@ def import_customers():
 
             customer_name = str(row[22]).strip().replace('\xa0', '').strip() if row[22] else ''
             address       = str(row[23]).strip() if row[23] else ''
-            contact_num   = str(row[25]).strip() if row[25] else ''
+            contact_num   = _parse_phone(row[25])
             owner_name    = str(row[26]).strip() if row[26] else ''
             branch        = str(row[27]).strip() if row[27] else ''
 
@@ -2520,38 +2551,67 @@ def import_customers():
 
             region = branch_to_region.get(branch, '')
 
-            cursor.execute(
-                'SELECT id FROM leads WHERE customer_name = %s AND branch = %s LIMIT 1',
-                (customer_name, branch)
-            )
-            if cursor.fetchone():
-                skipped += 1
-                continue
+            try:
+                cursor.execute('SAVEPOINT import_row')
 
-            lead_id = str(uuid.uuid4())
+                cursor.execute(
+                    'SELECT id FROM leads WHERE customer_name = %s AND branch = %s LIMIT 1',
+                    (customer_name, branch)
+                )
+                existing_lead = cursor.fetchone()
+                if existing_lead:
+                    existing_lead_id = existing_lead[0]
+                    contact_person = _parse_contact_name(row[24])
+                    cursor.execute(
+                        'SELECT id, name FROM contacts WHERE company_id = %s ORDER BY created_at LIMIT 1',
+                        (existing_lead_id,)
+                    )
+                    existing_contact = cursor.fetchone()
+                    if not existing_contact:
+                        if contact_person or contact_num:
+                            cursor.execute('''
+                                INSERT INTO contacts (id, name, company_id, phone, role, status)
+                                VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
+                            ''', (str(uuid.uuid4()), contact_person or '—', existing_lead_id, contact_num))
+                    elif existing_contact[1] in ('', customer_name):
+                        # Auto-created with company-name fallback or blank — correct it
+                        cursor.execute(
+                            'UPDATE contacts SET name=%s, phone=%s WHERE id=%s',
+                            (contact_person or '—', contact_num, existing_contact[0])
+                        )
+                    cursor.execute('RELEASE SAVEPOINT import_row')
+                    skipped += 1
+                    continue
 
-            cursor.execute('''
-                INSERT INTO leads (id, customer_name, contact_num, address, region, branch, owner_name, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'New')
-            ''', (lead_id, customer_name, contact_num, address, region, branch, owner_name))
+                lead_id = str(uuid.uuid4())
 
-            # companies table only stores id + name (address/branch/region live on leads)
-            cursor.execute('''
-                INSERT INTO companies (id, name)
-                VALUES (%s, %s)
-                ON DUPLICATE KEY UPDATE name=name
-            ''', (lead_id, customer_name))
-
-            # column 24 = Primary Contact person name
-            contact_name = str(row[24]).strip() if row[24] else ''
-            if contact_name:
-                contact_id = str(uuid.uuid4())
                 cursor.execute('''
-                    INSERT INTO contacts (id, name, company_id, phone, role, status)
-                    VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
-                ''', (contact_id, contact_name, lead_id, contact_num))
+                    INSERT INTO leads (id, customer_name, contact_num, address, region, branch, owner_name, status)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'New')
+                ''', (lead_id, customer_name, contact_num, address, region, branch, owner_name))
 
-            inserted += 1
+                # companies table only stores id + name (address/branch/region live on leads)
+                cursor.execute('''
+                    INSERT INTO companies (id, name)
+                    VALUES (%s, %s)
+                    ON DUPLICATE KEY UPDATE name=name
+                ''', (lead_id, customer_name))
+
+                # column 24 = Primary Contact person name; col 25 = phone
+                contact_person = _parse_contact_name(row[24])
+                if contact_person or contact_num:
+                    cursor.execute('''
+                        INSERT INTO contacts (id, name, company_id, phone, role, status)
+                        VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
+                    ''', (str(uuid.uuid4()), contact_person or '—', lead_id, contact_num))
+
+                cursor.execute('RELEASE SAVEPOINT import_row')
+                inserted += 1
+
+            except Exception as row_err:
+                cursor.execute('ROLLBACK TO SAVEPOINT import_row')
+                errors.append(f'Row {i} ({customer_name[:40]}): {str(row_err)[:100]}')
+                skipped += 1
 
             if inserted % 500 == 0:
                 conn.commit()
@@ -2648,8 +2708,8 @@ def get_all_deal_contacts():
         params = list(scope_params)
         
         if restrict_owner:
-            where_parts.append('(d.owner_id = %s OR (d.owner_id IS NULL AND (l.owner_id = %s OR l.owner_id IS NULL)))')
-            params.extend([user_id, user_id])
+            where_parts.append('d.owner_id = %s')
+            params.append(user_id)
             
         where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
         
