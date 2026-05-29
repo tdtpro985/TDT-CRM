@@ -188,7 +188,7 @@ export default function PipelineView({
   const srOptions = canFilterBySR
     ? (teamMembers ?? []).filter(
         (m) => m.branch === activeBranch &&
-               (m.role === 'Sales Representative' || m.role === 'Sales Rep')
+               (m.role === 'Sales Representative' || m.role === 'Branch Account' || m.role === 'Sales Rep')
       )
     : []
 
@@ -342,7 +342,7 @@ export default function PipelineView({
               </label>
               {canFilterBySR && (
                 <label className="filter-wrap">
-                  <span>Sales Rep</span>
+                  <span>Branch Account</span>
                   <select
                     value={srFilter}
                     onChange={(e) => { setSrFilter(e.target.value); setCurrentPage(1) }}

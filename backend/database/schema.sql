@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS team (
     password VARCHAR(255) NOT NULL,
     name     VARCHAR(255) NOT NULL,
     email    VARCHAR(255),
-    role     VARCHAR(100) DEFAULT 'Sales Rep',
+    role     VARCHAR(100) DEFAULT 'Branch Account',
     branch   VARCHAR(100) NOT NULL,
     region   ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'Central'
 );
