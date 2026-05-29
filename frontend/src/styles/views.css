@@ -895,34 +895,33 @@
 /* ── Activity Card ───────────────────────────────────────────── */
 
 .activity-group-header {
-  padding: 10px 16px;
-  background: linear-gradient(90deg, rgba(255, 152, 0, 0.08), transparent);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--r-sm) var(--r-md) var(--r-md) var(--r-sm);
-  margin: 24px 0 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  margin: 32px 0 16px;
   display: flex;
   align-items: center;
   gap: 12px;
   position: relative;
+  background: none;
+  border-left: none;
 }
 
 [data-theme="light"] .activity-group-header {
-  background: linear-gradient(90deg, rgba(255, 152, 0, 0.1), rgba(0,0,0,0.02));
+  border-bottom-color: rgba(0,0,0,0.06);
 }
 
 .activity-group-header__content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .activity-group-header__kicker {
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--accent-strong);
-  font-weight: 800;
-  opacity: 0.8;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
 .activity-group-header__title {
@@ -933,13 +932,7 @@
 }
 
 .activity-group-header__line {
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent);
-}
-
-[data-theme="light"] .activity-group-header__line {
-  background: linear-gradient(90deg, rgba(0,0,0,0.08), transparent);
+  display: none;
 }
 
 .activity-card {
@@ -949,16 +942,17 @@
 }
 
 .activity-card.is-highlighted {
-   outline: 2px solid var(--accent);
-   outline-offset: -2px; /* Fix overlap with strip color */
-   box-shadow: var(--glow-md);
-   transition: box-shadow 0.3s ease, outline 0.3s ease;
+   box-shadow: 
+     inset 0 0 0 2px var(--accent),
+     var(--glow-md);
+   transition: box-shadow 0.3s ease;
    z-index: 2;
 }
 
 [data-theme="neon"] .activity-card.is-highlighted {
-   outline: 2px solid var(--accent);
-   box-shadow: var(--glow-lg);
+   box-shadow: 
+     inset 0 0 0 2px var(--accent),
+     var(--glow-lg);
 }
 
 .activity-card__deal-line {

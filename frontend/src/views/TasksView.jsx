@@ -369,14 +369,19 @@ export default function TasksView({
                       <strong className="u-block u-truncate">
                         {task.title}
                       </strong>
-                      <p className="u-margin-t-4 u-fs-11 u-text-muted">
-                        {!isSr ? `${task.owner} | ` : ''}due {formatDueDate(task.dueDate)}
-                        {linkedDeal?.stage && (
-                          <span className={`tone-pill ${getToneClass(linkedDeal.stage)} u-fs-9 u-pad-1-6 u-ml-6`}>
-                            {linkedDeal.stage}
-                          </span>
-                        )}
-                      </p>
+                      <div className="u-flex-column u-margin-t-4">
+                        <span className="u-fs-10 u-text-muted u-font-700 u-truncate">
+                          {task.companyName || (deals.find(d => d.id === task.dealId)?.companyName) || 'Manual Task'}
+                        </span>
+                        <p className="u-fs-11 u-text-muted u-margin-t-2">
+                          {!isSr ? `${task.owner} | ` : ''}due {formatDueDate(task.dueDate)}
+                          {linkedDeal?.stage && (
+                            <span className={`tone-pill ${getToneClass(linkedDeal.stage)} u-fs-9 u-pad-1-6 u-ml-6`}>
+                              {linkedDeal.stage}
+                            </span>
+                          )}
+                        </p>
+                      </div>
                     </div>
                     <div className="u-shrink-0 u-ml-12">
                       <button 
