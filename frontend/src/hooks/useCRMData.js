@@ -22,7 +22,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   const abortControllerRef = useRef(null)
   const audioRef = useRef(null)
-  const musicRef = useRef({ won: null, lost: null })
+  const musicRef = useRef({ won: [], lost: [] })
 
   const getSignal = useCallback(() => {
     if (abortControllerRef.current) {
@@ -139,7 +139,9 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   function playCelebrationSound(outcome) {
-    const entry = musicRef.current[outcome]
+    const entries = musicRef.current[outcome]
+    if (!entries || entries.length === 0) return
+    const entry = entries[Math.floor(Math.random() * entries.length)]
     if (!entry?.url) return
     if (audioRef.current) {
       audioRef.current.pause()
@@ -194,8 +196,10 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       })
       setDealContactMap(dcm)
 
-      const musicMap = { won: null, lost: null }
-      fetchedMusic.forEach((e) => { musicMap[e.outcome] = e })
+      const musicMap = { won: [], lost: [] }
+      fetchedMusic.forEach((e) => {
+        if (musicMap[e.outcome]) musicMap[e.outcome].push(e)
+      })
       musicRef.current = musicMap
 
       setLeads(fetchedLeads)
@@ -612,6 +616,15 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         ? { ...d, stage: nextStage, probability, lostReason: extra.lostReason ?? d.lostReason }
         : d)),
     )
+
+    if (nextStage === 'Closed Won') {
+      playCelebrationSound('won')
+      celebrateWon()
+    } else if (nextStage === 'Closed Lost') {
+      playCelebrationSound('lost')
+      celebrateLost()
+    }
+
     try {
       const res = await apiFetch(`/api/deals/${dealId}/stage`, {
         method: 'PATCH',
@@ -622,13 +635,6 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         throw new Error(errData.error || `Server error: ${res.status}`)
       }
       showToast(`Deal stage updated to ${nextStage}`)
-      if (nextStage === 'Closed Won') {
-        playCelebrationSound('won')
-        celebrateWon()
-      } else if (nextStage === 'Closed Lost') {
-        playCelebrationSound('lost')
-        celebrateLost()
-      }
       await Promise.all([fetchDeals(), fetchCustomers()])
     } catch (err) {
       setDeals((current) => current.map((d) => (d.id === dealId ? snapshot : d)))
