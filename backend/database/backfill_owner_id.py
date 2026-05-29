@@ -19,18 +19,26 @@ def backfill_all_owner_ids():
         ''')
         leads_from_companies = cursor.rowcount
 
-        # 2. Backfill leads/companies by matching branch to the SR team member
-        #    (c.owner text column no longer exists; use branch-based team lookup instead)
+        # 2a. Backfill leads by matching owner_name to team.name (name-based, precise)
+        cursor.execute('''
+            UPDATE leads l
+            JOIN team t ON LOWER(TRIM(t.name)) = LOWER(TRIM(l.owner_name))
+                AND t.branch = l.branch
+            SET l.owner_id = t.id
+            WHERE l.owner_name IS NOT NULL AND l.owner_name != ''
+        ''')
+        string_match_updated = cursor.rowcount
+
+        # 2b. For leads with no owner_name, fall back to branch account
         cursor.execute('''
             UPDATE leads l
             JOIN companies c ON c.id = l.id
             JOIN team t ON LOWER(TRIM(t.branch)) = LOWER(TRIM(l.branch))
-                AND t.role IN ('Branch Account', 'Sales Rep', 'Sales Representative')
-            SET l.owner_id = t.id, l.owner_name = COALESCE(l.owner_name, t.name), c.owner_id = t.id
-            WHERE (l.owner_id IS NULL OR c.owner_id IS NULL)
+                AND t.role IN ('Branch Account', 'Sales Rep')
+            SET l.owner_id = t.id, c.owner_id = t.id
+            WHERE l.owner_id IS NULL AND l.owner_name IS NULL
               AND l.branch IS NOT NULL AND l.branch != ''
         ''')
-        string_match_updated = cursor.rowcount
 
         # 3. Sync owner_id to contacts from parent lead/company
         cursor.execute('''

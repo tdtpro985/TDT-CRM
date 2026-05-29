@@ -523,7 +523,7 @@ export default function TaskForm({
           <table className="admin-table">
             <thead>
               <tr>
-                <th className="u-w-30px"></th>
+                <th className="u-w-30px">POP</th>
                 <th>Name</th>
                 <th>Role</th>
               </tr>

@@ -9,31 +9,28 @@ from .database import get_db_connection, close_connection
 load_dotenv()
 
 MANILA_SRS = [
-    {'username': 'mrky',  'name': 'Mrky',  'role': 'Head of Sales'},
-    {'username': 'den',   'name': 'Den',   'role': 'Regional Sales Manager'},
-    {'username': '1dan',  'name': '1Dan',  'role': 'Sales Representative'},
-    {'username': '1jas',  'name': '1Jas',  'role': 'Sales Representative'},
-    {'username': '1jems', 'name': '1Jems', 'role': 'Sales Representative'},
-    {'username': 'abi',   'name': 'Abi',   'role': 'Sales Representative'},
-    {'username': 'aga',   'name': 'Aga',   'role': 'Sales Representative'},
-    {'username': 'central', 'name': 'Central', 'role': 'Sales Representative'},
-    {'username': 'che',   'name': 'Che',   'role': 'Sales Representative'},
-    {'username': 'dlm',   'name': 'DLM',   'role': 'Sales Representative'},
-    {'username': 'ema',   'name': 'Ema',   'role': 'Sales Representative'},
-    {'username': 'fmar',  'name': 'FMAR',  'role': 'Sales Representative'},
-    {'username': 'gen',   'name': 'Gen',   'role': 'Sales Representative'},
-    {'username': 'jhn',   'name': 'Jhn',   'role': 'Sales Representative'},
-    {'username': 'knd',   'name': 'KND',   'role': 'Sales Representative'},
-    {'username': 'kim',   'name': 'Kim',   'role': 'Sales Representative'},
-    {'username': 'lpc',   'name': 'LPC',   'role': 'Sales Representative'},
-    {'username': 'mat',   'name': 'Mat',   'role': 'Sales Representative'},
-    {'username': 'mav',   'name': 'Mav',   'role': 'Sales Representative'},
-    {'username': 'mel',   'name': 'Mel',   'role': 'Sales Representative'},
-    {'username': 'mldy',  'name': 'Mldy',  'role': 'Sales Representative'},
-    {'username': 'nes',   'name': 'Nes',   'role': 'Sales Representative'},
-    {'username': 'tdt',   'name': 'TDT',   'role': 'Sales Representative'},
-    {'username': 'van',   'name': 'Van',   'role': 'Sales Representative'},
-    {'username': 'vic',   'name': 'Vic',   'role': 'Sales Representative'},
+    # Management
+    {'username': 'mrky',  'name': '1Mrky',  'role': 'Head of Sales'},
+    {'username': 'den',   'name': '1Den',   'role': 'Regional Sales Manager'},
+    # Sales Representatives — "1" prefix (from Excel)
+    {'username': '1dan',  'name': '1Dan',   'role': 'Sales Representative'},
+    {'username': '1jas',  'name': '1Jas',   'role': 'Sales Representative'},
+    {'username': '1jems', 'name': '1Jems',  'role': 'Sales Representative'},
+    {'username': 'abi',   'name': '1Abi',   'role': 'Sales Representative'},
+    {'username': 'aga',   'name': '1Aga',   'role': 'Sales Representative'},
+    {'username': 'dlm',   'name': '1DLM',   'role': 'Sales Representative'},
+    {'username': 'ema',   'name': '1Ema',   'role': 'Sales Representative'},
+    {'username': 'knd',   'name': '1KND',   'role': 'Sales Representative'},
+    {'username': 'kim',   'name': '1Kim',   'role': 'Sales Representative'},
+    {'username': 'lpc',   'name': '1LPC',   'role': 'Sales Representative'},
+    {'username': 'mav',   'name': '1Mav',   'role': 'Sales Representative'},
+    {'username': 'mldy',  'name': '1Mldy',  'role': 'Sales Representative'},
+    {'username': 'tdt',   'name': '1TDT',   'role': 'Sales Representative'},
+    {'username': 'van',   'name': '1van',   'role': 'Sales Representative'},
+    {'username': 'vic',   'name': '1Vic',   'role': 'Sales Representative'},
+    # Manila-only SRs (all customers in Manila branch)
+    {'username': 'che',   'name': '8Che',   'role': 'Sales Representative'},
+    {'username': 'fmar',  'name': 'FMAR',   'role': 'Sales Representative'},
 ]
 
 
