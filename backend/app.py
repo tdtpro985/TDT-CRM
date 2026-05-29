@@ -2798,39 +2798,27 @@ def admin_get_celebration_music():
         close_connection(conn)
 
 
-@app.route('/api/admin/settings/celebration-music/<outcome>', methods=['PUT'])
+@app.route('/api/admin/settings/celebration-music/<outcome>', methods=['POST'])
 @jwt_required()
 @admin_required
-def admin_update_celebration_music(outcome):
+def admin_add_celebration_music(outcome):
     if outcome not in ('won', 'lost'):
         return jsonify({'error': 'Outcome must be "won" or "lost"'}), 400
     data = request.get_json()
     if not data or not data.get('url'):
         return jsonify({'error': 'url is required'}), 400
 
-    source_type = data.get('sourceType', 'url')
-    original_filename = data.get('originalFilename', '')
-    stored_filename = data.get('storedFilename', '')
-
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('SELECT id FROM celebration_music WHERE outcome = %s', (outcome,))
-        existing = cursor.fetchone()
-        if existing:
-            cursor.execute(
-                'UPDATE celebration_music SET url = %s, source_type = %s, original_filename = %s, stored_filename = %s, is_active = 1 WHERE outcome = %s',
-                (data['url'], source_type, original_filename, stored_filename, outcome),
-            )
-        else:
-            cursor.execute(
-                'INSERT INTO celebration_music (outcome, url, source_type, original_filename, stored_filename) VALUES (%s, %s, %s, %s, %s)',
-                (outcome, data['url'], source_type, original_filename, stored_filename),
-            )
+        cursor.execute(
+            'INSERT INTO celebration_music (outcome, url, source_type) VALUES (%s, %s, %s)',
+            (outcome, data['url'], 'url'),
+        )
         conn.commit()
-        return jsonify({'message': f'{outcome} music updated'})
+        return jsonify({'id': cursor.lastrowid, 'message': f'{outcome} music added'}), 201
     finally:
         close_connection(conn)
 
@@ -2845,6 +2833,10 @@ def admin_upload_celebration_music():
     if not file or file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
+    outcome = request.form.get('outcome')
+    if outcome not in ('won', 'lost'):
+        return jsonify({'error': 'outcome must be "won" or "lost"'}), 400
+
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_AUDIO_EXTENSIONS:
         return jsonify({'error': f'Audio format not allowed. Allowed: {", ".join(sorted(ALLOWED_AUDIO_EXTENSIONS))}'}), 400
@@ -2854,27 +2846,44 @@ def admin_upload_celebration_music():
     stored_name = f"{file_id}{ext}"
     file.save(os.path.join(MUSIC_UPLOAD_FOLDER, stored_name))
 
-    return jsonify({
-        'url': f'/api/uploads/celebration-music/{stored_name}',
-        'originalFilename': safe_name,
-        'storedFilename': stored_name,
-    }), 201
+    url = f'/api/uploads/celebration-music/{stored_name}'
 
-
-@app.route('/api/admin/settings/celebration-music/<outcome>', methods=['DELETE'])
-@jwt_required()
-@admin_required
-def admin_delete_celebration_music(outcome):
-    if outcome not in ('won', 'lost'):
-        return jsonify({'error': 'Outcome must be "won" or "lost"'}), 400
     conn = get_db_connection()
     if not conn:
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        cursor.execute('DELETE FROM celebration_music WHERE outcome = %s', (outcome,))
+        cursor.execute(
+            'INSERT INTO celebration_music (outcome, url, source_type, original_filename, stored_filename) VALUES (%s, %s, %s, %s, %s)',
+            (outcome, url, 'internal', safe_name, stored_name),
+        )
         conn.commit()
-        return jsonify({'message': f'{outcome} music deleted'})
+        entry_id = cursor.lastrowid
+    finally:
+        close_connection(conn)
+
+    return jsonify({
+        'id': entry_id,
+        'url': url,
+        'originalFilename': safe_name,
+        'storedFilename': stored_name,
+    }), 201
+
+
+@app.route('/api/admin/settings/celebration-music/entry/<int:entry_id>', methods=['DELETE'])
+@jwt_required()
+@admin_required
+def admin_delete_celebration_music_entry(entry_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM celebration_music WHERE id = %s', (entry_id,))
+        conn.commit()
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Entry not found'}), 404
+        return jsonify({'message': 'Music entry deleted'})
     finally:
         close_connection(conn)
 
