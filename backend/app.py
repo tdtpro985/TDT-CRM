@@ -96,6 +96,16 @@ def ensure_schema():
             cursor.execute("ALTER TABLE leads ADD COLUMN owner_name VARCHAR(255) NULL")
             conn.commit()
 
+        # Ensure reassigned_at column exists in leads table (newly-handed-over "New" flag)
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'leads' AND COLUMN_NAME = 'reassigned_at'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'reassigned_at' column to 'leads' table...")
+            cursor.execute("ALTER TABLE leads ADD COLUMN reassigned_at DATE NULL")
+            conn.commit()
+
         # Ensure celebration_music table exists
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS celebration_music (
@@ -504,6 +514,7 @@ def get_customers():
                 c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
                 c.status AS companyStatus, c.created_at AS createdAt,
                 l.contact_num AS contactNum, l.address, l.region, COALESCE(l.owner_name, t_lead.name, t.name) AS sr, l.branch,
+                l.reassigned_at AS reassignedAt,
                 COALESCE(deal_stats.totalDealCount, 0) AS totalDealCount,
                 COALESCE(deal_stats.activeDealCount, 0) AS activeDealCount,
                 COALESCE(deal_stats.closedWonCount, 0) AS closedWonCount,
@@ -588,6 +599,7 @@ def get_customer_detail(customer_id):
                 c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
                 c.status AS companyStatus, c.created_at AS createdAt,
                 l.contact_num AS contactNum, l.address, l.region, COALESCE(l.owner_name, t_lead.name, t.name) AS sr, l.branch,
+                l.reassigned_at AS reassignedAt,
                 COALESCE(deal_stats.totalDealCount, 0) AS totalDealCount,
                 COALESCE(deal_stats.activeDealCount, 0) AS activeDealCount,
                 COALESCE(deal_stats.closedWonCount, 0) AS closedWonCount,
@@ -704,6 +716,26 @@ def get_customer_detail(customer_id):
             'auditLogs': audit_logs,
             'contacts': contacts,
         })
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/customers/<customer_id>/acknowledge', methods=['PATCH'])
+@jwt_required()
+def acknowledge_customer(customer_id):
+    """Clear the 'newly assigned' flag once the assigned owner views the customer."""
+    user_id = get_jwt_identity()
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE leads SET reassigned_at = NULL WHERE id = %s AND owner_id = %s',
+            (customer_id, user_id)
+        )
+        conn.commit()
+        return jsonify({'success': True})
     finally:
         close_connection(conn)
 
@@ -1316,7 +1348,7 @@ def reassign_lead(lead_id):
             if normalize_branch(new_owner_branch) not in allowed:
                 return jsonify({'error': f'New owner branch ({new_owner_branch}) is outside your region'}), 403
 
-        cursor.execute('UPDATE leads SET owner_id = %s WHERE id = %s', (new_owner_id, lead_id))
+        cursor.execute('UPDATE leads SET owner_id = %s, reassigned_at = CURRENT_DATE WHERE id = %s', (new_owner_id, lead_id))
         cursor.execute('UPDATE companies SET owner_id = %s WHERE id = %s', (new_owner_id, lead_id))
         log_audit(conn, 'lead', lead_id, 'reassign', str(old_owner_id), str(new_owner_id), get_jwt_identity())
         conn.commit()
@@ -1350,7 +1382,7 @@ def get_deals():
             SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
                    d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
                    d.probability, t.name AS owner, d.owner_id AS ownerId, d.created_at,
-                   d.lost_reason AS lostReason,
+                   d.lost_reason AS lostReason, l.branch AS branch,
                    COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
                    CASE
                        WHEN urgency.hasOverdue = 1 THEN 'Overdue'
@@ -1517,7 +1549,8 @@ def update_deal_stage(deal_id):
 
         claims = get_jwt()
         user_id = get_jwt_identity()
-        if claims.get('role') != 'Admin' and str(old_owner_id) != str(user_id):
+        user_role = claims.get('role', '')
+        if ROLE_RANK.get(user_role, 0) <= 40 and str(old_owner_id) != str(user_id):
             return jsonify({'error': 'Only the assigned SR can update this deal'}), 403
 
         updates = []
@@ -1573,10 +1606,18 @@ def update_deal_stage(deal_id):
         if data.get('ownerId'):
             new_owner_id = data.get('ownerId')
             if str(new_owner_id) != str(old_owner_id):
-                cursor.execute('SELECT name, role FROM team WHERE id = %s', (new_owner_id,))
+                cursor.execute('SELECT name, role, branch FROM team WHERE id = %s', (new_owner_id,))
                 target_row = cursor.fetchone()
                 if target_row and not can_assign(claims, user_id, new_owner_id, target_row[1]):
                     return jsonify({'error': f'Cannot assign deal to a user with equal or higher role ({target_row[1]})'}), 403
+
+                # Enforce same-branch reassignment
+                cursor.execute('SELECT branch FROM leads WHERE id = %s', (lead_id,))
+                deal_branch_row = cursor.fetchone()
+                deal_branch = (deal_branch_row[0] or '').lower()
+                target_branch = (target_row[2] or '').lower() if target_row else ''
+                if deal_branch and target_branch and deal_branch != target_branch:
+                    return jsonify({'error': 'Cannot reassign deal to an SR from a different branch'}), 403
 
                 updates.append('owner_id = %s')
                 params.append(new_owner_id)
@@ -1794,6 +1835,74 @@ def update_activity_status(activity_id):
 
         conn.commit()
         return jsonify({'message': 'Activity status updated', 'dealId': deal_id})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/activities/<task_id>/reassign', methods=['PATCH'])
+@jwt_required()
+def reassign_activity(task_id):
+    data = request.get_json()
+    new_owner_id = data.get('newOwnerId')
+    if not new_owner_id:
+        return jsonify({'error': 'newOwnerId required'}), 400
+
+    claims = get_jwt()
+    user_role = claims.get('role', '')
+    if ROLE_RANK.get(user_role, 0) <= 40:
+        return jsonify({'error': 'Only managers can reassign tasks'}), 403
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT a.owner_id, l.branch
+            FROM activities a
+            LEFT JOIN deals d ON a.deal_id = d.id
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            WHERE a.id = %s
+        ''', (task_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Task not found'}), 404
+
+        old_owner_id, task_branch = row
+
+        cursor.execute('SELECT name, role, branch FROM team WHERE id = %s', (new_owner_id,))
+        target = cursor.fetchone()
+        if not target:
+            return jsonify({'error': 'Target user not found'}), 404
+
+        target_branch = (target[2] or '').lower()
+        if task_branch and target_branch and task_branch.lower() != target_branch:
+            return jsonify({'error': 'Cannot reassign task to an SR from a different branch'}), 403
+
+        # Full customer handover: move lead + company + all its deals + all their tasks
+        cursor.execute(
+            'SELECT company_id FROM deals WHERE id = (SELECT deal_id FROM activities WHERE id = %s)',
+            (task_id,)
+        )
+        anchor_row = cursor.fetchone()
+        anchor_id = anchor_row[0] if anchor_row else None
+
+        if anchor_id:
+            cursor.execute('UPDATE leads SET owner_id = %s, reassigned_at = CURRENT_DATE WHERE id = %s', (new_owner_id, anchor_id))
+            cursor.execute('UPDATE companies SET owner_id = %s WHERE id = %s', (new_owner_id, anchor_id))
+            cursor.execute('UPDATE deals SET owner_id = %s WHERE company_id = %s', (new_owner_id, anchor_id))
+            cursor.execute('''
+                UPDATE activities SET owner_id = %s
+                WHERE deal_id IN (SELECT id FROM (SELECT id FROM deals WHERE company_id = %s) AS d)
+            ''', (new_owner_id, anchor_id))
+            log_audit(conn, 'lead', anchor_id, 'reassign_handover', str(old_owner_id), str(new_owner_id), get_jwt_identity())
+        else:
+            # Manual task with no linked deal — move just this task
+            cursor.execute('UPDATE activities SET owner_id = %s WHERE id = %s', (new_owner_id, task_id))
+
+        log_audit(conn, 'activity', task_id, 'reassign', str(old_owner_id), str(new_owner_id), get_jwt_identity())
+        conn.commit()
+        return jsonify({'success': True, 'newOwner': target[0]})
     finally:
         close_connection(conn)
 
