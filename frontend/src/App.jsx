@@ -290,6 +290,7 @@ export default function App() {
             dealStages={DEAL_STAGES}
             companies={companies}
             onCreateTask={handleCreateTask}
+            acknowledgeCustomer={actions.acknowledgeCustomer}
             fetchDealContacts={fetchDealContacts}
             fetchCompanies={fetchCompanies}
             fetchContacts={fetchContacts}
@@ -336,23 +337,7 @@ export default function App() {
             dealContactMap={dealContactMap}
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
-            searchQuery={searchQuery}
-            onClearSearch={() => { setSearchInput(''); setSearchQuery(''); }}
-            currentUser={currentUser}
-          />
-        } />
-        <Route path="/tasks" element={
-          <TasksView
-            tasks={tasks}
-            contacts={contacts}
-            openTasks={openTasks}
-            dueToday={dueToday}
-            deals={deals}
-            companies={companies}
-            teamMembers={teamMembers}
-            dealContactMap={dealContactMap}
-            onCreateTask={handleCreateTask}
-            handleTaskStatusToggle={actions.toggleTaskStatus}
+            reassignTask={actions.reassignTask}
             searchQuery={searchQuery}
             onClearSearch={() => { setSearchInput(''); setSearchQuery(''); }}
             currentUser={currentUser}

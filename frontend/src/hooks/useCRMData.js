@@ -670,6 +670,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       if (fields.value !== undefined) body.value = Number(fields.value)
       if (fields.expectedClose) body.closeDate = fields.expectedClose
       if (fields.probability !== undefined) body.probability = Number(fields.probability)
+      if (fields.ownerId !== undefined) body.ownerId = fields.ownerId
       const res = await apiFetch(`/api/deals/${dealId}/stage`, {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -704,6 +705,29 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     } catch {
       setNotice('Task status updated locally — backend not reachable.')
     }
+  }
+
+  async function reassignTask(taskId, newOwnerId) {
+    const res = await apiFetch(`/api/activities/${taskId}/reassign`, {
+      method: 'PATCH',
+      body: JSON.stringify({ newOwnerId }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Reassign failed')
+    }
+    const { newOwner } = await res.json()
+    setTasks(current =>
+      current.map(t => t.id === taskId ? { ...t, ownerId: newOwnerId, owner: newOwner } : t)
+    )
+    // Full handover touches leads/customers/deals/tasks — refresh them
+    await Promise.all([fetchTasks(), fetchDeals(), fetchLeads(), fetchCustomers()])
+    setNotice('Customer reassigned to new SR.')
+  }
+
+  async function acknowledgeCustomer(id) {
+    apiFetch(`/api/customers/${id}/acknowledge`, { method: 'PATCH' }).catch(() => {})
+    setCustomers(cur => cur.map(c => c.id === id ? { ...c, reassignedAt: null } : c))
   }
 
   async function syncGSheets() {
@@ -757,6 +781,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       updateDealStage,
       updateDeal,
       toggleTaskStatus,
+      reassignTask,
+      acknowledgeCustomer,
       syncGSheets,
       reassignLead,
       setActiveBranch,

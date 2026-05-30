@@ -9,7 +9,7 @@ import { IconSearch } from '../components/Icons'
 
 import Pagination from '../components/Pagination'
 
-const ROLES = ['Branch Account', 'Sales Manager', 'Admin']
+const ROLES = ['Branch Account', 'Sales Representative', 'Regional Sales Manager', 'Head of Sales', 'Admin']
 
 const EMPTY_FORM  = { username: '', password: '', name: '', email: '', role: 'Branch Account', branch: '' }
 
@@ -155,7 +155,7 @@ export default function AdminView({ currentUser, showToast, onLoadingChange }) {
     }
   }
 
-  const roleColor = { Admin: 'accent', 'Sales Manager': 'alt', 'Branch Account': 'surface', 'Sales Rep': 'surface' }
+  const roleColor = { Admin: 'accent', 'Head of Sales': 'alt', 'Regional Sales Manager': 'alt', 'Sales Representative': 'surface', 'Branch Account': 'surface' }
 
   return (
     <>
