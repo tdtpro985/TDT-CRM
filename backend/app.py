@@ -121,6 +121,41 @@ def ensure_schema():
         """)
         conn.commit()
 
+        # Ensure profile_pic column exists in team table
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'team' AND COLUMN_NAME = 'profile_pic'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'profile_pic' column to 'team' table...")
+            cursor.execute("ALTER TABLE team ADD COLUMN profile_pic VARCHAR(500) NULL")
+            conn.commit()
+
+        # Ensure adjustment columns exist
+        cursor.execute("""
+            SELECT COLUMN_NAME FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'team'
+        """)
+        existing_columns = [row[0] for row in cursor.fetchall()]
+
+        if 'profile_zoom' not in existing_columns:
+            print("Adding missing 'profile_zoom' column to 'team' table...")
+            cursor.execute("ALTER TABLE team ADD COLUMN profile_zoom FLOAT DEFAULT 1.0")
+        
+        if 'profile_offset_y' not in existing_columns:
+            print("Adding missing 'profile_offset_y' column to 'team' table...")
+            cursor.execute("ALTER TABLE team ADD COLUMN profile_offset_y FLOAT DEFAULT 0.0")
+
+        if 'profile_offset_x' not in existing_columns:
+            print("Adding missing 'profile_offset_x' column to 'team' table...")
+            cursor.execute("ALTER TABLE team ADD COLUMN profile_offset_x FLOAT DEFAULT 0.0")
+
+        if 'profile_rotation' not in existing_columns:
+            print("Adding missing 'profile_rotation' column to 'team' table...")
+            cursor.execute("ALTER TABLE team ADD COLUMN profile_rotation INT DEFAULT 0")
+        
+        conn.commit()
+
         # Migrate 'Sales Rep' role → 'Branch Account'
         cursor.execute("UPDATE team SET role = 'Branch Account' WHERE role = 'Sales Rep'")
         conn.commit()
@@ -148,7 +183,11 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 MUSIC_UPLOAD_FOLDER = os.path.join(UPLOAD_FOLDER, 'celebration-music')
 os.makedirs(MUSIC_UPLOAD_FOLDER, exist_ok=True)
 
+PROFILE_PIC_FOLDER = os.path.join(UPLOAD_FOLDER, 'profile-pics')
+os.makedirs(PROFILE_PIC_FOLDER, exist_ok=True)
+
 ALLOWED_AUDIO_EXTENSIONS = {'.mp3', '.wav', '.ogg', '.m4a', '.aac', '.webm'}
+ALLOWED_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.webp'}
 
 REGION_BRANCHES = {
     'Central':     ['Manila', 'Palawan', 'Legazpi', 'Cavite', 'Batangas'],
@@ -400,7 +439,7 @@ def admin_login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """SELECT id, name, email, role, branch, password, username, region
+            """SELECT id, name, email, role, branch, password, username, region, profile_pic, profile_zoom, profile_offset_y
                FROM team
                WHERE LOWER(TRIM(username)) = %s AND role = 'Admin'""",
             (normalize_username(username),)
@@ -419,13 +458,16 @@ def admin_login():
             conn.commit()
 
         user = {
-            'id':       row[0],
-            'name':     row[1],
-            'email':    row[2],
-            'role':     row[3],
-            'branch':   row[4],
-            'username': row[6],
-            'region':   row[7]
+            'id':          row[0],
+            'name':        row[1],
+            'email':       row[2],
+            'role':        row[3],
+            'branch':      row[4],
+            'username':    row[6],
+            'region':      row[7],
+            'profilePic':  row[8],
+            'profileZoom': row[9],
+            'profileOffsetY': row[10]
         }
         
         # Ensure identity is a string and include role/branch in claims
@@ -455,7 +497,7 @@ def login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """SELECT id, name, email, role, branch, password, username, region
+            """SELECT id, name, email, role, branch, password, username, region, profile_pic, profile_zoom, profile_offset_y
                FROM team
                WHERE LOWER(TRIM(username)) = %s
                  AND LOWER(TRIM(branch)) = %s""",
@@ -475,13 +517,16 @@ def login():
             conn.commit()
 
         user = {
-            'id':       row[0],
-            'name':     row[1],
-            'email':    row[2],
-            'role':     row[3],
-            'branch':   row[4],
-            'username': row[6],
-            'region':   row[7]
+            'id':          row[0],
+            'name':        row[1],
+            'email':       row[2],
+            'role':        row[3],
+            'branch':      row[4],
+            'username':    row[6],
+            'region':      row[7],
+            'profilePic':  row[8],
+            'profileZoom': row[9],
+            'profileOffsetY': row[10]
         }
         
         # Ensure identity is a string and include role/branch in claims
@@ -2029,6 +2074,108 @@ def get_dashboard():
 
 # ─── Team: Profile ────────────────────────────────────────────────────────────
 
+@app.route('/api/team/profile/photo', methods=['POST'])
+@jwt_required()
+def upload_profile_photo():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file or file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        return jsonify({'error': f'Image format not allowed. Allowed: {", ".join(sorted(ALLOWED_IMAGE_EXTENSIONS))}'}), 400
+
+    user_id = get_jwt_identity()
+    file_id = str(uuid.uuid4())
+    stored_name = f"profile_{user_id}_{file_id}{ext}"
+    file.save(os.path.join(PROFILE_PIC_FOLDER, stored_name))
+
+    url = f'/api/uploads/profile-pics/{stored_name}'
+    return jsonify({'message': 'File uploaded', 'url': url}), 200
+
+
+@app.route('/api/uploads/profile-pics/<filename>', methods=['GET'])
+def serve_profile_pic(filename):
+    return send_from_directory(PROFILE_PIC_FOLDER, filename, as_attachment=False)
+
+
+@app.route('/api/team/profile/photo', methods=['DELETE'])
+@jwt_required()
+def delete_profile_photo():
+    user_id = get_jwt_identity()
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT profile_pic FROM team WHERE id = %s", (user_id,))
+        old_pic = cursor.fetchone()
+        
+        if old_pic and old_pic[0] and old_pic[0].startswith('/api/uploads/profile-pics/'):
+            old_filename = old_pic[0].split('/')[-1]
+            old_path = os.path.join(PROFILE_PIC_FOLDER, old_filename)
+            if os.path.exists(old_path):
+                try: os.remove(old_path)
+                except Exception as e:
+                    print(f"Failed to remove old profile pic: {e}")
+
+        cursor.execute('UPDATE team SET profile_pic = NULL, profile_zoom = 1.0, profile_offset_y = 0.0, profile_offset_x = 0.0, profile_rotation = 0 WHERE id = %s', (user_id,))
+        conn.commit()
+        return jsonify({'message': 'Profile photo removed'}), 200
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/team/profile/photo/adjust', methods=['PUT'])
+@jwt_required()
+def adjust_profile_photo():
+    user_id     = get_jwt_identity()
+    data        = request.get_json()
+    new_pic_url = data.get('profilePic') 
+    zoom        = data.get('zoom', 1.0)
+    offset_y    = data.get('offsetY', 0.0)
+    offset_x    = data.get('offsetX', 0.0)
+    rotation    = data.get('rotation', 0)
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+
+        if new_pic_url:
+            # Confirming a new photo: Cleanup old one first
+            cursor.execute("SELECT profile_pic FROM team WHERE id = %s", (user_id,))
+            row = cursor.fetchone()
+            if row and row[0] and row[0].startswith('/api/uploads/profile-pics/'):
+                old_filename = row[0].split('/')[-1]
+                old_path = os.path.join(PROFILE_PIC_FOLDER, old_filename)
+                if row[0] != new_pic_url and os.path.exists(old_path):
+                    try: os.remove(old_path)
+                    except: pass
+            
+            cursor.execute(
+                '''UPDATE team 
+                   SET profile_pic = %s, profile_zoom = %s, profile_offset_y = %s, profile_offset_x = %s, profile_rotation = %s 
+                   WHERE id = %s''', 
+                (new_pic_url, zoom, offset_y, offset_x, rotation, user_id)
+            )
+        else:
+            # Just adjusting current photo
+            cursor.execute(
+                'UPDATE team SET profile_zoom = %s, profile_offset_y = %s, profile_offset_x = %s, profile_rotation = %s WHERE id = %s', 
+                (zoom, offset_y, offset_x, rotation, user_id)
+            )
+
+        conn.commit()
+        return jsonify({'message': 'Profile updated successfully'}), 200
+    finally:
+        close_connection(conn)
+
+
 @app.route('/api/team/profile/password', methods=['PUT'])
 @jwt_required()
 def update_user_password():
@@ -2053,7 +2200,7 @@ def update_user_password():
 
         valid_password, should_rehash = verify_password(row[0], current_password)
         if not valid_password:
-            return jsonify({'error': 'Current password is incorrect.'}), 401
+            return jsonify({'error': 'Current password is incorrect.'}), 400
 
         # Always hash the new password before storing
         hashed_new = generate_password_hash(new_password)
