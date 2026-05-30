@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { apiFetch, API_BASE } from '../api'
+import { apiFetch, API_BASE, updatePassword } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
 import { celebrateWon, celebrateLost } from '../celebration'
@@ -768,6 +768,16 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
+  async function changePassword(currentPassword, newPassword) {
+    try {
+      await updatePassword(currentPassword, newPassword)
+      showToast('Password updated successfully!')
+    } catch (err) {
+      showToast(err.message || 'Failed to update password', 'error')
+      throw err
+    }
+  }
+
   return {
 
     data: { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion },
@@ -797,6 +807,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     fetchTeam,
     fetchDealContactMap,
     updateContact,
+    changePassword,
   }
 
   }

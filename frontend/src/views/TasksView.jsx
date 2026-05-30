@@ -20,7 +20,7 @@ const IconChevronDown = ({ expanded }) => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`u-transition-transform ${expanded ? 'u-rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
 )
 
-function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatusToggle, isHighlighted, canReassign, isReassigning, reassignOwnerId, setReassignOwnerId, branchSRs, onStartReassign, onConfirmReassign, onCancelReassign }) {
+function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatusToggle, isHighlighted, canReassign, isReassigning, isProcessing, reassignOwnerId, setReassignOwnerId, branchSRs, onStartReassign, onConfirmReassign, onCancelReassign }) {
   const [expanded, setExpanded] = useState(false)
   
   const TypeIcon = useMemo(() => {
@@ -133,6 +133,7 @@ function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatus
             onChange={e => setReassignOwnerId(e.target.value)}
             className="admin-select"
             style={{ flex: 1, fontSize: 'var(--fs-sm)' }}
+            disabled={isProcessing}
           >
             <option value="">Select SR…</option>
             {branchSRs.map(m => (
@@ -143,10 +144,12 @@ function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatus
             type="button"
             className="primary-button"
             style={{ fontSize: 'var(--fs-sm)', padding: '4px 12px' }}
-            disabled={!reassignOwnerId || reassignOwnerId === String(task.ownerId ?? '')}
+            disabled={isProcessing || !reassignOwnerId || reassignOwnerId === String(task.ownerId ?? '')}
             onClick={onConfirmReassign}
-          >Confirm</button>
-          <button type="button" className="ghost-button" onClick={onCancelReassign}>Cancel</button>
+          >
+            {isProcessing ? (<><span className="spinner-small" /> Reassigning…</>) : 'Confirm'}
+          </button>
+          <button type="button" className="ghost-button" onClick={onCancelReassign} disabled={isProcessing}>Cancel</button>
         </div>
       )}
     </article>
@@ -177,6 +180,7 @@ export default function TasksView({
   const [clearingSearch, setClearingSearch] = useState(false)
   const [reassigningTaskId, setReassigningTaskId] = useState(null)
   const [reassignOwnerId, setReassignOwnerId] = useState('')
+  const [reassignProcessing, setReassignProcessing] = useState(false)
   const isSr = isSrRole(currentUser?.role)
 
   const canReassign = !isSr && currentUser?.role !== 'Branch Account'
@@ -371,6 +375,7 @@ export default function TasksView({
                         isHighlighted={highlightedTaskId === task.id}
                         canReassign={canReassign}
                         isReassigning={reassigningTaskId === task.id}
+                        isProcessing={reassigningTaskId === task.id && reassignProcessing}
                         reassignOwnerId={reassigningTaskId === task.id ? reassignOwnerId : ''}
                         setReassignOwnerId={setReassignOwnerId}
                         branchSRs={(teamMembers ?? []).filter(m =>
@@ -379,13 +384,16 @@ export default function TasksView({
                         )}
                         onStartReassign={() => { setReassigningTaskId(task.id); setReassignOwnerId('') }}
                         onConfirmReassign={async () => {
-                          if (!reassignOwnerId) return
+                          if (!reassignOwnerId || reassignProcessing) return
+                          setReassignProcessing(true)
                           try {
                             await reassignTask(task.id, Number(reassignOwnerId))
                             setReassigningTaskId(null)
                             setReassignOwnerId('')
                           } catch {
                             // notice shown via useCRMData
+                          } finally {
+                            setReassignProcessing(false)
                           }
                         }}
                         onCancelReassign={() => { setReassigningTaskId(null); setReassignOwnerId('') }}

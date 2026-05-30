@@ -48,3 +48,15 @@ export async function apiFetch(path, options = {}) {
 
   return res
 }
+
+export async function updatePassword(currentPassword, newPassword) {
+  const res = await apiFetch('/api/team/profile/password', {
+    method: 'PUT',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || 'Failed to update password')
+  }
+  return res.json()
+}

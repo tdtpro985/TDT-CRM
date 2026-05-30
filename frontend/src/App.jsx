@@ -22,6 +22,7 @@ import useCRMData    from './hooks/useCRMData'
 import { useTheme } from './hooks/useTheme'
 import LoginPage     from './components/LoginPage'
 import Modal         from './components/Modal'
+import ProfileModal   from './components/ProfileModal'
 import AboutContent  from './components/AboutContent'
 import PageSkeleton  from './components/SkeletonLoader'
 import LeadForm      from './components/forms/LeadForm'
@@ -44,6 +45,7 @@ export default function App() {
   const [showLeadForm, setShowLeadForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [showAbout, setShowAbout]       = useState(false)
+  const [showProfile, setShowProfile]   = useState(false)
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -377,7 +379,7 @@ export default function App() {
       >
         <div className="brand-block">
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
-          <div className="brand-user-info">
+          <div className="brand-user-info" onClick={() => setShowProfile(true)} style={{ cursor: 'pointer' }} title="My Profile">
             <p className="brand-user-name">{currentUser.name}</p>
             <p className="brand-user-role">{displayRole(currentUser.role)}</p>
           </div>
@@ -471,6 +473,7 @@ export default function App() {
           <ThemeToggle theme={theme} onThemeChange={setTheme} />
           
           <div className="sidebar-user">
+            <button type="button" className="about-button" style={{ marginBottom: '4px' }} onClick={() => setShowProfile(true)}>My Profile</button>
             <button type="button" className="about-button" onClick={() => setShowAbout(true)}>About this system</button>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
@@ -607,6 +610,13 @@ export default function App() {
           }}
         />
       </Modal>
+
+      <ProfileModal
+        isOpen={showProfile}
+        onClose={() => setShowProfile(false)}
+        currentUser={currentUser}
+        onPasswordChange={actions.changePassword}
+      />
     </div>
   )
 }
