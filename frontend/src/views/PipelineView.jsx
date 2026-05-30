@@ -123,7 +123,13 @@ export default function PipelineView({
   useEffect(() => {
     if (selectedDeal && !isUpdatingRef.current) {
       const fresh = deals.find(d => d.id === selectedDeal.id)
-      if (fresh && (fresh.stage !== selectedDeal.stage || fresh.value !== selectedDeal.value)) {
+      if (fresh && (
+        fresh.stage !== selectedDeal.stage ||
+        fresh.value !== selectedDeal.value ||
+        fresh.probability !== selectedDeal.probability ||
+        fresh.expectedClose !== selectedDeal.expectedClose ||
+        fresh.ownerId !== selectedDeal.ownerId
+      )) {
         setSelectedDeal(fresh)
       }
     }
@@ -134,6 +140,8 @@ export default function PipelineView({
 
   const canEdit = selectedDeal && (
     currentUser?.role === 'Admin' ||
+    currentUser?.role === 'Head of Sales' ||
+    currentUser?.role === 'Regional Sales Manager' ||
     String(currentUser?.id) === String(selectedDeal.ownerId)
   )
 
