@@ -2026,6 +2026,45 @@ def get_dashboard():
         close_connection(conn)
 
 
+
+# ─── Team: Profile ────────────────────────────────────────────────────────────
+
+@app.route('/api/team/profile/password', methods=['PUT'])
+@jwt_required()
+def update_user_password():
+    user_id          = get_jwt_identity()
+    data             = request.get_json()
+    current_password = data.get('currentPassword', '').strip()
+    new_password     = data.get('newPassword', '').strip()
+
+    if not current_password or not new_password:
+        return jsonify({'error': 'Both current and new passwords are required.'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        # Fetch hashed password for verification
+        cursor.execute("SELECT password FROM team WHERE id = %s", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'User not found.'}), 404
+
+        valid_password, should_rehash = verify_password(row[0], current_password)
+        if not valid_password:
+            return jsonify({'error': 'Current password is incorrect.'}), 401
+
+        # Always hash the new password before storing
+        hashed_new = generate_password_hash(new_password)
+        cursor.execute('UPDATE team SET password = %s WHERE id = %s', (hashed_new, user_id))
+        conn.commit()
+
+        return jsonify({'message': 'Password updated successfully.'})
+    finally:
+        close_connection(conn)
+
+
 # ─── Admin: Profile ───────────────────────────────────────────────────────────
 
 @app.route('/api/admin/profile', methods=['PUT'])
