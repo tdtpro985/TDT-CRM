@@ -60,3 +60,47 @@ export async function updatePassword(currentPassword, newPassword) {
   }
   return res.json()
 }
+
+export async function uploadProfilePhoto(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const token = sessionStorage.getItem('crm_token')
+  const res = await fetch(`${API_BASE}/api/team/profile/photo`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData
+  })
+
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || 'Failed to upload photo')
+  }
+  return res.json()
+}
+
+export async function removeProfilePhoto() {
+  const res = await apiFetch('/api/team/profile/photo', {
+    method: 'DELETE'
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || 'Failed to remove photo')
+  }
+  return res.json()
+}
+
+export async function adjustProfilePhoto(zoom, offsetY, offsetX, rotation, profilePic) {
+  const res = await apiFetch('/api/team/profile/photo/adjust', {
+    method: 'PUT',
+    body: JSON.stringify({ zoom, offsetY, offsetX, rotation, profilePic }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.error || 'Failed to save adjustment')
+  }
+  return res.json()
+}
+

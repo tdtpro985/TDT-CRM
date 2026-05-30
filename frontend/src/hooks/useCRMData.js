@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { apiFetch, API_BASE, updatePassword } from '../api'
+import { apiFetch, API_BASE, updatePassword, uploadProfilePhoto, removeProfilePhoto, adjustProfilePhoto } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
 import { celebrateWon, celebrateLost } from '../celebration'
@@ -778,8 +778,39 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
-  return {
+  async function updateProfilePhoto(file) {
+    try {
+      const result = await uploadProfilePhoto(file)
+      // No toast here anymore, the redirect to Adjust Modal is sufficient
+      return result
+    } catch (err) {
+      showToast(err.message || 'Failed to upload photo', 'error')
+      throw err
+    }
+  }
 
+  async function deleteProfilePhoto() {
+    try {
+      await removeProfilePhoto()
+      showToast('Profile photo removed')
+    } catch (err) {
+      showToast(err.message || 'Failed to remove photo', 'error')
+      throw err
+    }
+  }
+
+  async function savePhotoAdjustment(zoom, offsetY, offsetX, rotation, profilePic) {
+    try {
+      await adjustProfilePhoto(zoom, offsetY, offsetX, rotation, profilePic)
+      // Local update is handled in the component for responsiveness, 
+      // but this persists it to the backend.
+    } catch (err) {
+      showToast('Failed to save adjustments', 'error')
+      throw err
+    }
+  }
+
+  return {
     data: { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion },
     actions: {
       createLead,
@@ -803,12 +834,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       fetchCustomers,
       fetchContacts,
       fetchDeals,
-    fetchTasks,
-    fetchTeam,
-    fetchDealContactMap,
-    updateContact,
-    changePassword,
-  }
-
+      fetchTasks,
+      fetchTeam,
+      fetchDealContactMap,
+      updateContact,
+      changePassword,
+      updateProfilePhoto,
+      deleteProfilePhoto,
+      savePhotoAdjustment,
+    }
   }
 }

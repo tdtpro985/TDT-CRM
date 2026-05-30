@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import './App.css'
 import { formatCurrencyCompact, displayRole, shortStageLabel, getTodayISO } from './utils'
-import { clearToken, getUser, saveUser, apiFetch } from './api'
+import { clearToken, getUser, saveUser, apiFetch, API_BASE } from './api'
 import {
   CUSTOMER_STATUSES,
   TASK_TYPES,
@@ -23,6 +23,7 @@ import { useTheme } from './hooks/useTheme'
 import LoginPage     from './components/LoginPage'
 import Modal         from './components/Modal'
 import ProfileModal   from './components/ProfileModal'
+import ImageAdjustModal from './components/ImageAdjustModal'
 import AboutContent  from './components/AboutContent'
 import PageSkeleton  from './components/SkeletonLoader'
 import LeadForm      from './components/forms/LeadForm'
@@ -46,6 +47,8 @@ export default function App() {
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [showAbout, setShowAbout]       = useState(false)
   const [showProfile, setShowProfile]   = useState(false)
+  const [showAdjust, setShowAdjust]     = useState(false)
+  const [tempProfilePic, setTempProfilePic] = useState(null)
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -355,6 +358,16 @@ export default function App() {
     return <LoginPage onLogin={handleLogin} />
   }
 
+  const getInitials = (name) => {
+    if (!name) return '?'
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2)
+  }
+
   // ─── Shell ──────────────────────────────────────────────────────────────────
 
   return (
@@ -379,18 +392,71 @@ export default function App() {
       >
         <div className="brand-block">
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
-          <div className="brand-user-info" onClick={() => setShowProfile(true)} style={{ cursor: 'pointer' }} title="My Profile">
-            <p className="brand-user-name">{currentUser.name}</p>
-            <p className="brand-user-role">{displayRole(currentUser.role)}</p>
-          </div>
-          <div className="brand-badges">
-            {currentUser.role === 'Head of Sales' ? (
-              <div className="brand-branch-badge is-region">{activeRegion || 'All Regions'}</div>
-            ) : currentUser.role === 'Regional Sales Manager' ? (
-              <div className="brand-branch-badge is-region">{currentUser.region}</div>
-            ) : (
-              <div className="brand-branch-badge">{currentUser.branch}</div>
-            )}
+          <div 
+            className="brand-user-info" 
+            onClick={() => setShowProfile(true)} 
+            style={{ 
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '16px',
+              padding: '10px 14px',
+              borderRadius: 'var(--r-md)',
+              transition: 'background 0.2s',
+              width: '100%',
+              boxSizing: 'border-box'
+            }} 
+            title="My Profile"
+          >
+            <div 
+              className="sidebar-avatar"
+              style={{ 
+                width: '80px', 
+                height: '80px', 
+                borderRadius: '50%', 
+                backgroundColor: 'var(--accent)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                fontSize: 'var(--fs-xl)',
+                fontWeight: 800,
+                color: 'white',
+                flexShrink: 0,
+                overflow: 'hidden',
+                border: '2px solid var(--border)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+              }}
+            >
+              {currentUser?.profilePic ? (
+                <img 
+                  src={`${API_BASE}${currentUser.profilePic}`} 
+                  alt="" 
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'cover', 
+                    objectPosition: 'center', 
+                    backgroundColor: 'var(--bg-surface)',
+                    transform: `translate(${currentUser?.profileOffsetX || 0}%, ${currentUser?.profileOffsetY || 0}%) scale(${currentUser?.profileZoom || 1}) rotate(${currentUser?.profileRotation || 0}deg)`
+                  }} 
+                />
+              ) : (
+                getInitials(currentUser?.name)
+              )}
+            </div>
+            <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+              <p className="brand-user-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 'var(--fs-lg)' }}>{currentUser?.name}</p>
+              <p className="brand-user-role" style={{ fontSize: 'var(--fs-sm)' }}>{displayRole(currentUser?.role)}</p>
+              <div className="brand-badges" style={{ marginTop: '4px' }}>
+                {currentUser?.role === 'Head of Sales' ? (
+                  <div className="brand-branch-badge is-region">{activeRegion || 'All Regions'}</div>
+                ) : currentUser?.role === 'Regional Sales Manager' ? (
+                  <div className="brand-branch-badge is-region">{currentUser?.region}</div>
+                ) : (
+                  <div className="brand-branch-badge">{currentUser?.branch}</div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -616,6 +682,48 @@ export default function App() {
         onClose={() => setShowProfile(false)}
         currentUser={currentUser}
         onPasswordChange={actions.changePassword}
+        onPhotoUpload={actions.updateProfilePhoto}
+        onPhotoRemove={actions.deleteProfilePhoto}
+        onUploadSuccess={(url) => {
+          setTempProfilePic(url)
+          setShowProfile(false)
+          setShowAdjust(true)
+        }}
+      />
+
+      <ImageAdjustModal
+        isOpen={showAdjust}
+        onClose={() => {
+          setShowAdjust(false)
+          setTempProfilePic(null)
+        }}
+        imageUrl={tempProfilePic ? `${API_BASE}${tempProfilePic}` : (currentUser?.profilePic ? `${API_BASE}${currentUser.profilePic}` : '')}
+        currentZoom={currentUser?.profileZoom || 1}
+        currentOffsetX={currentUser?.profileOffsetX || 0}
+        currentOffsetY={currentUser?.profileOffsetY || 0}
+        currentRotation={currentUser?.profileRotation || 0}
+        onSave={async (zoom, offsetY, offsetX, rotation) => {
+          // If we have a tempProfilePic, we are saving a NEW photo.
+          // Otherwise, we are just re-adjusting an existing one.
+          await actions.savePhotoAdjustment(zoom, offsetY, offsetX, rotation, tempProfilePic)
+          
+          // Update local state to reflect changes immediately
+          const updated = { 
+            ...currentUser, 
+            profileZoom: zoom, 
+            profileOffsetY: offsetY, 
+            profileOffsetX: offsetX, 
+            profileRotation: rotation 
+          }
+          if (tempProfilePic) {
+            updated.profilePic = tempProfilePic
+          }
+          
+          setCurrentUser(updated)
+          saveUser(updated)
+          setTempProfilePic(null)
+          showToast('Profile photo updated!')
+        }}
       />
     </div>
   )
