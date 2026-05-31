@@ -1875,12 +1875,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  padding: 4px 10px;
+  height: 28px;
   border-radius: var(--r-md);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border);
   color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -1950,9 +1954,10 @@
 .admin-delete-confirm {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-size: var(--fs-xs);
   color: var(--text-muted);
+  font-weight: 600;
 }
 
 /* Branch sidebar list */
@@ -1962,8 +1967,6 @@
   flex-direction: column;
   gap: 2px;
   padding: 4px 0;
-  max-height: 360px;
-  overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--border) transparent;
 }
