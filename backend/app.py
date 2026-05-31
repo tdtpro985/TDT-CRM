@@ -5,8 +5,10 @@ import uuid
 import traceback
 from functools import wraps
 from importlib import import_module
-from flask import Flask, request, jsonify, send_from_directory, make_response
+from flask import Flask, request, jsonify, send_from_directory, make_response, send_file
 from flask_cors import CORS
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill, Font, Alignment
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity, get_jwt
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -2597,7 +2599,7 @@ def admin_audit_log():
         close_connection(conn)
 
 
-# ─── Admin: CSV Export ────────────────────────────────────────────────────────
+# ─── Admin: Excel Export ──────────────────────────────────────────────────────
 
 @app.route('/api/admin/export/<report>', methods=['GET'])
 @jwt_required()
@@ -2611,9 +2613,25 @@ def admin_export(report):
         return jsonify({'error': 'Database connection failed'}), 500
     try:
         cursor = conn.cursor()
-        output = io.StringIO()
+        wb = Workbook()
+        ws = wb.active
+        
+        # TDT Theme Styles
+        header_fill = PatternFill(start_color='FF9800', end_color='FF9800', fill_type='solid')
+        header_font = Font(color='FFFFFF', bold=True)
+        center_align = Alignment(horizontal='center')
 
         if report == 'branch-overview':
+            ws.title = "Branch Overview"
+            headers = ['Branch', 'Active Deals', 'Pipeline Value', 'Win Rate (%)', 'Avg Deal Value']
+            ws.append(headers)
+            
+            # Pre-populate with all official branches to ensure zero-data branches appear
+            branch_data = {}
+            for branches in REGION_BRANCHES.values():
+                for bname in branches:
+                    branch_data[bname] = [bname, 0, 0, None, None]
+
             cursor.execute('''
                 SELECT l.branch,
                        COUNT(CASE WHEN d.stage NOT IN ('Closed Won','Closed Lost') THEN 1 END) AS deal_count,
@@ -2626,15 +2644,42 @@ def admin_export(report):
                 FROM deals d
                 LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
                 GROUP BY l.branch
-                ORDER BY l.branch
             ''')
-            rows = rows_to_list(cursor)
-            writer = csv.DictWriter(output, fieldnames=['branch', 'deal_count', 'pipeline_value', 'win_rate', 'avg_deal_value'])
-            writer.writeheader()
-            writer.writerows(rows)
-            filename = 'branch-overview.csv'
+            rows = cursor.fetchall()
+            for row in rows:
+                if row[0] in branch_data:
+                    branch_data[row[0]] = list(row)
+                
+            # Append sorted rows
+            for bname in sorted(branch_data.keys()):
+                ws.append(branch_data[bname])
+                
+            # Formatting
+            for cell in ws[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = center_align
+                
+            # Number Formatting (Thousand Separators)
+            for row in ws.iter_rows(min_row=2, min_col=2, max_col=5):
+                if row[0].value is not None: row[0].number_format = '#,##0'       # Active Deals
+                if row[1].value is not None: row[1].number_format = '#,##0'       # Pipeline Value
+                if row[3].value is not None: row[3].number_format = '#,##0'       # Avg Deal Value
+                
+            # Column widths
+            ws.column_dimensions['A'].width = 20
+            ws.column_dimensions['B'].width = 15
+            ws.column_dimensions['C'].width = 20
+            ws.column_dimensions['D'].width = 15
+            ws.column_dimensions['E'].width = 20
+            
+            filename = 'branch-overview.xlsx'
 
         else:  # audit-log
+            ws.title = "Audit Log"
+            headers = ['ID', 'Entity Type', 'Entity ID', 'Action', 'Old Value', 'New Value', 'Changed At', 'User ID']
+            ws.append(headers)
+
             entity    = request.args.get('entity', '').strip()
             date_from = request.args.get('from',   '').strip()
             date_to   = request.args.get('to',     '').strip()
@@ -2656,17 +2701,36 @@ def admin_export(report):
                 f'SELECT * FROM audit_log {where} ORDER BY changed_at DESC LIMIT 5000',
                 params
             )
-            rows = rows_to_list(cursor)
-            if rows:
-                writer = csv.DictWriter(output, fieldnames=rows[0].keys())
-                writer.writeheader()
-                writer.writerows(rows)
-            filename = 'audit-log.csv'
+            rows = cursor.fetchall()
+            for row in rows:
+                # Convert datetime to string for Excel compatibility if needed
+                lrow = list(row)
+                if isinstance(lrow[6], datetime):
+                    lrow[6] = lrow[6].strftime('%Y-%m-%d %H:%M:%S')
+                ws.append(lrow)
+                
+            # Formatting
+            for cell in ws[1]:
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = center_align
+                
+            # Column widths
+            for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
+                ws.column_dimensions[col].width = 20
+                
+            filename = 'audit-log.xlsx'
 
-        response = make_response(output.getvalue())
-        response.headers['Content-Type'] = 'text/csv'
-        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
-        return response
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=filename
+        )
     finally:
         close_connection(conn)
 
