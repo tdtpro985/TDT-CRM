@@ -60,7 +60,11 @@ export default function PipelineView({
   const [currentPage, setCurrentPage] = useState(1)
   const isSr = isSrRole(currentUser?.role)
 
-  const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
+  const companyMap = useMemo(() => {
+    const map = Object.fromEntries((companies ?? []).map((c) => [c.id, c]))
+    ;(leads ?? []).forEach(l => { if (!map[l.id]) map[l.id] = { id: l.id, name: l.customerName } })
+    return map
+  }, [companies, leads])
   const contactMap = useMemo(() => Object.fromEntries((contacts  ?? []).map((c) => [c.id, c])), [contacts])
   const leadMap    = useMemo(() => Object.fromEntries((leads     ?? []).map((l) => [l.id, l])), [leads])
 
@@ -591,6 +595,7 @@ export default function PipelineView({
                 )}
                 {selectedDeal.contactId && (
                   <div className="deal-modal__field">
+                    <span className="deal-modal__label">Contact</span>
                     <strong className="deal-modal__value">{contactMap[selectedDeal.contactId]?.name ?? selectedDeal.contactId}</strong>
                   </div>
                 )}
