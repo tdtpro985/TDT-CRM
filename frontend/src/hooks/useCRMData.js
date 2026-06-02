@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { apiFetch, API_BASE } from '../api'
+import { apiFetch, API_BASE, updatePassword, uploadProfilePhoto, removeProfilePhoto, adjustProfilePhoto } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
 import { celebrateWon, celebrateLost, triggerJoJo, dismissActiveJoJo } from '../celebration'
@@ -708,6 +708,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       if (fields.value !== undefined) body.value = Number(fields.value)
       if (fields.expectedClose) body.closeDate = fields.expectedClose
       if (fields.probability !== undefined) body.probability = Number(fields.probability)
+      if (fields.ownerId !== undefined) body.ownerId = fields.ownerId
       const res = await apiFetch(`/api/deals/${dealId}/stage`, {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -742,6 +743,29 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     } catch {
       setNotice('Task status updated locally — backend not reachable.')
     }
+  }
+
+  async function reassignTask(taskId, newOwnerId) {
+    const res = await apiFetch(`/api/activities/${taskId}/reassign`, {
+      method: 'PATCH',
+      body: JSON.stringify({ newOwnerId }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Reassign failed')
+    }
+    const { newOwner } = await res.json()
+    setTasks(current =>
+      current.map(t => t.id === taskId ? { ...t, ownerId: newOwnerId, owner: newOwner } : t)
+    )
+    // Full handover touches leads/customers/deals/tasks — refresh them
+    await Promise.all([fetchTasks(), fetchDeals(), fetchLeads(), fetchCustomers()])
+    setNotice('Customer reassigned to new SR.')
+  }
+
+  async function acknowledgeCustomer(id) {
+    apiFetch(`/api/customers/${id}/acknowledge`, { method: 'PATCH' }).catch(() => {})
+    setCustomers(cur => cur.map(c => c.id === id ? { ...c, reassignedAt: null } : c))
   }
 
   async function syncGSheets() {
@@ -782,8 +806,49 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
-  return {
+  async function changePassword(currentPassword, newPassword) {
+    try {
+      await updatePassword(currentPassword, newPassword)
+      showToast('Password updated successfully!')
+    } catch (err) {
+      showToast(err.message || 'Failed to update password', 'error')
+      throw err
+    }
+  }
 
+  async function updateProfilePhoto(file) {
+    try {
+      const result = await uploadProfilePhoto(file)
+      // No toast here anymore, the redirect to Adjust Modal is sufficient
+      return result
+    } catch (err) {
+      showToast(err.message || 'Failed to upload photo', 'error')
+      throw err
+    }
+  }
+
+  async function deleteProfilePhoto() {
+    try {
+      await removeProfilePhoto()
+      showToast('Profile photo removed')
+    } catch (err) {
+      showToast(err.message || 'Failed to remove photo', 'error')
+      throw err
+    }
+  }
+
+  async function savePhotoAdjustment(zoom, offsetY, offsetX, rotation, profilePic) {
+    try {
+      await adjustProfilePhoto(zoom, offsetY, offsetX, rotation, profilePic)
+      // Local update is handled in the component for responsiveness, 
+      // but this persists it to the backend.
+    } catch (err) {
+      showToast('Failed to save adjustments', 'error')
+      throw err
+    }
+  }
+
+  return {
     data: { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion },
     stopAllCelebration,
     actions: {
@@ -796,6 +861,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       updateDealStage,
       updateDeal,
       toggleTaskStatus,
+      reassignTask,
+      acknowledgeCustomer,
       syncGSheets,
       reassignLead,
       setActiveBranch,
@@ -806,11 +873,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       fetchCustomers,
       fetchContacts,
       fetchDeals,
-    fetchTasks,
-    fetchTeam,
-    fetchDealContactMap,
-    updateContact,
-  }
-
+      fetchTasks,
+      fetchTeam,
+      fetchDealContactMap,
+      updateContact,
+      changePassword,
+      updateProfilePhoto,
+      deleteProfilePhoto,
+      savePhotoAdjustment,
+    }
   }
 }

@@ -35,6 +35,7 @@ export default function CustomersView({
   setShowCustomerForm,
   onCreateCustomer,
   onCreateTask,
+  acknowledgeCustomer,
   fetchDealContacts,
   fetchCompanies,
   fetchContacts,
@@ -85,10 +86,16 @@ export default function CustomersView({
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {
+      // Newly-assigned (handover) filter — independent of deal-based status
+      if (statusFilter === 'Newly Assigned') {
+        if (!c.reassignedAt) return false
+        return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
+      }
+
       // Handle deal-based status filtering
       if (statusFilter !== 'all') {
         const companyDeals = deals.filter(d => d.companyId === c.id)
-        
+
         if (statusFilter === 'New') {
           // New: No active deals (only Closed or no deals at all)
           if (companyDeals.some(d => d.stage !== 'Closed Won' && d.stage !== 'Closed Lost')) return false
@@ -293,6 +300,7 @@ export default function CustomersView({
                   }}
                 >
                   <option value="all">All</option>
+                  <option value="Newly Assigned">🆕 Newly Assigned</option>
                   {customerStatuses.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </label>
@@ -310,11 +318,20 @@ export default function CustomersView({
                         key={customer.id}
                         className={`contact-card ${selectedCustomer?.id === customer.id ? 'is-selected' : ''}`}
                         onClick={() => setSelectedCustomerId(customer.id)}
-                        onDoubleClick={() => setDetailModalOpen(true)}
+                        onDoubleClick={() => {
+                          setDetailModalOpen(true)
+                          // Only the assigned owner clears their own "New" flag
+                          if (customer.reassignedAt && String(customer.ownerId) === String(currentUser?.id)) {
+                            acknowledgeCustomer?.(customer.id)
+                          }
+                        }}
                       >
                         <div>
-                          <strong className="u-fs-md u-text-strong u-block">
+                          <strong className="u-fs-md u-text-strong u-block u-flex-center-gap-4">
                             {customer.name}
+                            {customer.reassignedAt && (
+                              <span className="admin-role-pill admin-role-pill--positive u-fs-10">New</span>
+                            )}
                           </strong>
                           <div className="u-fs-xs u-text-muted u-margin-t-4 u-flex-center-gap-4">
                             <span>{Number(customer.totalDealCount || 0)} total</span>

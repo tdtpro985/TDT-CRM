@@ -4,8 +4,9 @@ import Panel from '../components/Panel'
 import { apiFetch } from '../api'
 import { formatCurrencyCompact, formatDateTimePHT } from '../utils'
 import Pagination from '../components/Pagination'
+import { REGION_BRANCHES } from '../constants'
 
-async function downloadCSV(url, filename) {
+async function downloadExcel(url, filename) {
   try {
     const res = await apiFetch(url)
     if (!res.ok) {
@@ -13,8 +14,7 @@ async function downloadCSV(url, filename) {
       alert(data?.error || `Export failed (${res.status}). Please try again.`)
       return
     }
-    const text = await res.text()
-    const blob = new Blob([text], { type: 'text/csv' })
+    const blob = await res.blob()
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
     link.download = filename
@@ -141,6 +141,21 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
   const { totals, usersPerBranch, roleDistribution, leadsPerBranch, dealsPerBranch, topSRs, leadStatusDist } = data || {}
 
   const branchMap = {}
+  
+  // Pre-populate with all official branches to ensure zero-data branches appear
+  Object.values(REGION_BRANCHES).flat().forEach(branchName => {
+    branchMap[branchName] = { 
+      branch: branchName, 
+      users: 0, 
+      leads: 0, 
+      converted: 0, 
+      deals: 0, 
+      pipeline: 0, 
+      win_rate: null, 
+      avg_deal_value: null 
+    }
+  })
+
   if (usersPerBranch) {
     usersPerBranch.forEach((r) => {
       branchMap[r.branch] = { branch: r.branch, users: r.count, leads: 0, converted: 0, deals: 0, pipeline: 0, win_rate: null, avg_deal_value: null }
@@ -234,68 +249,143 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
         <MetricCard label="Avg Win Rate"   value={overallWinRate != null ? `${overallWinRate}%` : '—'} meta="Across branches with history" accent="surface" />
       </section>
 
-      <section className="content-grid content-grid--primary" style={{ gridTemplateColumns: '2fr 1fr', flex: 'none', gridTemplateRows: 'auto' }}>
-
-        {/* Branch performance cards */}
-        <Panel
-          kicker="Performance"
-          title="Branch Overview"
-          action={
-            <button className="ghost-button u-fs-sm u-pad-4-10" onClick={() => downloadCSV('/api/admin/export/branch-overview', 'branch-overview.csv')}>
-              ↓ Export CSV
-            </button>
-          }
-        >
-          <div className="branch-card-grid">
-            {branchRows.map((r) => {
-              const rate = r.leads ? Math.round((r.converted / r.leads) * 100) : 0
-              const barW = rate
-              return (
-                <div key={r.branch} className="branch-card">
-                  <div className="branch-card__header">
-                    <span className="branch-card__name">{r.branch ?? '—'}</span>
-                    <span className={`admin-role-pill ${rate >= 50 ? 'admin-role-pill--accent' : rate >= 20 ? 'admin-role-pill--alt' : 'admin-role-pill--surface'}`}>
-                      {rate}% conv.
-                    </span>
+      <section className="content-grid" style={{ gridTemplateColumns: '2fr 1fr', alignItems: 'start', gap: '16px' }}>
+        {/* Left Column: Data Heavy */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Branch performance cards */}
+          <Panel
+            kicker="Performance"
+            title="Branch Overview"
+            action={
+              <button className="ghost-button u-fs-sm u-pad-4-10" onClick={() => downloadExcel('/api/admin/export/branch-overview', 'branch-overview.xlsx')}>
+                ↓ Export Excel
+              </button>
+            }
+          >
+            <div className="branch-card-grid">
+              {branchRows.map((r) => {
+                const rate = r.leads ? Math.round((r.converted / r.leads) * 100) : 0
+                const barW = rate
+                return (
+                  <div key={r.branch} className="branch-card">
+                    <div className="branch-card__header">
+                      <span className="branch-card__name">{r.branch ?? '—'}</span>
+                      <span className={`admin-role-pill ${rate >= 50 ? 'admin-role-pill--accent' : rate >= 20 ? 'admin-role-pill--alt' : 'admin-role-pill--surface'}`}>
+                        {rate}% conv.
+                      </span>
+                    </div>
+                    <div className="branch-card__stats">
+                      <div className="branch-card__stat">
+                        <span className="branch-card__stat-label">Leads</span>
+                        <span className="branch-card__stat-value">{r.leads}</span>
+                      </div>
+                      <div className="branch-card__stat">
+                        <span className="branch-card__stat-label">Converted</span>
+                        <span className="branch-card__stat-value">{r.converted}</span>
+                      </div>
+                      <div className="branch-card__stat">
+                        <span className="branch-card__stat-label">Active Deals</span>
+                        <span className="branch-card__stat-value">{r.deals}</span>
+                      </div>
+                      <div className="branch-card__stat">
+                        <span className="branch-card__stat-label">Pipeline</span>
+                        <span className="branch-card__stat-value">{formatCurrencyCompact(r.pipeline)}</span>
+                      </div>
+                      <div className="branch-card__stat">
+                        <span className="branch-card__stat-label">Win Rate</span>
+                        <span className="branch-card__stat-value">{r.win_rate != null ? `${r.win_rate}%` : '—'}</span>
+                      </div>
+                      <div className="branch-card__stat">
+                        <span className="branch-card__stat-label">Avg Deal</span>
+                        <span className="branch-card__stat-value">{r.avg_deal_value != null ? formatCurrencyCompact(r.avg_deal_value) : '—'}</span>
+                      </div>
+                    </div>
+                    <div className="analytics-bar-track">
+                      <div className="analytics-bar-fill" style={{ width: `${barW}%` }} />
+                    </div>
                   </div>
-                  <div className="branch-card__stats">
-                    <div className="branch-card__stat">
-                      <span className="branch-card__stat-label">Leads</span>
-                      <span className="branch-card__stat-value">{r.leads}</span>
-                    </div>
-                    <div className="branch-card__stat">
-                      <span className="branch-card__stat-label">Converted</span>
-                      <span className="branch-card__stat-value">{r.converted}</span>
-                    </div>
-                    <div className="branch-card__stat">
-                      <span className="branch-card__stat-label">Active Deals</span>
-                      <span className="branch-card__stat-value">{r.deals}</span>
-                    </div>
-                    <div className="branch-card__stat">
-                      <span className="branch-card__stat-label">Pipeline</span>
-                      <span className="branch-card__stat-value">{formatCurrencyCompact(r.pipeline)}</span>
-                    </div>
-                    <div className="branch-card__stat">
-                      <span className="branch-card__stat-label">Win Rate</span>
-                      <span className="branch-card__stat-value">{r.win_rate != null ? `${r.win_rate}%` : '—'}</span>
-                    </div>
-                    <div className="branch-card__stat">
-                      <span className="branch-card__stat-label">Avg Deal</span>
-                      <span className="branch-card__stat-value">{r.avg_deal_value != null ? formatCurrencyCompact(r.avg_deal_value) : '—'}</span>
-                    </div>
-                  </div>
-                  <div className="analytics-bar-track">
-                    <div className="analytics-bar-fill" style={{ width: `${barW}%` }} />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          </Panel>
 
-        </Panel>
+          <Panel
+            kicker="Activity"
+            title="Audit Log"
+            action={
+              <button className="ghost-button u-fs-sm u-pad-4-10" onClick={() => downloadExcel(buildAuditExportUrl(), 'audit-log.xlsx')}>
+                ↓ Export Excel
+              </button>
+            }
+          >
+            {/* Filter bar */}
+            <div className="panel-inline-controls" style={{ padding: '0 0 12px', flexWrap: 'wrap', gap: '8px' }}>
+              <label className="filter-wrap">
+                <span>Type</span>
+                <select value={auditEntity} onChange={(e) => { setAuditEntity(e.target.value); setAuditPage(1) }}>
+                  <option value="">All</option>
+                  <option value="deal">Deal</option>
+                  <option value="lead">Lead</option>
+                  <option value="contact">Contact</option>
+                </select>
+              </label>
+              <label className="filter-wrap">
+                <span>From</span>
+                <input
+                  type="date"
+                  value={auditFrom}
+                  onChange={(e) => { setAuditFrom(e.target.value); setAuditPage(1) }}
+                />
+              </label>
+              {(auditEntity || auditFrom) && (
+                <button
+                  className="ghost-button u-fs-sm u-pad-4-10"
+                  onClick={() => { setAuditEntity(''); setAuditFrom(''); setAuditPage(1) }}
+                >
+                  Clear
+                </button>
+              )}
+              <span className="u-ml-auto u-text-muted u-fs-sm u-align-self-center">
+                {auditTotal} {auditTotal === 1 ? 'entry' : 'entries'}
+              </span>
+            </div>
 
-        {/* Right column */}
-        <div className="analytics-right-col" style={{ display: 'flex', flexDirection: 'column', gap: '16px', minHeight: 0 }}>
+            {auditLoading ? (
+              <p className="u-pad-16 u-text-muted u-fs-sm">Loading…</p>
+            ) : auditLogs.length === 0 ? (
+              <p className="u-pad-16 u-text-muted u-fs-sm">No activity recorded yet.</p>
+            ) : (
+              <div className="analytics-audit-list">
+                {auditLogs.map((entry) => (
+                  <div key={entry.id} className={`analytics-audit-row ${actionRowClass[entry.action] ?? ''}`}>
+                    <span className="analytics-audit-type">{actionLabel[entry.action] ?? entry.action}</span>
+                    <div className="analytics-audit-middle">
+                      <span className="analytics-audit-entity">{entry.entity_type} #{entry.entity_id?.slice(0, 8)}</span>
+                      <span className="analytics-audit-change">
+                        <span className="analytics-audit-old">{entry.old_value}</span>
+                        <span className="analytics-audit-arrow">→</span>
+                        <span className="analytics-audit-new">{entry.new_value}</span>
+                      </span>
+                    </div>
+                    <span className="analytics-audit-time">{formatDateTimePHT(entry.changed_at)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <Pagination
+              currentPage={auditPage}
+              totalPages={auditTotalPages}
+              onPageChange={setAuditPage}
+              prevLabel="← Prev"
+              nextLabel="Next →"
+              className="analytics-pagination"
+            />
+          </Panel>
+        </div>
+
+        {/* Right column: Summaries & Breakdown */}
+        <div className="analytics-right-col" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
           {/* Role distribution */}
           <Panel kicker="Access levels" title="Role Distribution">
@@ -365,92 +455,13 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
             </Panel>
           )}
 
-        </div>
-      </section>
-
-      {/* Bottom row: Audit Log + Lead Status Donut */}
-      <section className="analytics-bottom-row" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '16px', marginTop: '16px', alignItems: 'start' }}>
-
-        <Panel
-          kicker="Activity"
-          title="Audit Log"
-          action={
-            <button className="ghost-button u-fs-sm u-pad-4-10" onClick={() => downloadCSV(buildAuditExportUrl(), 'audit-log.csv')}>
-              ↓ Export CSV
-            </button>
-          }
-        >
-          {/* Filter bar */}
-          <div className="panel-inline-controls" style={{ padding: '0 0 12px', flexWrap: 'wrap', gap: '8px' }}>
-            <label className="filter-wrap">
-              <span>Type</span>
-              <select value={auditEntity} onChange={(e) => { setAuditEntity(e.target.value); setAuditPage(1) }}>
-                <option value="">All</option>
-                <option value="deal">Deal</option>
-                <option value="lead">Lead</option>
-                <option value="contact">Contact</option>
-              </select>
-            </label>
-            <label className="filter-wrap">
-              <span>From</span>
-              <input
-                type="date"
-                value={auditFrom}
-                onChange={(e) => { setAuditFrom(e.target.value); setAuditPage(1) }}
-              />
-            </label>
-            {(auditEntity || auditFrom) && (
-              <button
-                className="ghost-button u-fs-sm u-pad-4-10"
-                onClick={() => { setAuditEntity(''); setAuditFrom(''); setAuditPage(1) }}
-              >
-                Clear
-              </button>
-            )}
-            <span className="u-ml-auto u-text-muted u-fs-sm u-align-self-center">
-              {auditTotal} {auditTotal === 1 ? 'entry' : 'entries'}
-            </span>
-          </div>
-
-          {auditLoading ? (
-            <p className="u-pad-16 u-text-muted u-fs-sm">Loading…</p>
-          ) : auditLogs.length === 0 ? (
-            <p className="u-pad-16 u-text-muted u-fs-sm">No activity recorded yet.</p>
-          ) : (
-            <div className="analytics-audit-list">
-              {auditLogs.map((entry) => (
-                <div key={entry.id} className={`analytics-audit-row ${actionRowClass[entry.action] ?? ''}`}>
-                  <span className="analytics-audit-type">{actionLabel[entry.action] ?? entry.action}</span>
-                  <div className="analytics-audit-middle">
-                    <span className="analytics-audit-entity">{entry.entity_type} #{entry.entity_id?.slice(0, 8)}</span>
-                    <span className="analytics-audit-change">
-                      <span className="analytics-audit-old">{entry.old_value}</span>
-                      <span className="analytics-audit-arrow">→</span>
-                      <span className="analytics-audit-new">{entry.new_value}</span>
-                    </span>
-                  </div>
-                  <span className="analytics-audit-time">{formatDateTimePHT(entry.changed_at)}</span>
-                </div>
-              ))}
-            </div>
+          {leadStatusDist && leadStatusDist.length > 0 && (
+            <Panel kicker="Lead Pipeline" title="Status Breakdown">
+              <DonutChart data={leadStatusDist} />
+            </Panel>
           )}
 
-          <Pagination
-            currentPage={auditPage}
-            totalPages={auditTotalPages}
-            onPageChange={setAuditPage}
-            prevLabel="← Prev"
-            nextLabel="Next →"
-            className="analytics-pagination"
-          />
-        </Panel>
-
-        {leadStatusDist && leadStatusDist.length > 0 && (
-          <Panel kicker="Lead Pipeline" title="Status Breakdown">
-            <DonutChart data={leadStatusDist} />
-          </Panel>
-        )}
-
+        </div>
       </section>
     </>
   )

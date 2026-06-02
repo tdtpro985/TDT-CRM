@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS team (
     email    VARCHAR(255),
     role     VARCHAR(100) DEFAULT 'Branch Account',
     branch   VARCHAR(100) NOT NULL,
-    region   ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'Central'
+    region   ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'Central',
+    profile_pic VARCHAR(500) NULL
 );
 
 -- ─── Companies ───────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS leads (
     owner_name    VARCHAR(255),
     branch        VARCHAR(100),
     status        VARCHAR(50)  DEFAULT 'New',
+    reassigned_at DATE         NULL,
     created_at    DATE         DEFAULT (CURRENT_DATE),
     FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL
 );
