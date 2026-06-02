@@ -121,6 +121,15 @@ def ensure_schema():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Ensure app_settings key-value table exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS app_settings (
+                setting_key   VARCHAR(100) PRIMARY KEY,
+                setting_value TEXT,
+                updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
 
         # Ensure profile_pic column exists in team table
@@ -869,12 +878,17 @@ def get_companies():
         claims = get_jwt()
         user_id = get_jwt_identity()
         scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
-        where_parts = list(scope_parts)
-        params = list(scope_params)
         if restrict_owner:
-            where_parts.append('l.owner_id = %s')
-            params.append(user_id)
-        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+            # SR: include companies they own directly OR companies referenced by their deals.
+            # The second condition covers Agos-synced companies where owner_id was never set
+            # because the sync predates the cascade fix.
+            where_sql = ('WHERE (c.owner_id = %s '
+                         'OR c.id IN (SELECT d.company_id FROM deals d WHERE d.owner_id = %s AND d.company_id IS NOT NULL))')
+            params_tuple = (user_id, user_id)
+        else:
+            where_parts = list(scope_parts)
+            where_sql = ('WHERE ' + ' AND '.join(where_parts)) if where_parts else ''
+            params_tuple = tuple(scope_params)
         cursor.execute(f'''
             SELECT c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, c.status, c.created_at
             FROM companies c
@@ -882,7 +896,7 @@ def get_companies():
             LEFT JOIN leads l ON l.id = c.id
             {where_sql}
             ORDER BY c.name
-        ''', tuple(params))
+        ''', params_tuple)
         return jsonify(rows_to_list(cursor))
     finally:
         close_connection(conn)
@@ -1563,6 +1577,15 @@ def create_deal():
             ),
         )
         log_audit(conn, 'deal', data['id'], 'deal_created', None, stage, get_jwt_identity())
+        if data.get('ownerId') and data.get('companyId'):
+            cursor.execute(
+                'UPDATE leads SET owner_id = %s, reassigned_at = CURRENT_DATE WHERE id = %s AND (owner_id IS NULL OR owner_id != %s)',
+                (data['ownerId'], data['companyId'], data['ownerId'])
+            )
+            cursor.execute(
+                'UPDATE companies SET owner_id = %s WHERE id = %s',
+                (data['ownerId'], data['companyId'])
+            )
         conn.commit()
         return jsonify({'message': 'Deal created', 'id': data['id']}), 201
     except Exception as e:
@@ -1669,6 +1692,14 @@ def update_deal_stage(deal_id):
                 updates.append('owner_id = %s')
                 params.append(new_owner_id)
                 log_audit(conn, 'deal', deal_id, 'owner_id_change', str(old_owner_id), str(new_owner_id), get_jwt_identity())
+                cursor.execute(
+                    'UPDATE leads SET owner_id = %s, reassigned_at = CURRENT_DATE WHERE id = %s AND (owner_id IS NULL OR owner_id != %s)',
+                    (new_owner_id, company_id, new_owner_id)
+                )
+                cursor.execute(
+                    'UPDATE companies SET owner_id = %s WHERE id = %s',
+                    (new_owner_id, company_id)
+                )
 
         lost_reason = data.get('lostReason')
         if new_stage == 'Closed Lost' and lost_reason and lost_reason != old_lost_reason:
@@ -3324,6 +3355,86 @@ def get_celebration_music():
 @app.route('/api/uploads/celebration-music/<filename>', methods=['GET'])
 def serve_celebration_music(filename):
     return send_from_directory(MUSIC_UPLOAD_FOLDER, filename, as_attachment=False)
+
+
+# ─── Celebration Animation Settings ─────────────────────────────────────────
+
+_VALID_ANIMATIONS = {'confetti', 'jojo', 'none'}
+
+@app.route('/api/admin/settings/celebration-animation', methods=['GET'])
+@jwt_required()
+@admin_required
+def admin_get_celebration_animation():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN (%s, %s)",
+            ('celebration_animation_won', 'celebration_animation_lost')
+        )
+        rows = {r['setting_key']: r['setting_value'] for r in rows_to_list(cursor)}
+        return jsonify({
+            'won':  rows.get('celebration_animation_won',  'confetti'),
+            'lost': rows.get('celebration_animation_lost', 'confetti'),
+        })
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/settings/celebration-animation', methods=['PUT'])
+@jwt_required()
+@admin_required
+def admin_put_celebration_animation():
+    data = request.get_json(silent=True) or {}
+    updates = {}
+    for outcome in ('won', 'lost'):
+        val = data.get(outcome)
+        if val is not None:
+            if val not in _VALID_ANIMATIONS:
+                return jsonify({'error': f'Invalid animation value: {val}'}), 400
+            updates[f'celebration_animation_{outcome}'] = val
+    if not updates:
+        return jsonify({'error': 'No valid fields to update'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        for key, value in updates.items():
+            cursor.execute(
+                "INSERT INTO app_settings (setting_key, setting_value) VALUES (%s, %s) "
+                "ON DUPLICATE KEY UPDATE setting_value = %s",
+                (key, value, value)
+            )
+        conn.commit()
+        return jsonify({'message': 'Animation settings updated'})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/celebration-animation', methods=['GET'])
+@jwt_required()
+def get_celebration_animation():
+    """Public (jwt) endpoint — used by the CRM on load."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN (%s, %s)",
+            ('celebration_animation_won', 'celebration_animation_lost')
+        )
+        rows = {r['setting_key']: r['setting_value'] for r in rows_to_list(cursor)}
+        return jsonify({
+            'won':  rows.get('celebration_animation_won',  'confetti'),
+            'lost': rows.get('celebration_animation_lost', 'confetti'),
+        })
+    finally:
+        close_connection(conn)
 
 
 if __name__ == '__main__':
