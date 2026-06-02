@@ -311,7 +311,7 @@ export default function CustomersView({
                         <div>
                           <strong className="u-fs-md u-text-strong u-block u-flex-center-gap-4">
                             {customer.name}
-                            {customer.reassignedAt && (
+                            {customer.reassignedAt && String(customer.ownerId) === String(currentUser?.id) && (
                               <span className="admin-role-pill admin-role-pill--positive u-fs-10">New</span>
                             )}
                           </strong>
