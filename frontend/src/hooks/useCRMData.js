@@ -278,7 +278,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       if (!res.ok) throw new Error('Network error')
       setNotice(`${newLead.customerName} was saved to the database.`)
       showToast(`Customer "${newLead.customerName}" saved successfully!`)
-      fetchLeads()
+      fetchLeads();
+      fetchCustomers()
     } catch {
       setNotice(`${newLead.customerName} was added locally — backend not reachable.`)
     }

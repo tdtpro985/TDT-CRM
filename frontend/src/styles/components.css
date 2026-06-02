@@ -740,6 +740,10 @@ section.content-grid--primary {
   cursor: pointer;
 }
 
+.simple-list__item .tone-pill {
+  margin-left: auto;
+}
+
 [data-theme="light"] .simple-list__item {
   background: var(--bg-card);
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
