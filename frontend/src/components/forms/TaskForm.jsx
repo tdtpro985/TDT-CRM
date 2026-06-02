@@ -642,12 +642,17 @@ export default function TaskForm({
       {canAssignSR && (
         <label className="field">
           <span>Assign SR</span>
-          <Select 
+          <input
+            name="owner"
             value={taskForm.owner}
-            onChange={v => handleChange({ target: { name: 'owner', value: v } })}
-            options={availableSRs.map(m => ({ value: m.name, label: `${m.name} (${m.branch})` }))}
-            placeholder="Select Representative"
+            onChange={handleChange}
+            placeholder="Type or select a representative..."
+            list="sr-suggestions"
+            autoComplete="off"
           />
+          <datalist id="sr-suggestions">
+            {availableSRs.map(m => <option key={m.id} value={m.name}>{m.name} ({m.branch})</option>)}
+          </datalist>
         </label>
       )}
 

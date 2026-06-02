@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiFetch, API_BASE } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
-import { celebrateWon, celebrateLost } from '../celebration'
+import { celebrateWon, celebrateLost, triggerJoJo, dismissActiveJoJo } from '../celebration'
 
 const CURRENT_DATE = getTodayISO()
 
@@ -23,6 +23,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   const abortControllerRef = useRef(null)
   const audioRef = useRef(null)
   const musicRef = useRef({ won: [], lost: [] })
+  // animationRef stores the per-outcome animation style: 'confetti' | 'jojo' | 'none'
+  const animationRef = useRef({ won: 'confetti', lost: 'confetti' })
 
   const getSignal = useCallback(() => {
     if (abortControllerRef.current) {
@@ -157,6 +159,34 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     })
   }
 
+  function playCelebrationAnimation(outcome) {
+    const style = animationRef.current[outcome] ?? 'confetti'
+    if (style === 'none') return
+    if (style === 'jojo') {
+      triggerJoJo(outcome, () => {
+        // When the JoJo overlay is dismissed, also stop the audio
+        if (audioRef.current) {
+          audioRef.current.pause()
+          audioRef.current = null
+        }
+      })
+    } else {
+      // Default: confetti
+      if (outcome === 'won') celebrateWon()
+      else celebrateLost()
+    }
+  }
+
+  /** Stop any active audio stream and JoJo overlay — call on route change. */
+  function stopAllCelebration() {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+      audioRef.current = null
+    }
+    dismissActiveJoJo()
+  }
+
   async function loadAll() {
     if (!currentUser) return
     setLoading(true)
@@ -172,13 +202,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         apiFetch(`/api/team${buildQuery()}`, { signal }),
         apiFetch(`/api/deal-contacts`, { signal }),
         apiFetch(`/api/celebration-music`, { signal }),
+        apiFetch(`/api/celebration-animation`, { signal }),
       ])
 
       if (responses.some(r => !r.ok)) {
         throw new Error('API or Database error')
       }
 
-      const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes, dealContactsRes, musicRes] = responses
+      const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes, dealContactsRes, musicRes, animationRes] = responses
 
       const fetchedLeads = await leadsRes.json()
       const fetchedCompanies = await companiesRes.json()
@@ -188,6 +219,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       const fetchedActivities = await activitiesRes.json()
       const fetchedDealContacts = await dealContactsRes.json()
       const fetchedMusic = await musicRes.json()
+      const fetchedAnimation = await animationRes.json()
 
       const dcm = {}
       fetchedDealContacts.forEach((dc) => {
@@ -201,6 +233,10 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         if (musicMap[e.outcome]) musicMap[e.outcome].push(e)
       })
       musicRef.current = musicMap
+      animationRef.current = {
+        won:  fetchedAnimation.won  ?? 'confetti',
+        lost: fetchedAnimation.lost ?? 'confetti',
+      }
 
       setLeads(fetchedLeads)
       setCompanies(fetchedCompanies)
@@ -619,10 +655,10 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
     if (nextStage === 'Closed Won') {
       playCelebrationSound('won')
-      celebrateWon()
+      playCelebrationAnimation('won')
     } else if (nextStage === 'Closed Lost') {
       playCelebrationSound('lost')
-      celebrateLost()
+      playCelebrationAnimation('lost')
     }
 
     try {
@@ -635,7 +671,9 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         throw new Error(errData.error || `Server error: ${res.status}`)
       }
       showToast(`Deal stage updated to ${nextStage}`)
-      await Promise.all([fetchDeals(), fetchCustomers()])
+      const syncs = [fetchDeals(), fetchCustomers()]
+      if (nextStage === 'Closed Won' || nextStage === 'Closed Lost') syncs.push(fetchTasks())
+      await Promise.all(syncs)
     } catch (err) {
       setDeals((current) => current.map((d) => (d.id === dealId ? snapshot : d)))
       setNotice(`Stage update failed: ${err.message}`)
@@ -747,6 +785,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   return {
 
     data: { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion },
+    stopAllCelebration,
     actions: {
       createLead,
       createContact,

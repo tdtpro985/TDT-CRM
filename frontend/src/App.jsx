@@ -78,9 +78,18 @@ export default function App() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
+  const { data, actions, stopAllCelebration } = useCRMData({ setNotice, showToast, currentUser })
   const { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion } = data
   const { setActiveBranch, setActiveRegion, fetchCompanies, fetchContacts } = actions
+
+  // ─── Stop celebration audio/overlay on route change ─────────────────────────
+  const stopAllCelebrationRef = useRef(null)
+  useEffect(() => {
+    stopAllCelebrationRef.current = stopAllCelebration
+  }, [stopAllCelebration])
+  useEffect(() => {
+    if (stopAllCelebrationRef.current) stopAllCelebrationRef.current()
+  }, [location.pathname])
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
@@ -196,7 +205,7 @@ export default function App() {
     setShowLeadForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId]?.title || viewId} is active.`)
-    setSidebarOpen(false)
+    // Keep sidebar state as is during navigation
   }
 
   function handlePrimaryAction() {
@@ -266,7 +275,6 @@ export default function App() {
           <DashboardView
             topKpis={topKpis}
             stageSummary={stageSummary}
-            pipelineValue={pipelineValue}
             leads={leads}
             contacts={contacts}
             companies={companies}
@@ -542,6 +550,7 @@ export default function App() {
         </header>
 
         <div className="notice-bar" aria-live="polite">
+          <span className="status-dot" />
           <strong>Live state</strong>
           <span>{notice}</span>
         </div>

@@ -39,18 +39,32 @@
    padding: var(--pad-control);
    border-radius: var(--r-md);
    border: 1px solid var(--border);
+   box-shadow: inset 0 1px 3px rgba(0,0,0,0.06);
    background: var(--bg-input);
    min-width: 240px;
    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.search-field:focus-within {
-   border-color: rgba(255,152,0,0.42);
+[data-theme="light"] .search-field {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
 
-[data-theme="neon"] .search-field:focus-within {
+.search-field:focus-within {
    border-color: var(--accent);
-   box-shadow: var(--glow-xs);
+   box-shadow: 0 0 0 1px var(--accent);
+}
+
+[data-theme="light"] .search-field:focus-within {
+   border-color: var(--accent);
+   box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.search-field:focus-within input {
+  color: var(--accent-strong);
+}
+
+[data-theme="light"] .search-field:focus-within input {
+  color: var(--accent-strong);
 }
 
 [data-theme="neon"] .search-field:focus-within {
@@ -63,6 +77,11 @@
   font-size: var(--fs-xs);
   font-weight: 700;
   flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+.search-field:focus-within .search-icon {
+  color: var(--accent);
 }
 
 .search-field input {
@@ -393,7 +412,12 @@
 }
 
 .metric-card:hover {
-  transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-strong);
+}
+
+.metric-card--interactive:hover {
+  transform: translateY(-3px);
   border-color: var(--border-strong);
   box-shadow: var(--shadow-strong);
 }
@@ -1085,6 +1109,7 @@ section.content-grid--primary {
   overflow-y: auto;
   padding: 24px 28px;
   flex: 1;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.1) transparent;
 }
@@ -1275,6 +1300,7 @@ section.content-grid--primary {
 }
 
 .deal-modal__stage-btn {
+  flex: 1;
   padding: 6px 10px;
   border-radius: var(--r-sm);
   border: 1px solid rgba(255,255,255,0.1);
@@ -1760,9 +1786,9 @@ section.content-grid--primary {
 .sk {
   background: linear-gradient(
     90deg,
-    var(--bg-surface) 25%,
-    rgba(255, 255, 255, 0.06) 50%,
-    var(--bg-surface) 75%
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;
@@ -1772,16 +1798,46 @@ section.content-grid--primary {
 [data-theme="light"] .sk {
   background: linear-gradient(
     90deg,
-    var(--bg-surface) 25%,
-    rgba(0, 0, 0, 0.06) 50%,
-    var(--bg-surface) 75%
+    rgba(0, 0, 0, 0.07) 25%,
+    rgba(0, 0, 0, 0.14) 50%,
+    rgba(0, 0, 0, 0.07) 75%
   );
+  background-size: 200% 100%;
 }
 
 .sk--line     { height: 14px; margin-bottom: 10px; }
 .sk--line-sm  { height: 10px; margin-bottom: 8px; }
 .sk--value    { height: 28px; }
 .sk--avatar   { width: 36px; height: 36px; border-radius: var(--r-full); flex-shrink: 0; }
+.sk--pill     { height: 18px; border-radius: var(--r-full); }
+.sk--btn      { height: 32px; width: 100%; border-radius: var(--r-md); margin-top: 10px; }
+
+/* ── Subtle Status (Alternative to Pills) ───────────────────── */
+
+.status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.status-text::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.status-text.is-positive { color: var(--positive); }
+.status-text.is-warning  { color: var(--warning); }
+.status-text.is-alert    { color: var(--alert); }
+.status-text.is-open     { color: #38bdf8; }
+.status-text.is-converted { color: #a78bfa; }
+.status-text.is-neutral   { color: var(--text-muted); }
 
 /* Page wrapper */
 .sk-page {
