@@ -9,7 +9,7 @@ import { IconSearch } from '../components/Icons'
 
 import Pagination from '../components/Pagination'
 
-const ROLES = ['Branch Account', 'Sales Manager', 'Admin']
+const ROLES = ['Branch Account', 'Sales Representative', 'Regional Sales Manager', 'Head of Sales', 'Admin']
 
 const EMPTY_FORM  = { username: '', password: '', name: '', email: '', role: 'Branch Account', branch: '' }
 
@@ -155,7 +155,7 @@ export default function AdminView({ currentUser, showToast, onLoadingChange }) {
     }
   }
 
-  const roleColor = { Admin: 'accent', 'Sales Manager': 'alt', 'Branch Account': 'surface', 'Sales Rep': 'surface' }
+  const roleColor = { Admin: 'accent', 'Head of Sales': 'alt', 'Regional Sales Manager': 'alt', 'Sales Representative': 'surface', 'Branch Account': 'surface' }
 
   return (
     <>
@@ -248,7 +248,7 @@ export default function AdminView({ currentUser, showToast, onLoadingChange }) {
         <MetricCard label="Admins"          value={users.filter((u) => u.role === 'Admin').length.toLocaleString()} meta="Accounts with admin-level access" accent="alt" />
       </section>
 
-      <section className="content-grid content-grid--primary">
+      <section className="content-grid content-grid--primary" style={{ alignItems: 'start' }}>
         <Panel kicker="Access control" title="Branch Accounts">
 
           {/* Toolbar */}

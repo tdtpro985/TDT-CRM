@@ -328,7 +328,7 @@ export default function AdminCelebrationMusicView({ showToast }) {
                           className="secondary-button"
                           style={{ padding: '2px 10px', fontSize: 'var(--fs-sm)' }}
                           disabled={!entry.url}
-                          onClick={() => playPreview(entry.url)}
+                          onClick={() => isPlaying(entry.url) ? stopPlayback() : playPreview(entry.url)}
                         >
                           {isPlaying(entry.url) ? ' Stop' : ' Play'}
                         </button>

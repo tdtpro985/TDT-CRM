@@ -60,7 +60,11 @@ export default function PipelineView({
   const [currentPage, setCurrentPage] = useState(1)
   const isSr = isSrRole(currentUser?.role)
 
-  const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
+  const companyMap = useMemo(() => {
+    const map = Object.fromEntries((companies ?? []).map((c) => [c.id, c]))
+    ;(leads ?? []).forEach(l => { if (!map[l.id]) map[l.id] = { id: l.id, name: l.customerName } })
+    return map
+  }, [companies, leads])
   const contactMap = useMemo(() => Object.fromEntries((contacts  ?? []).map((c) => [c.id, c])), [contacts])
   const leadMap    = useMemo(() => Object.fromEntries((leads     ?? []).map((l) => [l.id, l])), [leads])
 
@@ -124,7 +128,13 @@ export default function PipelineView({
   useEffect(() => {
     if (selectedDeal && !isUpdatingRef.current) {
       const fresh = deals.find(d => d.id === selectedDeal.id)
-      if (fresh && (fresh.stage !== selectedDeal.stage || fresh.value !== selectedDeal.value)) {
+      if (fresh && (
+        fresh.stage !== selectedDeal.stage ||
+        fresh.value !== selectedDeal.value ||
+        fresh.probability !== selectedDeal.probability ||
+        fresh.expectedClose !== selectedDeal.expectedClose ||
+        fresh.ownerId !== selectedDeal.ownerId
+      )) {
         setSelectedDeal(fresh)
       }
     }
@@ -135,6 +145,8 @@ export default function PipelineView({
 
   const canEdit = selectedDeal && (
     currentUser?.role === 'Admin' ||
+    currentUser?.role === 'Head of Sales' ||
+    currentUser?.role === 'Regional Sales Manager' ||
     String(currentUser?.id) === String(selectedDeal.ownerId)
   )
 
@@ -621,8 +633,8 @@ export default function PipelineView({
 
                 {!isSr && (
                   <div className="deal-modal__field">
-                    <span className="deal-modal__label">Owner</span>
-                    <strong className="deal-modal__value">{selectedDeal.owner || '—'}</strong>
+                    <span className="deal-modal__label">Contact</span>
+                    <strong className="deal-modal__value">{contactMap[selectedDeal.contactId]?.name ?? selectedDeal.contactId}</strong>
                   </div>
                 )}
 
