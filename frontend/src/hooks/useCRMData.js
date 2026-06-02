@@ -708,21 +708,26 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   async function reassignTask(taskId, newOwnerId) {
-    const res = await apiFetch(`/api/activities/${taskId}/reassign`, {
-      method: 'PATCH',
-      body: JSON.stringify({ newOwnerId }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.error || 'Reassign failed')
+    try {
+      const res = await apiFetch(`/api/activities/${taskId}/reassign`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newOwnerId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Reassign failed')
+      }
+      const { newOwner } = await res.json()
+      setTasks(current =>
+        current.map(t => t.id === taskId ? { ...t, ownerId: newOwnerId, owner: newOwner } : t)
+      )
+      // Full handover touches leads/customers/deals/tasks — refresh them
+      await Promise.all([fetchTasks(), fetchDeals(), fetchLeads(), fetchCustomers()])
+      setNotice('Customer reassigned to new SR.')
+    } catch (err) {
+      setNotice(`Reassign failed: ${err.message}`)
+      throw err
     }
-    const { newOwner } = await res.json()
-    setTasks(current =>
-      current.map(t => t.id === taskId ? { ...t, ownerId: newOwnerId, owner: newOwner } : t)
-    )
-    // Full handover touches leads/customers/deals/tasks — refresh them
-    await Promise.all([fetchTasks(), fetchDeals(), fetchLeads(), fetchCustomers()])
-    setNotice('Customer reassigned to new SR.')
   }
 
   async function acknowledgeCustomer(id) {

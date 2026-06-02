@@ -1944,6 +1944,11 @@ def reassign_activity(task_id):
         if not target:
             return jsonify({'error': 'Target user not found'}), 404
 
+        # Target must rank strictly below the caller (mirrors reassign_lead)
+        user_id = get_jwt_identity()
+        if not can_assign(claims, user_id, new_owner_id, target[1]):
+            return jsonify({'error': f'Cannot reassign to a user with equal or higher role ({target[1]})'}), 403
+
         target_branch = (target[2] or '').lower()
         if task_branch and target_branch and task_branch.lower() != target_branch:
             return jsonify({'error': 'Cannot reassign task to an SR from a different branch'}), 403
