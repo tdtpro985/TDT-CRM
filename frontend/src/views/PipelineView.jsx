@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatDateTimePHT, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole } from '../utils'
-import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP } from '../constants'
+import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP, DEAL_STAGES } from '../constants'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
 
@@ -107,6 +107,7 @@ export default function PipelineView({
 
   // Audit logs
   const [auditLogs, setAuditLogs] = useState([])
+  const [changeHistoryExpanded, setChangeHistoryExpanded] = useState(false)
 
   const isUpdatingRef = useRef(false)
 
@@ -171,10 +172,13 @@ export default function PipelineView({
   useEffect(() => {
     if (selectedDeal) {
       fetchDealSubData(selectedDeal.id)
+      document.body.style.overflow = 'hidden'
     } else {
       setDealContacts([])
       setAuditLogs([])
+      document.body.style.overflow = ''
     }
+    return () => { document.body.style.overflow = '' }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDeal?.id])
 
@@ -395,7 +399,7 @@ export default function PipelineView({
                         <strong>{stage}</strong>
                         <span>{stageDeals.length} deals</span>
                       </div>
-                      <span className="tone-pill is-neutral">{formatCurrencyCompact(stageValue)}</span>
+                      <span className="u-fs-xs u-text-muted u-font-700">{formatCurrencyCompact(stageValue)}</span>
                     </div>
 
                     <div className="pipeline-lane__cards">
@@ -417,15 +421,15 @@ export default function PipelineView({
                                   {companyMap[deal.companyId]?.name ?? deal.companyId}
                                 </span>
                               </div>
-                              <span className="tone-pill is-warning is-compact">{deal.probability}%</span>
+                              <span className="u-fs-xs u-text-muted u-font-700">{deal.probability}%</span>
                             </div>
 
                             <div className="pipeline-card__divider" />
 
                             <div className="pipeline-card__value u-margin-b-8">
-                              <span className="tone-pill is-warning is-strong">
+                              <strong className="u-fs-lg u-text-accent">
                                 {formatCurrencyCompact(deal.value)}
-                              </span>
+                              </strong>
                             </div>
                             
                             <div className="pipeline-card__stats-list">
@@ -477,7 +481,7 @@ export default function PipelineView({
                   <p>{stage.count} {stage.count === 1 ? 'deal' : 'deals'}</p>
                 </div>
                 <div className="stage-total-card__value">
-                  <span className="tone-pill is-warning">{formatCurrencyCompact(stage.value)}</span>
+                  <strong className="u-fs-md u-text-muted">{formatCurrencyCompact(stage.value)}</strong>
                 </div>
               </article>
             ))}
@@ -510,17 +514,56 @@ export default function PipelineView({
 
             {/* Body */}
             <div className="modal-body-scroll">
+              {/* 1. Transaction Summary (Top) */}
+              <div className="modal-section-divider u-margin-b-24">
+                <h3 className="deal-modal__subheading">Transaction Summary</h3>
+                <div className="metrics-grid metrics-grid--compact u-grid-3 u-margin-b-16">
+                  <MetricCard 
+                    label="Value" 
+                    value={formatCurrencyCompact(selectedDeal.value)} 
+                    meta="Raw potential" 
+                    accent="accent" 
+                  />
+                  <MetricCard 
+                    label="Weighted" 
+                    value={formatCurrencyCompact((selectedDeal.value * selectedDeal.probability) / 100)} 
+                    meta={`${selectedDeal.probability}% Probability`} 
+                    accent="alt" 
+                  />
+                  <MetricCard
+                    label="Deal Age"
+                    value={(() => { const d = new Date(selectedDeal.created_at || selectedDeal.createdAt); return isNaN(d) ? '—' : `${Math.floor((new Date() - d) / 86400000)} days`; })()}
+                    meta={(() => { const d = new Date(selectedDeal.created_at || selectedDeal.createdAt); return isNaN(d) ? 'Created date unknown' : `Created ${d.toLocaleDateString()}`; })()}
+                    accent="surface"
+                  />
+                </div>
+                
+                {selectedDeal.expectedClose && selectedDeal.stage !== 'Closed Won' && selectedDeal.stage !== 'Closed Lost' && (
+                  <div className="u-pad-12 u-bg-white-03 u-border-radius-md u-flex-between u-flex-center">
+                    <div className="u-flex-column">
+                      <span className="u-fs-10 u-text-muted u-font-700 u-uppercase">Countdown to Close</span>
+                      <strong className="u-fs-md">
+                        {(() => {
+                          const daysLeft = Math.ceil((new Date(selectedDeal.expectedClose) - new Date()) / (1000 * 60 * 60 * 24))
+                          return daysLeft > 0 ? `${daysLeft} days remaining` : daysLeft === 0 ? 'Due today' : `${Math.abs(daysLeft)} days overdue`
+                        })()}
+                      </strong>
+                    </div>
+                    <div className={`status-text ${
+                      Math.ceil((new Date(selectedDeal.expectedClose) - new Date()) / (1000 * 60 * 60 * 24)) < 7 ? 'is-alert' : 'is-positive'
+                    } u-font-700`}>
+                      Target: {new Date(selectedDeal.expectedClose).toLocaleDateString()}
+                    </div>
+                  </div>
+                )}
+              </div>
 
-              {/* Detail grid */}
-              <div className="deal-modal__grid">
+              {/* 2. Deal Details (Info Grid) */}
+              <div className="deal-modal__grid u-margin-b-24">
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Company</span>
-                  <strong className="deal-modal__value">{companyMap[selectedDeal.companyId]?.name ?? '—'}</strong>
+                  <strong className="deal-modal__value">{companyMap[selectedDeal.companyId]?.name ?? selectedDeal.companyId}</strong>
                 </div>
-                {!isSr && <div className="deal-modal__field">
-                  <span className="deal-modal__label">Owner</span>
-                  <strong className="deal-modal__value">{selectedDeal.owner || '—'}</strong>
-                </div>}
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Deal Value</span>
                   {isEditing ? (
@@ -540,6 +583,7 @@ export default function PipelineView({
                     <strong className="deal-modal__value u-text-accent">{formatCurrencyFull(selectedDeal.value)}</strong>
                   )}
                 </div>
+
                 <div className="deal-modal__field">
                   <span className="deal-modal__label">Probability</span>
                   {isEditing ? (
@@ -562,9 +606,7 @@ export default function PipelineView({
                       </div>
                     </div>
                   ) : (
-                    <strong className="deal-modal__value">
-                      <span className="tone-pill is-warning">{selectedDeal.probability}%</span>
-                    </strong>
+                    <strong className="deal-modal__value u-text-warning">{selectedDeal.probability}%</strong>
                   )}
                 </div>
                 <div className="deal-modal__field">
@@ -583,24 +625,22 @@ export default function PipelineView({
                     <strong className="deal-modal__value">{formatDateLabel(selectedDeal.expectedClose) || '—'}</strong>
                   )}
                 </div>
-                <div className="deal-modal__field">
-                  <span className="deal-modal__label">Stage</span>
-                  <strong className="deal-modal__value">{selectedDeal.stage}</strong>
+
+                <div className="deal-modal__field u-span-2 u-text-center">
+                  <span className="deal-modal__label">Source</span>
+                  <strong className="deal-modal__value u-capitalize">{selectedDeal.source || 'Manual'}</strong>
                 </div>
-                {selectedDeal.stage === 'Closed Lost' && selectedDeal.lostReason && (
-                  <div className="deal-modal__field u-span-2">
-                    <span className="deal-modal__label">Loss Reason</span>
-                    <strong className="deal-modal__value u-text-muted">{selectedDeal.lostReason}</strong>
-                  </div>
-                )}
-                {selectedDeal.contactId && (
+
+                {!isSr && (
                   <div className="deal-modal__field">
                     <span className="deal-modal__label">Contact</span>
                     <strong className="deal-modal__value">{contactMap[selectedDeal.contactId]?.name ?? selectedDeal.contactId}</strong>
                   </div>
                 )}
+
+                {/* 3. Company Info (Associated Contacts) */}
                 {dealContacts.length > 0 && (
-                  <div className="deal-modal__field u-span-2">
+                  <div className="deal-modal__field u-span-2 u-margin-t-8">
                     <span className="deal-modal__label">Associated Contacts</span>
                     <div className="deal-modal__contact-list">
                       {dealContacts.map(c => (
@@ -608,7 +648,7 @@ export default function PipelineView({
                           <div className="deal-modal__contact-header">
                             <span className="deal-modal__contact-name">{c.name}</span>
                             {(c.phone || c.email) && (
-                               <div className="deal-modal__contact-details">
+                               <div className="deal-modal__contact-details u-margin-l-auto">
                                  {c.phone && <span title="Phone"><IconPhone /> {c.phone}</span>}
                                  {c.email && <span title="Email">
                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -691,7 +731,7 @@ export default function PipelineView({
                 </div>
               )}
 
-              {/* Task History */}
+              {/* 4. Task History */}
               <div className="deal-modal__history" id="task-history-section">
                 <h3 className="deal-modal__subheading">Task History</h3>
                 <div className="timeline">
@@ -708,10 +748,15 @@ export default function PipelineView({
                           <div className="timeline-dot timeline-dot--accent"></div>
                           <div className="timeline-content">
                             <div className="timeline-header">
-                              <span className="timeline-time">{formatDateTimePHT(task.dueDate || task.created_at)}</span>
-                              <span className="timeline-badge is-activity u-flex-center-gap-sm">
-                                {getTaskTypeIcon(task.type)} {task.type}
-                              </span>
+                              <span className="timeline-time">{formatDateTimePHT(task.created_at)}</span>
+                              <div className="u-flex-center-gap-4">
+                                {task.dueDate && task.status !== 'Completed' && (
+                                  <span className="timeline-due u-fs-2xs u-text-muted u-margin-r-4">Due: {formatDateTimePHT(task.dueDate)}</span>
+                                )}
+                                <span className="timeline-badge is-activity u-flex-center-gap-sm">
+                                  {getTaskTypeIcon(task.type)} {task.type}
+                                </span>
+                              </div>
                             </div>
                             <div className="timeline-body">
                               <p><strong>{task.title}</strong></p>
@@ -719,7 +764,7 @@ export default function PipelineView({
                             </div>
                             <div className="u-flex-center-gap-sm u-margin-t-8">
                               <span
-                                className={`tone-pill ${getToneClass(task.status)} u-cursor-pointer`}
+                                className={`status-text ${getToneClass(task.status)} u-cursor-pointer`}
                                 title={`View all ${task.status.toLowerCase()} tasks`}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -734,10 +779,7 @@ export default function PipelineView({
                                 className="ghost-button u-fs-10-pad-4-8"
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  const nextStatus = task.status === 'Completed' ? 'reopened' : 'completed';
                                   await handleTaskStatusToggle(task.id, task.status);
-                                  onViewTasks(nextStatus);
-                                  closeDeal();
                                 }}
                               >
                                 {task.status === 'Completed' ? 'Reopen' : 'Complete'}
@@ -750,120 +792,46 @@ export default function PipelineView({
                 </div>
               </div>
 
-              {/* Activity Logs */}
+              {/* 5. Change History */}
               <div className="deal-modal__history">
-                <h3 className="deal-modal__subheading">Activity Logs</h3>
-                <div className="timeline">
+                <h3 className="deal-modal__subheading">Change History</h3>
+                <div className={`timeline${changeHistoryExpanded ? ' timeline--expanded' : ''}`}>
                   {auditLogs.length === 0 ? (
                     <div className="deal-modal__empty-history">No activity logs found for this deal.</div>
                   ) : (
-                    auditLogs.map(log => {
-                      const stageContext = (log.action === 'stage_change' || log.action === 'deal_created')
-                        ? log.newValue
-                        : (log.stage || selectedDeal?.stage)
-
-                      // Improved dynamic dot color logic
-                      let dotColor = 'var(--accent)'
-                      if (log.action.includes('contact')) {
-                        dotColor = 'var(--text-muted)'
-                      } else if (STAGE_COLORS[stageContext]) {
-                        dotColor = STAGE_COLORS[stageContext]
-                      } else {
-                        const tone = getToneClass(log.newValue)
-                        if (tone === 'is-positive') dotColor = 'var(--positive)'
-                        else if (tone === 'is-warning') dotColor = 'var(--warning)'
-                        else if (tone === 'is-alert') dotColor = 'var(--alert)'
-                        else if (tone === 'is-converted') dotColor = '#a78bfa'
-                      }
-
-                      const ACTION_LABELS = {
-                        'stage_change': 'Stage changed',
-                        'value_change': 'Value changed',
-                        'owner_id_change': 'Owner changed',
-                        'close_date_change': 'Close date changed',
-                        'probability_change': 'Probability changed',
-                        'status_change': 'Status changed',
-                        'lost_reason': 'Lost reason',
-                        'deal_created': 'Deal created',
-                        'bulk_task_completion': 'Bulk Task Completion',
-                        'contact_added': 'Contact added',
-                        'contact_removed': 'Contact removed',
-                      }
-
-                      return (
-                        <div key={log.id} className="timeline-item">
-                          <div className="timeline-dot" style={{ backgroundColor: dotColor }}></div>
-                          <div className="timeline-content">
-                            <div className="timeline-header">
-                              <span className="timeline-time">{formatDateTimePHT(log.changedAt)}</span>
-                              {log.changedBy && (
-                                <span className="timeline-user u-fs-10-muted-ml-8">
-                                  by {log.changedBy}
-                                </span>
-                              )}
-                            </div>
-                            <div className="timeline-body">
-                              <p>
-                                {log.action === 'deal_created' ? (
-                                  <>
-                                    <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(log.newValue)} is-compact u-margin-h-4`}>{log.newValue}</span>
-                                    {selectedDeal && <> for <strong>{selectedDeal.name}</strong></>}
-                                  </>
-                                ) : log.action.startsWith('task_status:') ? (
-                                  <>
-                                    Status updated for task <strong>"{log.action.split(':')[1]}"</strong>:{' '}
-                                    <span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong>
-                                  </>
-                                ) : log.action === 'task_status_change' ? (
-                                  <>
-                                    <strong>Task status updated</strong>:{' '}
-                                    <span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong>
-                                  </>
-                                ) : log.action === 'bulk_task_completion' ? (
-                                  <>
-                                    <strong>Automatically completed all open tasks</strong> (Deal closed)
-                                  </>
-                                ) : log.action === 'contact_added' ? (
-                                  <>
-                                    <strong>Added contact</strong>: <strong>{log.newValue}</strong>
-                                  </>
-                                ) : log.action === 'contact_removed' ? (
-                                  <>
-                                    <strong>Removed contact</strong>: <strong>{log.oldValue}</strong>
-                                  </>
-                                ) : log.action.startsWith('contact_role_change') ? (
-                                  <>
-                                    <strong>{log.action.split(':')[1]}</strong> role: <span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong>
-                                  </>
-                                ) : (
-                                  <>
-                                    <strong>{ACTION_LABELS[log.action] || log.action.replace(/_/g, ' ')}</strong>:{' '}
-                                    {log.action === 'stage_change' ? (
-                                      <>
-                                        {log.oldValue ? (
-                                          <span className={`tone-pill ${getToneClass(log.oldValue)} is-compact u-margin-h-4`}>{log.oldValue}</span>
-                                        ) : null}
-                                        {log.oldValue && ' → '}
-                                        <span className={`tone-pill ${getToneClass(log.newValue)} is-compact u-margin-h-4`}>{log.newValue}</span>
-                                      </>
-                                    ) : log.action === 'value_change' ? (
-                                      <>{formatCurrencyCompact(Number(log.oldValue))} → <strong>{formatCurrencyCompact(Number(log.newValue))}</strong></>
-                                    ) : log.action === 'close_date_change' ? (
-                                      <>{formatDateLabel(log.oldValue)} → <strong>{formatDateLabel(log.newValue)}</strong></>
-                                    ) : (
-                                      <><span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong></>
-                                    )}
-                                  </>
-                                )}
-                              </p>
-                              {log.notes && <p className="timeline-notes">{log.notes}</p>}
-                            </div>
+                    (changeHistoryExpanded ? auditLogs : auditLogs.slice(0, 5)).map((log) => (
+                      <div key={log.id} className="timeline-item">
+                        <div className="timeline-dot"></div>
+                        <div className="timeline-content">
+                          <div className="timeline-header">
+                            <span className="timeline-time">{formatDateTimePHT(log.changedAt)}</span>
+                            <span className="timeline-badge u-fs-10">{log.action}</span>
+                          </div>
+                          <div className="timeline-body">
+                            <p><strong>{log.changedBy}</strong> {log.action || 'updated deal'}</p>
+                            {(log.oldValue || log.newValue) && (
+                              <div className="u-fs-xs u-text-muted u-margin-t-4">
+                                <span className="u-text-warning">{String(log.oldValue || 'none')}</span>
+                                <span className="u-margin-h-8">→</span>
+                                <span className="u-text-accent">{String(log.newValue || 'none')}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      )
-                    })
+                      </div>
+                    ))
                   )}
                 </div>
+                {auditLogs.length > 5 && (
+                  <div className="collapse-bar" onClick={() => setChangeHistoryExpanded(e => !e)}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ transform: `rotate(${changeHistoryExpanded ? 180 : 0}deg)`, transition: 'transform 0.2s' }}
+                    >
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                    <span>{changeHistoryExpanded ? 'Show less' : `Show all ${auditLogs.length} entries`}</span>
+                  </div>
+                )}
               </div>
             </div>
 

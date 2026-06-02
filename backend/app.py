@@ -121,6 +121,15 @@ def ensure_schema():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Ensure app_settings key-value table exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS app_settings (
+                setting_key   VARCHAR(100) PRIMARY KEY,
+                setting_value TEXT,
+                updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        """)
         conn.commit()
 
         # Ensure profile_pic column exists in team table
@@ -3351,6 +3360,86 @@ def get_celebration_music():
 @app.route('/api/uploads/celebration-music/<filename>', methods=['GET'])
 def serve_celebration_music(filename):
     return send_from_directory(MUSIC_UPLOAD_FOLDER, filename, as_attachment=False)
+
+
+# ─── Celebration Animation Settings ─────────────────────────────────────────
+
+_VALID_ANIMATIONS = {'confetti', 'jojo', 'none'}
+
+@app.route('/api/admin/settings/celebration-animation', methods=['GET'])
+@jwt_required()
+@admin_required
+def admin_get_celebration_animation():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN (%s, %s)",
+            ('celebration_animation_won', 'celebration_animation_lost')
+        )
+        rows = {r['setting_key']: r['setting_value'] for r in rows_to_list(cursor)}
+        return jsonify({
+            'won':  rows.get('celebration_animation_won',  'confetti'),
+            'lost': rows.get('celebration_animation_lost', 'confetti'),
+        })
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/settings/celebration-animation', methods=['PUT'])
+@jwt_required()
+@admin_required
+def admin_put_celebration_animation():
+    data = request.get_json(silent=True) or {}
+    updates = {}
+    for outcome in ('won', 'lost'):
+        val = data.get(outcome)
+        if val is not None:
+            if val not in _VALID_ANIMATIONS:
+                return jsonify({'error': f'Invalid animation value: {val}'}), 400
+            updates[f'celebration_animation_{outcome}'] = val
+    if not updates:
+        return jsonify({'error': 'No valid fields to update'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        for key, value in updates.items():
+            cursor.execute(
+                "INSERT INTO app_settings (setting_key, setting_value) VALUES (%s, %s) "
+                "ON DUPLICATE KEY UPDATE setting_value = %s",
+                (key, value, value)
+            )
+        conn.commit()
+        return jsonify({'message': 'Animation settings updated'})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/celebration-animation', methods=['GET'])
+@jwt_required()
+def get_celebration_animation():
+    """Public (jwt) endpoint — used by the CRM on load."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT setting_key, setting_value FROM app_settings WHERE setting_key IN (%s, %s)",
+            ('celebration_animation_won', 'celebration_animation_lost')
+        )
+        rows = {r['setting_key']: r['setting_value'] for r in rows_to_list(cursor)}
+        return jsonify({
+            'won':  rows.get('celebration_animation_won',  'confetti'),
+            'lost': rows.get('celebration_animation_lost', 'confetti'),
+        })
+    finally:
+        close_connection(conn)
 
 
 if __name__ == '__main__':

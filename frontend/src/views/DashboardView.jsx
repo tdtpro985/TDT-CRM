@@ -8,7 +8,6 @@ import { ITEMS_PER_PAGE } from '../constants'
 export default function DashboardView({
   topKpis,
   stageSummary,
-  pipelineValue,
   leads,
   contacts,
   companies,
@@ -45,60 +44,19 @@ export default function DashboardView({
   const focusTasks = (() => {
     const high = openTasks.filter(t => t.priority === 'High')
       .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-    if (high.length > 0) return high.slice(0, 4)
+    if (high.length > 0) return high.slice(0, 5)
 
     const medium = openTasks.filter(t => t.priority === 'Medium')
       .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-    if (medium.length > 0) return medium.slice(0, 4)
+    if (medium.length > 0) return medium.slice(0, 5)
 
     const low = openTasks.filter(t => t.priority === 'Low')
       .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
-    return low.slice(0, 4)
+    return low.slice(0, 5)
   })()
 
   return (
     <>
-      <section className="hero-panel">
-        <div className="hero-copy">
-          <p className="hero-text">
-            TDT Powersteel CRM is a HubSpot-inspired in-house prototype designed to track
-            leads, deals, and sales activities efficiently while making the pipeline easy to
-            understand and the data easy to trust.
-          </p>
-          <div className="hero-highlights">
-            <div className="highlight-pill">
-              <span className="highlight-label">Purpose</span>
-              <strong>Track leads, deals, and sales activity efficiently</strong>
-            </div>
-            <div className="highlight-pill">
-              <span className="highlight-label">Decision support</span>
-              <strong>See pipeline clearly and improve follow-ups</strong>
-            </div>
-            <div className="highlight-pill">
-              <span className="highlight-label">Focused scope</span>
-              <strong>Database, pipeline, tasks, and 5 KPI dashboard</strong>
-            </div>
-          </div>
-        </div>
-
-        <div className="hero-preview">
-          <div className="hero-preview__card">
-            <p className="sidebar-label">Current pipeline value</p>
-            <strong>{formatCurrencyCompact(pipelineValue)}</strong>
-            <span>
-              Active opportunities are spread across new, qualified, proposal, and negotiation
-              stages with a clean expected-revenue view.
-            </span>
-          </div>
-          <div className="hero-preview__bands">
-            <div className="hero-band"><span>Customer Database</span></div>
-            <div className="hero-band"><span>Deal Pipeline Visualization</span></div>
-            <div className="hero-band"><span>Task Tracking</span></div>
-            <div className="hero-band"><span>Dashboard with 5 KPIs</span></div>
-          </div>
-        </div>
-      </section>
-
       <section className="metrics-grid metrics-grid--five" aria-label="Core KPIs">
         {topKpis.map((kpi) => (
           <MetricCard
@@ -189,22 +147,23 @@ export default function DashboardView({
                 <strong>{leads.length} leads</strong>
                 <p>Lead records ready for qualification tracking</p>
               </div>
-              <span className="tone-pill is-warning">{linkHealth}% linked</span>
+              <span className="status-text is-warning">{linkHealth}% linked</span>
             </article>
             <article className="simple-list__item">
               <div>
                 <strong>{contacts.length} contacts</strong>
                 <p>Decision makers and buying contacts tied to companies</p>
               </div>
-              <span className="tone-pill is-neutral">Directory</span>
+              <span className="status-text is-neutral">Directory</span>
             </article>
             <article className="simple-list__item">
               <div>
                 <strong>{companies.length} companies</strong>
                 <p>Accounts organized with owners and status</p>
               </div>
-              <span className="tone-pill is-positive">Clean structure</span>
+              <span className="status-text is-positive">Clean structure</span>
             </article>
+
           </div>
         </Panel>
 
