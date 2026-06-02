@@ -147,5 +147,14 @@ CREATE TABLE IF NOT EXISTS celebration_music (
     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ─── Application Settings (key-value) ────────────────────────────────────────
+-- Stores generic app-wide toggles, e.g. celebration_animation_won / _lost.
+-- Valid values for celebration_animation_*: 'confetti' | 'jojo' | 'none'
+CREATE TABLE IF NOT EXISTS app_settings (
+    setting_key   VARCHAR(100) PRIMARY KEY,
+    setting_value TEXT,
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
 -- User seeds are managed by backend bootstrap script for cross-device consistency:
 -- python -m database.bootstrap_users

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
@@ -41,6 +42,7 @@ export default function CustomersView({
   currentUser,
   searchQuery
 }) {
+  const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
   const [showQuickTaskForm, setShowQuickTaskForm] = useState(false)
@@ -54,7 +56,25 @@ export default function CustomersView({
   const [logTypeFilter, setLogTypeFilter] = useState('all')
   const [logDateFrom, setLogDateFrom] = useState('')
   const [logDateTo, setLogDateTo] = useState('')
+  const activityLogBodyRef = useRef(null)
+  const savedActivityScrollRef = useRef(0)
+  const handleToggleActivityLog = useCallback(() => {
+    if (activityLogExpanded) {
+      savedActivityScrollRef.current = activityLogBodyRef.current?.scrollTop || 0
+    }
+    setActivityLogExpanded(prev => !prev)
+  }, [activityLogExpanded])
+  useEffect(() => {
+    if (activityLogExpanded && savedActivityScrollRef.current > 0) {
+      requestAnimationFrame(() => {
+        if (activityLogBodyRef.current) {
+          activityLogBodyRef.current.scrollTop = savedActivityScrollRef.current
+        }
+      })
+    }
+  }, [activityLogExpanded])
   const isSr = isSrRole(currentUser?.role)
+  const [dealSummary, setDealSummary] = useState(null)
 
   // Reset page on search change (adjusting state during render)
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
@@ -242,9 +262,7 @@ export default function CustomersView({
     return wonCount / lostCount
   }, [wonCount, lostCount])
 
-  const hasActiveDeal = useMemo(() => 
-    customerDeals.some(d => !['Closed Won', 'Closed Lost'].includes(d.stage))
-  , [customerDeals])
+  const hasAnyDeal = useMemo(() => customerDeals.length > 0, [customerDeals])
 
   const paginatedCustomers = getPaginatedData(filteredCustomers, page, CUSTOMER_ITEMS_PER_PAGE)
   const totalPages = Math.ceil(filteredCustomers.length / CUSTOMER_ITEMS_PER_PAGE)
@@ -330,11 +348,11 @@ export default function CustomersView({
               <div className="customer-detail-view">
                 {loadingDetail ? (
                   <p className="u-pad-24 u-text-center u-text-muted">Loading records...</p>
-                ) : !hasActiveDeal ? (
+                ) : !hasAnyDeal ? (
                   <div className="u-flex-column-center u-pad-64-24 u-text-center">
-                    <h4 className="u-margin-b-8 u-text-strong">No active deals</h4>
+                    <h4 className="u-margin-b-8 u-text-strong">No deals yet</h4>
                     <p className="u-margin-b-24 u-fs-sm u-text-muted u-max-w-240">
-                      Transactional history and contacts are only visible for companies with at least one active deal.
+                      Transactional history and contacts are only visible for companies with at least one deal.
                     </p>
                     <button
                       type="button"
@@ -348,7 +366,7 @@ export default function CustomersView({
                   <div className="customer-detail-view--sections">
                     <div className="detail-section">
                       {(() => {
-                        const displayDeals = dealHistoryExpanded ? customerDeals : customerDeals.slice(0, 5)
+                        const displayDeals = customerDeals
                         return (
                           <>
                             <div className="section-header u-margin-b-12 u-flex-between u-flex-center" style={{ flexShrink: 0 }}>
@@ -361,7 +379,7 @@ export default function CustomersView({
                               <MetricCard label="Lost Value" value={lostCount === 0 ? '-' : formatCurrencyCompact(closedLostValue)} meta="Missed" accent="surface" />
                             </div>
 
-                            <div className="detail-section__body" style={{ overflowY: dealHistoryExpanded ? 'auto' : 'hidden' }}>
+                            <div className="detail-section__body detail-section__body--deals" style={{ overflowY: dealHistoryExpanded ? 'auto' : 'hidden' }}>
                               <div className={`admin-table-wrap u-margin-b-16 ${dealHistoryExpanded ? 'deal-table-wrap--expanded' : ''}`}>
                                 <table className="admin-table">
                                   <thead>
@@ -373,19 +391,41 @@ export default function CustomersView({
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {displayDeals.map(deal => (
-                                      <tr key={deal.id}>
-                                        <td className="admin-table__name">{deal.name}</td>
-                                        <td>{deal.stage}</td>
-                                        <td>{formatCurrencyCompact(deal.value)}</td>
-                                        {!isSr && <td className="admin-table__muted">{deal.owner}</td>}
-                                      </tr>
-                                    ))}
+                                      {displayDeals.map(deal => {
+                                        const isClosed = deal.stage === 'Closed Won' || deal.stage === 'Closed Lost'
+                                        return (
+                                          <tr
+                                            key={deal.id}
+                                            className={`u-cursor-pointer hover-row${isClosed ? ' is-deal-closed' : ''}`}
+                                            onClick={() => {
+                                              if (isClosed) {
+                                                setDealSummary(deal)
+                                              } else {
+                                                navigate('/pipeline', { state: { openDealId: deal.id } })
+                                              }
+                                            }}
+                                            title={isClosed ? "View deal summary" : "Open in Pipeline View"}
+                                          >
+                                            <td className="admin-table__name u-text-accent">{deal.name}</td>
+                                            <td>
+                                              {isClosed ? (
+                                                deal.stage
+                                              ) : (
+                                                <span className={`status-text ${getToneClass(deal.stage)}`}>
+                                                  {deal.stage}
+                                                </span>
+                                              )}
+                                            </td>
+                                            <td>{formatCurrencyCompact(deal.value)}</td>
+                                            {!isSr && <td className="admin-table__muted">{deal.owner}</td>}
+                                          </tr>
+                                        )
+                                      })}
                                   </tbody>
                                 </table>
                               </div>
                             </div>
-                            {customerDeals.length > 5 && (
+                            {customerDeals.length > 6 && (
                               <div className="collapse-bar" onClick={() => setDealHistoryExpanded(!dealHistoryExpanded)}>
                                 <svg 
                                   width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
@@ -401,7 +441,7 @@ export default function CustomersView({
                       })()}
                     </div>
 
-                    <div className="detail-section">
+                    <div className="detail-section detail-section--grow">
                       {(() => {
                         const baseLogs = (customerDetail?.auditLogs || [])
                           .filter(l => {
@@ -418,7 +458,7 @@ export default function CustomersView({
                           return true
                         }).sort((a, b) => new Date(b.changedAt) - new Date(a.changedAt))
 
-                        const displayLogs = activityLogExpanded ? filteredLogs : filteredLogs.slice(0, 6)
+                        const displayLogs = filteredLogs
 
                         return (
                           <>
@@ -475,7 +515,7 @@ export default function CustomersView({
                               </div>
                             </div>
 
-                            <div className="detail-section__body" style={{ overflowY: activityLogExpanded ? 'auto' : 'hidden' }}>
+                            <div className="detail-section__body detail-section__body--timeline" ref={activityLogBodyRef} style={{ overflowY: activityLogExpanded ? 'auto' : 'hidden' }}>
                               <div className={`timeline ${activityLogExpanded ? 'timeline--expanded' : ''}`}>
                                 {displayLogs.length === 0 ? (
                                   <p className="u-pad-16 u-text-center u-text-muted u-fs-sm">No significant activity recorded.</p>
@@ -532,7 +572,7 @@ export default function CustomersView({
                                             <p>
                                               {item.action === 'deal_created' ? (
                                                 <>
-                                                  <strong>Deal created</strong>: {linkedDeal ? <strong>{linkedDeal.name}</strong> : 'Deal'} – <span className={`tone-pill ${getToneClass(item.newValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.newValue}</span>
+                                                  <strong>Deal created</strong>: {linkedDeal ? <strong>{linkedDeal.name}</strong> : 'Deal'} – <span className={`status-text ${getToneClass(item.newValue)} u-margin-h-4`}>{item.newValue}</span>
                                                 </>
                                               ) : item.entityType === 'contact' ? (
                                                 renderContactDiff(item, linkedContact)
@@ -542,10 +582,10 @@ export default function CustomersView({
                                                   {item.action === 'stage_change' ? (
                                                     <>
                                                       {item.oldValue ? (
-                                                        <span className={`tone-pill ${getToneClass(item.oldValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.oldValue}</span>
+                                                        <span className={`status-text ${getToneClass(item.oldValue)} u-margin-h-4`}>{item.oldValue}</span>
                                                       ) : null}
                                                       {item.oldValue && ' → '}
-                                                      <span className={`tone-pill ${getToneClass(item.newValue)} u-fs-10 u-pad-1-6 u-margin-h-4`}>{item.newValue}</span>
+                                                      <span className={`status-text ${getToneClass(item.newValue)} u-margin-h-4`}>{item.newValue}</span>
                                                     </>
                                                   ) : item.action === 'owner_id_change' ? (
                                                     <>
@@ -578,8 +618,8 @@ export default function CustomersView({
                                 )}
                               </div>
                             </div>
-                            {filteredLogs.length > 7 && (
-                              <div className="collapse-bar" onClick={() => setActivityLogExpanded(!activityLogExpanded)}>
+                            {filteredLogs.length > 6 && (
+                              <div className="collapse-bar" onClick={handleToggleActivityLog}>
                                 <svg 
                                   width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
                                   style={{ transform: `rotate(${activityLogExpanded ? 180 : 0}deg)`, transition: 'transform 0.2s' }}
@@ -916,6 +956,63 @@ export default function CustomersView({
           </div>
         </div>
       </Modal>
+
+      {dealSummary && (
+        <Modal isOpen={!!dealSummary} onClose={() => setDealSummary(null)} title="Deal Summary">
+          <div className="deal-summary-modal">
+            <div className="deal-summary-modal__header">
+              <strong className="deal-summary-modal__name">{dealSummary.name}</strong>
+              <span className={`deal-summary-modal__stage stage-badge--${(dealSummary.stage || '').toLowerCase().replace(/\s+/g, '-')}`}>{dealSummary.stage}</span>
+            </div>
+            <div className="deal-summary-modal__account u-fs-sm u-text-muted u-margin-b-12">
+              {selectedCustomer?.name}
+            </div>
+            <div className="deal-summary-modal__grid">
+              <div className="deal-summary-modal__field">
+                <span className="deal-summary-modal__label">Value</span>
+                <strong>{formatCurrencyCompact(dealSummary.value)}</strong>
+              </div>
+              <div className="deal-summary-modal__field">
+                <span className="deal-summary-modal__label">Probability</span>
+                <strong>{dealSummary.probability ?? '—'}%</strong>
+              </div>
+              {dealSummary.stage === 'Closed Won' || dealSummary.stage === 'Closed Lost' ? (
+                <div className="deal-summary-modal__field">
+                  <span className="deal-summary-modal__label">Closed Date</span>
+                  <strong>{dealSummary.closeDate ? new Date(dealSummary.closeDate).toLocaleDateString() : '—'}</strong>
+                </div>
+              ) : (
+                <div className="deal-summary-modal__field">
+                  <span className="deal-summary-modal__label">Expected Close</span>
+                  <strong>{dealSummary.expectedClose ? new Date(dealSummary.expectedClose).toLocaleDateString() : '—'}</strong>
+                </div>
+              )}
+              {!isSr && (
+                <div className="deal-summary-modal__field">
+                  <span className="deal-summary-modal__label">Owner</span>
+                  <strong>{dealSummary.owner || '—'}</strong>
+                </div>
+              )}
+              {dealSummary.stage === 'Closed Lost' && dealSummary.lostReason && (
+                <div className="deal-summary-modal__field deal-summary-modal__field--full">
+                  <span className="deal-summary-modal__label">Lost Reason</span>
+                  <strong>{dealSummary.lostReason}</strong>
+                </div>
+              )}
+            </div>
+            <div className="deal-summary-modal__actions">
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => { setDealSummary(null); navigate('/pipeline', { state: { openDealId: dealSummary.id } }) }}
+              >
+                Open in Pipeline →
+              </button>
+              <button type="button" className="secondary-button" onClick={() => setDealSummary(null)}>Close</button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </>
   )
 }

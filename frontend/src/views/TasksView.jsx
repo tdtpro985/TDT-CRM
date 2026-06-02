@@ -47,7 +47,7 @@ function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatus
           </strong>
         </div>
         {linkedDeal?.stage && (
-          <span className={`tone-pill ${getToneClass(linkedDeal.stage)} u-fs-9 u-pad-1-6`}>
+          <span className={`status-text ${getToneClass(linkedDeal.stage)} u-fs-10`}>
             {linkedDeal.stage}
           </span>
         )}
@@ -145,6 +145,7 @@ export default function TasksView({
   const [highlightedTaskId, setHighlightedTaskId] = useState(null)
   const [pinnedTaskId, setPinnedTaskId] = useState(null)
   const [clearingSearch, setClearingSearch] = useState(false)
+  const [focusQueueExpanded, setFocusQueueExpanded] = useState(false)
   const isSr = isSrRole(currentUser?.role)
 
   const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
@@ -171,8 +172,6 @@ export default function TasksView({
 
     return enriched.filter(
       (t) => {
-        const deal = deals.find((d) => d.id === t.dealId)
-        
         return (
           (taskFilter === 'all' || 
            (taskFilter === 'open' && t.status === 'Open') || 
@@ -248,16 +247,13 @@ export default function TasksView({
   }, [location.state, tasks, navigate, location.pathname, handleFocusTaskClick])
 
   const PRIORITY_ORDER = { 'High': 0, 'Medium': 1, 'Low': 2 }
-  const focusQueue = [...openTasks]
-    .sort((a, b) => {
-      // Primary: Due date ascending
-      const dateCompare = (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
-      if (dateCompare !== 0) return dateCompare
-      
-      // Secondary: Priority (High before Medium before Low)
-      return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
-    })
-    .slice(0, 4)
+  const sortedOpenTasks = [...openTasks].sort((a, b) => {
+    const dateCompare = (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
+    if (dateCompare !== 0) return dateCompare
+    return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
+  })
+  const FOCUS_QUEUE_LIMIT = 5
+  const focusQueue = focusQueueExpanded ? sortedOpenTasks : sortedOpenTasks.slice(0, FOCUS_QUEUE_LIMIT)
 
   const completedCount = tasks.filter((t) => t.status === 'Completed').length
   const highPriorityCount = openTasks.filter((t) => t.priority === 'High').length
@@ -358,10 +354,10 @@ export default function TasksView({
               {focusQueue.map((task) => {
                 const linkedDeal = deals.find((d) => d.id === task.dealId)
                 const priorityClass = `is-priority-${task.priority.toLowerCase()}`
-                
+
                 return (
-                  <article 
-                    key={task.id} 
+                  <article
+                    key={task.id}
                     className={`simple-list__item ${priorityClass} u-border-l-3-transparent u-cursor-pointer`}
                     onClick={() => handleFocusTaskClick(task)}
                   >
@@ -376,7 +372,7 @@ export default function TasksView({
                         <p className="u-fs-11 u-text-muted u-margin-t-2">
                           {!isSr ? `${task.owner} | ` : ''}due {formatDueDate(task.dueDate)}
                           {linkedDeal?.stage && (
-                            <span className={`tone-pill ${getToneClass(linkedDeal.stage)} u-fs-9 u-pad-1-6 u-ml-6`}>
+                            <span className={`status-text ${getToneClass(linkedDeal.stage)} u-fs-9 u-ml-8`}>
                               {linkedDeal.stage}
                             </span>
                           )}
@@ -396,6 +392,12 @@ export default function TasksView({
                 )
               })}
             </div>
+            {sortedOpenTasks.length > FOCUS_QUEUE_LIMIT && (
+              <div className="collapse-bar u-margin-t-8" onClick={() => setFocusQueueExpanded(e => !e)}>
+                <IconChevronDown expanded={focusQueueExpanded} />
+                <span>{focusQueueExpanded ? 'Show less' : `Show all ${sortedOpenTasks.length} tasks`}</span>
+              </div>
+            )}
           </Panel>
         </div>
       </section>
