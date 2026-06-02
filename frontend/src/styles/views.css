@@ -194,6 +194,7 @@
   padding: 0 16px 12px;
   scrollbar-width: thin;
   scrollbar-color: var(--accent) transparent;
+  overscroll-behavior-x: contain;
 }
 
 .pipeline-board-wrapper::-webkit-scrollbar {
@@ -232,7 +233,7 @@
   padding: 14px;
   position: relative;
   overflow: hidden;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  transition: border-color 0.2s ease;
   flex: 0 0 280px;
   width: 280px;
   max-width: 100%;
@@ -895,34 +896,33 @@
 /* ── Activity Card ───────────────────────────────────────────── */
 
 .activity-group-header {
-  padding: 10px 16px;
-  background: linear-gradient(90deg, rgba(255, 152, 0, 0.08), transparent);
-  border-left: 4px solid var(--accent);
-  border-radius: var(--r-sm) var(--r-md) var(--r-md) var(--r-sm);
-  margin: 24px 0 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  margin: 32px 0 16px;
   display: flex;
   align-items: center;
   gap: 12px;
   position: relative;
+  background: none;
+  border-left: none;
 }
 
 [data-theme="light"] .activity-group-header {
-  background: linear-gradient(90deg, rgba(255, 152, 0, 0.1), rgba(0,0,0,0.02));
+  border-bottom-color: rgba(0,0,0,0.06);
 }
 
 .activity-group-header__content {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .activity-group-header__kicker {
-  font-size: 9px;
+  font-size: 10px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--accent-strong);
-  font-weight: 800;
-  opacity: 0.8;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
 .activity-group-header__title {
@@ -933,13 +933,7 @@
 }
 
 .activity-group-header__line {
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent);
-}
-
-[data-theme="light"] .activity-group-header__line {
-  background: linear-gradient(90deg, rgba(0,0,0,0.08), transparent);
+  display: none;
 }
 
 .activity-card {
@@ -949,16 +943,21 @@
 }
 
 .activity-card.is-highlighted {
-   outline: 2px solid var(--accent);
-   outline-offset: -2px; /* Fix overlap with strip color */
-   box-shadow: var(--glow-md);
-   transition: box-shadow 0.3s ease, outline 0.3s ease;
+   box-shadow:
+     inset 0 2px 0 0 var(--accent),
+     inset 0 -2px 0 0 var(--accent),
+     inset -2px 0 0 0 var(--accent),
+     var(--glow-md);
+   transition: box-shadow 0.3s ease;
    z-index: 2;
 }
 
 [data-theme="neon"] .activity-card.is-highlighted {
-   outline: 2px solid var(--accent);
-   box-shadow: var(--glow-lg);
+   box-shadow:
+     inset 0 2px 0 0 var(--accent),
+     inset 0 -2px 0 0 var(--accent),
+     inset -2px 0 0 0 var(--accent),
+     var(--glow-lg);
 }
 
 .activity-card__deal-line {
@@ -2113,8 +2112,9 @@
 .timeline-item::after {
   content: '';
   position: absolute;
-  left: 8px; /* Perfectly centered with 18px dot and 2px line */
-  top: 24px;
+  left: 6px;
+  transform: translateX(-50%);
+  top: 17px;
   bottom: -16px;
   width: 2px;
   background: rgba(255, 255, 255, 0.1);
@@ -2249,7 +2249,7 @@
 .content-grid--customer-view {
   /* Let the grid height be determined by the left panel's content */
   align-items: stretch;
-  min-height: 0;
+  min-height: 600px;
 }
 
 .content-grid--customer-view > .panel {
@@ -2259,12 +2259,10 @@
 }
 
 .content-grid--customer-view > .panel-stack {
-  /* Right panel: matches left panel height without expanding the row */
-  height: 0;
-  min-height: 100%;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .content-grid--customer-view > .panel-stack .panel {
@@ -2288,20 +2286,21 @@
 
 .customer-detail-view {
   flex: 1;
-  min-height: 0;
+  min-height: 380px;
   overflow-y: auto;
-  padding-right: 4px; /* Space for scrollbar */
+  display: flex;
+  flex-direction: column;
+  padding-right: 4px;
 }
 
 .customer-detail-view--sections {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .detail-section {
-  flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -2315,14 +2314,32 @@
 }
 
 .detail-section__body {
-  flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding-right: 4px;
 }
 
+.detail-section__body--deals {
+  min-height: 190px;
+  max-height: 380px;
+}
+
+.detail-section__body--timeline {
+  max-height: 340px;
+}
+
+.detail-section--grow {
+  flex: 1;
+  min-height: 0;
+  overflow: visible;
+}
+
 .customer-detail-view .admin-table td {
   padding: 10px 12px;
+}
+
+.customer-detail-view .admin-table .status-text::before {
+  display: none;
 }
 
 .customer-detail-view .admin-table th {
@@ -2361,15 +2378,11 @@
 }
 
 .timeline--expanded {
-  max-height: none;
-  overflow: visible;
   padding-right: 8px;
   margin-right: -4px;
 }
 
 .deal-table-wrap--expanded {
-  max-height: none;
-  overflow: visible;
   padding-right: 8px;
   margin-right: -4px;
 }
@@ -2681,6 +2694,33 @@
 
 .u-flex-gap-sm { display: flex; gap: 8px; }
 .u-flex-column-gap-sm { display: flex; flex-direction: column; gap: 8px; }
+
+/* Closed deal row styling */
+.is-deal-closed { opacity: 0.5; }
+.is-deal-closed td:nth-child(2) { text-decoration: line-through; color: var(--text-muted); }
+
+/* Deal summary modal */
+.deal-summary-modal { display: flex; flex-direction: column; gap: 16px; }
+.deal-summary-modal__header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.deal-summary-modal__name { font-size: var(--fs-md); color: var(--text-strong); }
+.deal-summary-modal__stage {
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--r-full);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.deal-summary-modal__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+.deal-summary-modal__field { display: flex; flex-direction: column; gap: 2px; }
+.deal-summary-modal__field--full { grid-column: 1 / -1; }
+.deal-summary-modal__label { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.deal-summary-modal__account { padding: 0 2px; }
+.deal-summary-modal__actions { display: flex; gap: 10px; justify-content: flex-end; padding-top: 4px; }
 .u-flex-center-gap-sm { display: flex; align-items: center; gap: 8px; }
 .u-text-center { text-align: center; }
 .u-width-full { width: 100%; }

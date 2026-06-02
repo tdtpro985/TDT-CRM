@@ -7,6 +7,27 @@ const OUTCOMES = [
   { key: 'lost', label: ' Lost Sound', icon: '' },
 ]
 
+const ANIMATION_OPTIONS = [
+  {
+    value: 'confetti',
+    label: 'Confetti',
+    icon: '🎉',
+    description: 'Colourful confetti burst from the sides of the screen',
+  },
+  {
+    value: 'jojo',
+    label: 'To Be Continued',
+    icon: '➡️',
+    description: 'JoJo\'s Bizarre Adventure meme — sepia filter, dimmer, and the iconic arrow',
+  },
+  {
+    value: 'none',
+    label: 'None',
+    icon: '🚫',
+    description: 'No visual animation — only the sound plays',
+  },
+]
+
 export default function AdminCelebrationMusicView({ showToast }) {
   const [entries, setEntries] = useState({ won: [], lost: [] })
   const [loading, setLoading] = useState(true)
@@ -14,8 +35,14 @@ export default function AdminCelebrationMusicView({ showToast }) {
   const audioRef = useRef(null)
   const [playing, setPlaying] = useState(null)
 
+  // Animation settings
+  const [animation, setAnimation] = useState({ won: 'confetti', lost: 'confetti' })
+  const [animLoading, setAnimLoading] = useState(true)
+  const [animSaving, setAnimSaving] = useState(false)
+
   useEffect(() => {
     fetchMusic()
+    fetchAnimation()
   }, [])
 
   async function fetchMusic() {
@@ -34,6 +61,42 @@ export default function AdminCelebrationMusicView({ showToast }) {
       // silent fail
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchAnimation() {
+    setAnimLoading(true)
+    try {
+      const res = await apiFetch('/api/admin/settings/celebration-animation')
+      if (res.ok) {
+        const data = await res.json()
+        setAnimation({ won: data.won ?? 'confetti', lost: data.lost ?? 'confetti' })
+      }
+    } catch {
+      // silent fail
+    } finally {
+      setAnimLoading(false)
+    }
+  }
+
+  async function saveAnimation(outcome, value) {
+    setAnimSaving(true)
+    try {
+      const res = await apiFetch('/api/admin/settings/celebration-animation', {
+        method: 'PUT',
+        body: JSON.stringify({ [outcome]: value }),
+      })
+      if (res.ok) {
+        setAnimation((a) => ({ ...a, [outcome]: value }))
+        showToast('Animation style saved!')
+      } else {
+        const err = await res.json().catch(() => ({}))
+        showToast(err.error || 'Failed to save animation')
+      }
+    } catch {
+      showToast('Network error')
+    } finally {
+      setAnimSaving(false)
     }
   }
 
@@ -135,11 +198,103 @@ export default function AdminCelebrationMusicView({ showToast }) {
           <span role="img" aria-label="music">♪</span>
         </div>
         <div className="profile-info-text">
-          <h3 className="profile-info-name">Celebration Music</h3>
-          <span className="profile-info-meta">Configure sounds for Closed Won and Closed Lost. Upload up to 4 sounds per outcome — a random one plays when a deal closes.</span>
+          <h3 className="profile-info-name">Celebration Settings</h3>
+          <span className="profile-info-meta">Configure sounds and animations for Closed Won and Closed Lost. Upload up to 4 sounds per outcome — a random one plays when a deal closes.</span>
         </div>
       </div>
 
+      {/* ── Animation Style ──────────────────────────────────────────────── */}
+      <Panel kicker="Visual effects" title="Celebration Animation">
+        <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-md)' }}>
+          Choose what animation plays when a deal closes. You can set a different style for wins and losses.
+        </p>
+        {animLoading ? (
+          <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)' }}>Loading…</p>
+        ) : (
+          <div className="profile-grid">
+            {[
+              { key: 'won', label: 'Closed Won Animation', emoji: '🏆' },
+              { key: 'lost', label: 'Closed Lost Animation', emoji: '📉' },
+            ].map(({ key, label, emoji }) => (
+              <div key={key}>
+                <span style={{
+                  display: 'block',
+                  fontSize: 'var(--fs-sm)',
+                  fontWeight: 600,
+                  color: 'var(--text-secondary)',
+                  marginBottom: 'var(--space-sm)',
+                }}>
+                  {emoji} {label}
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
+                  {ANIMATION_OPTIONS.map((opt) => {
+                    const isActive = animation[key] === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        disabled={animSaving}
+                        onClick={() => saveAnimation(key, opt.value)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 'var(--space-sm)',
+                          padding: 'var(--space-sm) var(--space-md)',
+                          background: isActive ? 'var(--accent-soft)' : 'var(--bg-subtle)',
+                          border: isActive
+                            ? '1.5px solid var(--accent)'
+                            : '1.5px solid var(--border)',
+                          borderRadius: 'var(--radius-sm)',
+                          cursor: animSaving ? 'not-allowed' : 'pointer',
+                          textAlign: 'left',
+                          transition: 'border-color 0.15s, background 0.15s',
+                          width: '100%',
+                        }}
+                      >
+                        <span style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>{opt.icon}</span>
+                        <span>
+                          <span style={{
+                            display: 'block',
+                            fontSize: 'var(--fs-sm)',
+                            fontWeight: isActive ? 700 : 500,
+                            color: isActive ? 'var(--accent)' : 'var(--text)',
+                          }}>
+                            {opt.label}
+                          </span>
+                          <span style={{
+                            display: 'block',
+                            fontSize: 'var(--fs-xs)',
+                            color: 'var(--text-muted)',
+                            marginTop: 2,
+                          }}>
+                            {opt.description}
+                          </span>
+                        </span>
+                        {isActive && (
+                          <span style={{
+                            marginLeft: 'auto',
+                            fontSize: 'var(--fs-xs)',
+                            color: 'var(--accent)',
+                            fontWeight: 700,
+                            flexShrink: 0,
+                            alignSelf: 'center',
+                          }}>
+                            ✓ Active
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      <div style={{ marginTop: 'var(--space-xl)' }} />
+
+      {/* ── Sounds ──────────────────────────────────────────────────────────── */}
       {loading ? (
         <p>Loading...</p>
       ) : (
