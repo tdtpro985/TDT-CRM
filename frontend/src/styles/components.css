@@ -846,9 +846,6 @@ section.content-grid--primary {
   display: grid;
   gap: 8px;
   padding: var(--pad-item);
-  border-radius: var(--r-md);
-  background: var(--bg-card);
-  border: 1px solid var(--border);
 }
 
 .stage-meta {

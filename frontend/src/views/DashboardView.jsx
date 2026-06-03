@@ -18,7 +18,9 @@ export default function DashboardView({
   const navigate = useNavigate()
   const isSr = isSrRole(currentUser?.role)
   const stageListRef = useRef(null)
+  const healthRef = useRef(null)
   const [visible, setVisible] = useState(false)
+  const [healthVisible, setHealthVisible] = useState(false)
 
   const priorityCounts = {
     High: openTasks.filter(t => t.priority === 'High').length,
@@ -33,6 +35,22 @@ export default function DashboardView({
       ([entry]) => {
         if (entry.isIntersecting) {
           setVisible(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.2 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const el = healthRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setHealthVisible(true)
           observer.disconnect()
         }
       },
@@ -141,29 +159,61 @@ export default function DashboardView({
           title="Linked record health"
           detail="Clean links make follow-ups, ownership, and reporting much more reliable."
         >
-          <div className="simple-list">
-            <article className="simple-list__item">
-              <div>
-                <strong>{leads.length} leads</strong>
-                <p>Lead records ready for qualification tracking</p>
+          <div ref={healthRef} className="stage-list">
+            <div className="stage-row">
+              <div className="stage-meta">
+                <div>
+                  <strong>{leads.length} leads</strong>
+                  <span> - Lead records ready for qualification tracking</span>
+                </div>
+                <span className="status-text is-warning">{linkHealth}% linked</span>
               </div>
-              <span className="status-text is-warning">{linkHealth}% linked</span>
-            </article>
-            <article className="simple-list__item">
-              <div>
-                <strong>{contacts.length} contacts</strong>
-                <p>Decision makers and buying contacts tied to companies</p>
+              <div className="stage-track">
+                <div
+                  className={`stage-fill${healthVisible ? ' visible' : ''}`}
+                  style={{
+                    width: `${linkHealth}%`,
+                    animationDelay: healthVisible ? '0s' : undefined,
+                  }}
+                />
               </div>
-              <span className="status-text is-neutral">Directory</span>
-            </article>
-            <article className="simple-list__item">
-              <div>
-                <strong>{companies.length} companies</strong>
-                <p>Accounts organized with owners and status</p>
+            </div>
+            <div className="stage-row">
+              <div className="stage-meta">
+                <div>
+                  <strong>{contacts.length} contacts</strong>
+                  <span> - Decision makers and buying contacts tied to companies</span>
+                </div>
+                <span className="status-text is-neutral">Directory</span>
               </div>
-              <span className="status-text is-positive">Clean structure</span>
-            </article>
-
+              <div className="stage-track">
+                <div
+                  className={`stage-fill${healthVisible ? ' visible' : ''}`}
+                  style={{
+                    width: `${Math.min(Math.round((contacts.length / ITEMS_PER_PAGE) * 100), 100)}%`,
+                    animationDelay: healthVisible ? '0.1s' : undefined,
+                  }}
+                />
+              </div>
+            </div>
+            <div className="stage-row">
+              <div className="stage-meta">
+                <div>
+                  <strong>{companies.length} companies</strong>
+                  <span> - Accounts organized with owners and status</span>
+                </div>
+                <span className="status-text is-positive">Clean structure</span>
+              </div>
+              <div className="stage-track">
+                <div
+                  className={`stage-fill${healthVisible ? ' visible' : ''}`}
+                  style={{
+                    width: `${Math.min(Math.round((companies.length / ITEMS_PER_PAGE) * 100), 100)}%`,
+                    animationDelay: healthVisible ? '0.2s' : undefined,
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </Panel>
 
