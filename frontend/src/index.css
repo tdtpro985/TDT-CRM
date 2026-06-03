@@ -63,6 +63,14 @@
 
   /* Gap */
   --gap-fluid: clamp(12px, 2vw, 24px);
+
+  /* Spacing (used via var(--space-*) in admin views) */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
   --panel-bg: linear-gradient(135deg, rgba(22,33,62,0.8), rgba(22,33,62,0.6));
 }
 

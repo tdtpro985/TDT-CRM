@@ -1,4 +1,5 @@
 import confetti from 'canvas-confetti'
+import tbcArrow from './assets/tbc.png'
 
 // ─── Confetti ─────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ export function celebrateLost() {
 // ─── JoJo "To Be Continued" Overlay ──────────────────────────────────────────
 //
 // Lifecycle:
-//   triggerJoJo(outcome) → mounts overlay, returns { dismiss }
+//   triggerJoJo() → mounts overlay, returns { dismiss }
 //   dismiss()            → tears down overlay cleanly
 //
 // The onDismiss callback is fired whenever the overlay is removed (ESC, click,
@@ -100,15 +101,9 @@ function injectStyles() {
     #${JOJO_OVERLAY_ID} .jojo-filter {
       position: absolute;
       inset: 0;
+      background: rgba(200, 160, 60, 0.28);
       mix-blend-mode: multiply;
       pointer-events: none;
-    }
-    #${JOJO_OVERLAY_ID} .jojo-filter.is-won {
-      background: rgba(200, 160, 60, 0.28);
-      /* Sepia-like warm tint on top of the dim */
-    }
-    #${JOJO_OVERLAY_ID} .jojo-filter.is-lost {
-      background: rgba(30, 30, 30, 0.55);
     }
 
     /* ── "To Be Continued" arrow ─────────────────────────────────────── */
@@ -120,7 +115,10 @@ function injectStyles() {
       align-items: flex-start;
       padding: 0 0 52px 40px;
       transform: translateX(-110%);
-      animation: jojo-slide-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.3s forwards;
+    }
+
+    .jojo-arrow-wrap.is-visible {
+      animation: jojo-slide-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0s forwards;
     }
 
     @keyframes jojo-slide-in {
@@ -134,42 +132,10 @@ function injectStyles() {
       to { transform: translateX(-110%); }
     }
 
-    .jojo-tbc-label {
-      font-family: 'Arial Black', 'Arial Bold', 'Impact', sans-serif;
-      font-size: clamp(1.2rem, 4vw, 2.4rem);
-      font-weight: 900;
-      letter-spacing: 0.04em;
-      line-height: 1;
-      color: #f5c400;
-      text-shadow:
-        2px 2px 0 #000,
-        -1px -1px 0 #000,
-        1px -1px 0 #000,
-        -1px 1px 0 #000;
-      text-transform: uppercase;
-      margin-bottom: 6px;
-      user-select: none;
-    }
-
-    .jojo-arrow-line {
-      display: flex;
-      align-items: center;
-      gap: 0;
-    }
-
-    .jojo-arrow-shaft {
-      height: 8px;
+    .jojo-arrow-img {
+      display: block;
+      height: auto;
       width: clamp(160px, 28vw, 420px);
-      background: #f5c400;
-      box-shadow: 2px 2px 0 #000, 0 2px 0 #000;
-    }
-
-    .jojo-arrow-head {
-      width: 0;
-      height: 0;
-      border-top: 22px solid transparent;
-      border-bottom: 22px solid transparent;
-      border-left: 40px solid #f5c400;
       filter: drop-shadow(2px 2px 0 #000);
     }
 
@@ -193,7 +159,7 @@ function injectStyles() {
 
 let _activeJoJo = null
 
-export function triggerJoJo(outcome = 'won', onDismiss = null) {
+export function triggerJoJo(onDismiss = null) {
   // Clean up any previous overlay
   if (_activeJoJo) {
     _activeJoJo.forceRemove()
@@ -213,7 +179,7 @@ export function triggerJoJo(outcome = 'won', onDismiss = null) {
   dimmer.className = 'jojo-dimmer'
 
   const filter = document.createElement('div')
-  filter.className = `jojo-filter ${outcome === 'won' ? 'is-won' : 'is-lost'}`
+  filter.className = 'jojo-filter'
 
   const skipHint = document.createElement('div')
   skipHint.className = 'jojo-skip-hint'
@@ -222,22 +188,15 @@ export function triggerJoJo(outcome = 'won', onDismiss = null) {
   const arrowWrap = document.createElement('div')
   arrowWrap.className = 'jojo-arrow-wrap'
 
-  const label = document.createElement('div')
-  label.className = 'jojo-tbc-label'
-  label.textContent = 'To Be Continued'
-
   const arrowLine = document.createElement('div')
   arrowLine.className = 'jojo-arrow-line'
 
-  const shaft = document.createElement('div')
-  shaft.className = 'jojo-arrow-shaft'
+  const arrowImg = document.createElement('img')
+  arrowImg.src = tbcArrow
+  arrowImg.alt = 'To Be Continued'
+  arrowImg.className = 'jojo-arrow-img'
 
-  const head = document.createElement('div')
-  head.className = 'jojo-arrow-head'
-
-  arrowLine.appendChild(shaft)
-  arrowLine.appendChild(head)
-  arrowWrap.appendChild(label)
+  arrowLine.appendChild(arrowImg)
   arrowWrap.appendChild(arrowLine)
 
   root.appendChild(dimmer)
@@ -249,16 +208,15 @@ export function triggerJoJo(outcome = 'won', onDismiss = null) {
   const prevFilter = document.body.style.filter
   const prevTransition = document.body.style.transition
   document.body.style.transition = 'filter 0.4s ease'
-  if (outcome === 'won') {
-    document.body.style.filter = 'sepia(0.65) contrast(1.15) saturate(0.8)'
-  } else {
-    document.body.style.filter = 'grayscale(1) contrast(1.2)'
-  }
+  document.body.style.filter = 'sepia(0.65) contrast(1.15) saturate(0.8)'
 
   // ── Mount ─────────────────────────────────────────────────────────────────
   document.body.appendChild(root)
 
   let dismissed = false
+  const arrowTimer = setTimeout(() => {
+    arrowWrap.classList.add('is-visible')
+  }, 4500)
 
   function restore() {
     document.body.style.transition = 'filter 0.5s ease'
@@ -271,6 +229,7 @@ export function triggerJoJo(outcome = 'won', onDismiss = null) {
   function dismiss() {
     if (dismissed) return
     dismissed = true
+    clearTimeout(arrowTimer)
     _activeJoJo = null
 
     // Animate out
@@ -288,6 +247,7 @@ export function triggerJoJo(outcome = 'won', onDismiss = null) {
   function forceRemove() {
     if (dismissed) return
     dismissed = true
+    clearTimeout(arrowTimer)
     root.remove()
     restore()
   }
