@@ -71,13 +71,13 @@
    ═══════════════════════════════════════════════════════════════ */
 [data-theme="light"] {
   color-scheme: only light;
-  --bg: #e8e2d5;
-  --bg-app: #d5ccc0;
-  --bg-card: #faf8f5;
-  --bg-card-alt: #faf8f5;
-  --bg-surface: #faf8f5;
-  --bg-input: #fdfcf9;
-  --bg-soft: #faf8f5;
+  --bg: #f0f0f2;
+  --bg-app: #e6e6e9;
+  --bg-card: #ffffff;
+  --bg-card-alt: #ffffff;
+  --bg-surface: #fafafa;
+  --bg-input: #ffffff;
+  --bg-soft: #fafafa;
   --accent: #ff9800;
   --accent-strong: #f57c00;
   --accent-soft: rgba(255, 152, 0, 0.12);
@@ -95,7 +95,7 @@
   --shadow-strong: 0 4px 8px -1px rgba(0, 0, 0, 0.1);
   --glow-md: 0 0 16px rgba(255, 152, 0, 0.3);
   --glow-lg: 0 0 24px rgba(255, 152, 0, 0.4);
-  --panel-bg: #faf8f5;
+  --panel-bg: #ffffff;
 }
 
 /* ═══════════════════════════════════════════════════════════════
