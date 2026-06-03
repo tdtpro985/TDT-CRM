@@ -8,24 +8,9 @@ const OUTCOMES = [
 ]
 
 const ANIMATION_OPTIONS = [
-  {
-    value: 'confetti',
-    label: 'Confetti',
-    icon: '🎉',
-    description: 'Colourful confetti burst from the sides of the screen',
-  },
-  {
-    value: 'jojo',
-    label: 'To Be Continued',
-    icon: '➡️',
-    description: 'JoJo\'s Bizarre Adventure meme — sepia filter, dimmer, and the iconic arrow',
-  },
-  {
-    value: 'none',
-    label: 'None',
-    icon: '🚫',
-    description: 'No visual animation — only the sound plays',
-  },
+  { value: 'confetti', label: 'Confetti' },
+  { value: 'jojo', label: 'To Be Continued' },
+  { value: 'none', label: 'None' },
 ]
 
 export default function AdminCelebrationMusicView({ showToast }) {
@@ -204,7 +189,7 @@ export default function AdminCelebrationMusicView({ showToast }) {
       </div>
 
       {/* ── Animation Style ──────────────────────────────────────────────── */}
-      <Panel kicker="Visual effects" title="Celebration Animation">
+      <Panel className="panel--content-height" kicker="Visual effects" title="Celebration Animation">
         <p style={{ fontSize: 'var(--fs-sm)', color: 'var(--text-muted)', marginBottom: 'var(--space-md)' }}>
           Choose what animation plays when a deal closes. You can set a different style for wins and losses.
         </p>
@@ -213,9 +198,9 @@ export default function AdminCelebrationMusicView({ showToast }) {
         ) : (
           <div className="profile-grid">
             {[
-              { key: 'won', label: 'Closed Won Animation', emoji: '🏆' },
-              { key: 'lost', label: 'Closed Lost Animation', emoji: '📉' },
-            ].map(({ key, label, emoji }) => (
+              { key: 'won', label: 'Closed Won Animation', hideJojo: true },
+              { key: 'lost', label: 'Closed Lost Animation', hideJojo: false },
+            ].map(({ key, label, hideJojo }) => (
               <div key={key}>
                 <span style={{
                   display: 'block',
@@ -224,10 +209,10 @@ export default function AdminCelebrationMusicView({ showToast }) {
                   color: 'var(--text-secondary)',
                   marginBottom: 'var(--space-sm)',
                 }}>
-                  {emoji} {label}
+                  {label}
                 </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-                  {ANIMATION_OPTIONS.map((opt) => {
+                  {(hideJojo ? ANIMATION_OPTIONS.filter(o => o.value !== 'jojo') : ANIMATION_OPTIONS).map((opt) => {
                     const isActive = animation[key] === opt.value
                     return (
                       <button
@@ -251,24 +236,12 @@ export default function AdminCelebrationMusicView({ showToast }) {
                           width: '100%',
                         }}
                       >
-                        <span style={{ fontSize: '1.1rem', lineHeight: 1.3 }}>{opt.icon}</span>
-                        <span>
-                          <span style={{
-                            display: 'block',
-                            fontSize: 'var(--fs-sm)',
-                            fontWeight: isActive ? 700 : 500,
-                            color: isActive ? 'var(--accent)' : 'var(--text)',
-                          }}>
-                            {opt.label}
-                          </span>
-                          <span style={{
-                            display: 'block',
-                            fontSize: 'var(--fs-xs)',
-                            color: 'var(--text-muted)',
-                            marginTop: 2,
-                          }}>
-                            {opt.description}
-                          </span>
+                        <span style={{
+                          fontSize: 'var(--fs-sm)',
+                          fontWeight: isActive ? 700 : 500,
+                          color: isActive ? 'var(--accent)' : 'var(--text)',
+                        }}>
+                          {opt.label}
                         </span>
                         {isActive && (
                           <span style={{
@@ -298,7 +271,7 @@ export default function AdminCelebrationMusicView({ showToast }) {
       {loading ? (
         <p>Loading...</p>
       ) : (
-        <div className="profile-grid">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
           {OUTCOMES.map(({ key, label }) => {
             const outcomeEntries = entries[key] || []
             const isPlaying = (url) => playing === url
@@ -380,7 +353,7 @@ export default function AdminCelebrationMusicView({ showToast }) {
             )
           })}
         </div>
-      )}
+        )}
     </div>
   )
 }
