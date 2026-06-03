@@ -3,6 +3,7 @@ import { apiFetch, API_BASE, updatePassword, uploadProfilePhoto, removeProfilePh
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
 import { celebrateWon, celebrateLost, triggerJoJo, dismissActiveJoJo } from '../celebration'
+import jojoSound from '../assets/sounds/jojo.mp3'
 
 const CURRENT_DATE = getTodayISO()
 
@@ -140,30 +141,12 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     } catch { /* best-effort background refresh */ }
   }
 
-  function playCelebrationSound(outcome) {
-    const entries = musicRef.current[outcome]
-    if (!entries || entries.length === 0) return
-    const entry = entries[Math.floor(Math.random() * entries.length)]
-    if (!entry?.url) return
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current = null
-    }
-    const audio = new Audio(
-      entry.url.startsWith('http') ? entry.url : `${API_BASE}${entry.url}`
-    )
-    audioRef.current = audio
-    audio.play().catch(() => {})
-    audio.addEventListener('ended', () => {
-      if (audioRef.current === audio) audioRef.current = null
-    })
-  }
-
   function playCelebrationAnimation(outcome) {
-    const style = animationRef.current[outcome] ?? 'confetti'
+    let style = animationRef.current[outcome] ?? 'confetti'
+    if (outcome === 'won' && style === 'jojo') style = 'confetti'
     if (style === 'none') return
     if (style === 'jojo') {
-      triggerJoJo(outcome, () => {
+      triggerJoJo(() => {
         // When the JoJo overlay is dismissed, also stop the audio
         if (audioRef.current) {
           audioRef.current.pause()
@@ -654,12 +637,31 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         : d)),
     )
 
+    // Preload celebration audio while API call is in flight
+    let preloadedAudio = null
     if (nextStage === 'Closed Won') {
-      playCelebrationSound('won')
-      playCelebrationAnimation('won')
+      const entries = musicRef.current.won
+      const entry = entries?.length ? entries[Math.floor(Math.random() * entries.length)] : null
+      if (entry?.url) {
+        preloadedAudio = new Audio(
+          entry.url.startsWith('http') ? entry.url : `${API_BASE}${entry.url}`
+        )
+        preloadedAudio.preload = 'auto'
+      }
     } else if (nextStage === 'Closed Lost') {
-      playCelebrationSound('lost')
-      playCelebrationAnimation('lost')
+      if (animationRef.current.lost === 'jojo') {
+        preloadedAudio = new Audio(jojoSound)
+        preloadedAudio.preload = 'auto'
+      } else {
+        const entries = musicRef.current.lost
+        const entry = entries?.length ? entries[Math.floor(Math.random() * entries.length)] : null
+        if (entry?.url) {
+          preloadedAudio = new Audio(
+            entry.url.startsWith('http') ? entry.url : `${API_BASE}${entry.url}`
+          )
+          preloadedAudio.preload = 'auto'
+        }
+      }
     }
 
     try {
@@ -670,6 +672,25 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
         throw new Error(errData.error || `Server error: ${res.status}`)
+      }
+      if (nextStage === 'Closed Won') {
+        if (preloadedAudio) {
+          audioRef.current = preloadedAudio
+          preloadedAudio.play().catch(() => {})
+          preloadedAudio.addEventListener('ended', () => {
+            if (audioRef.current === preloadedAudio) audioRef.current = null
+          })
+        }
+        playCelebrationAnimation('won')
+      } else if (nextStage === 'Closed Lost') {
+        if (preloadedAudio) {
+          audioRef.current = preloadedAudio
+          preloadedAudio.play().catch(() => {})
+          preloadedAudio.addEventListener('ended', () => {
+            if (audioRef.current === preloadedAudio) audioRef.current = null
+          })
+        }
+        playCelebrationAnimation('lost')
       }
       showToast(`Deal stage updated to ${nextStage}`)
       const syncs = [fetchDeals(), fetchCustomers()]
