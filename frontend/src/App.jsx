@@ -280,6 +280,7 @@ export default function App() {
           <DashboardView
             topKpis={topKpis}
             stageSummary={stageSummary}
+            deals={deals}
             leads={leads}
             contacts={contacts}
             companies={companies}
