@@ -2,7 +2,7 @@
 
 ## Scope
 - Keep edits minimal. Do not rewrite API shapes or component structure unless asked.
-- Verify changes by running `npm run lint` and checking backend health.
+- Verify changes by running `npm run lint` and checking backend health (port 5001).
 
 ## Repo Shape
 - **Frontend**: React (Vite) in `frontend/`. 
@@ -11,6 +11,7 @@
 - **Backend**: Flask in `backend/`. 
   - Entrypoint: `backend/app.py`.
   - Auth: JWT + `@admin_required` (must be BELOW `@jwt_required`).
+  - Sync: `backend/gsheets_sync.py` maps "SR" column from Sheets to `team` table via `LOWER(TRIM())` match on `name` or `username`.
 - **Database**: MySQL. `backend/database/schema.sql` is the source of truth.
   - Startup: `ensure_schema()` in `app.py` auto-patches missing columns.
 
@@ -20,11 +21,17 @@
 - **DB Reset**: `python -m database.rebuild_db` (from `backend/`).
 - **Setup Users**: `python -m database.bootstrap_users [--reset-passwords]`.
 - **Sync Pipeline**: `python -m database.sync_pipeline` (tops up ~20 active deals).
+- **Bootstrap Manila**: `python -m database.bootstrap_sr_manila` (fixes owner mappings for Manila).
 - **Health Check**: `py -c "import requests; print(requests.get('http://127.0.0.1:5001/api/health').status_code)"`.
 
 ## Operational Quirks
 - **Ports**: Backend `5001` (set via `FLASK_PORT`), Frontend `5173`.
-- **Environment**: `.env` in `backend/` requires `JWT_SECRET_KEY`, `DB_*`, and `GOOGLE_CREDENTIALS_JSON_PATH`.
+- **Windows**: Requires `pip install tzdata` for `Asia/Manila` timezone support in `zoneinfo`.
+- **Role Visibility**: 
+  - `Sales Rep`: Can ONLY see leads where `owner_id = user_id`.
+  - `Regional Sales Manager`: Sees all leads in their assigned `region`.
+  - `Head of Sales` / `Admin`: Can see everything or filter by branch/region.
+- **Environment**: `.env` in `backend/` requires `JWT_SECRET_KEY`, `DB_*`, and `GOOGLE_APPLICATION_CREDENTIALS_JSON_PATH`.
 - **Data Conventions**: 
   - DB: `snake_case`. API/Frontend: `camelCase`.
   - Filters: CRM views often filter by `branch` and `sr`. Sample data uses `sr = 'manila.tdtpowersteel'`.

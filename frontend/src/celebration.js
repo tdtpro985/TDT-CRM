@@ -4,6 +4,7 @@ import tbcArrow from './assets/tbc.png'
 // ─── Confetti ─────────────────────────────────────────────────────────────────
 
 export function celebrateWon() {
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#FF00FF'
   const duration = 2000
   const end = Date.now() + duration
 
@@ -13,14 +14,14 @@ export function celebrateWon() {
       angle: 60,
       spread: 55,
       origin: { x: 0 },
-      colors: ['#f59e0b', '#f97316', '#eab308'],
+      colors: [accent, '#f59e0b', '#f97316'],
     })
     confetti({
       particleCount: 3,
       angle: 120,
       spread: 55,
       origin: { x: 1 },
-      colors: ['#f59e0b', '#f97316', '#eab308'],
+      colors: [accent, '#f59e0b', '#f97316'],
     })
     if (Date.now() < end) requestAnimationFrame(frame)
   }
@@ -30,7 +31,7 @@ export function celebrateWon() {
     particleCount: 80,
     spread: 100,
     origin: { y: 0.6 },
-    colors: ['#f59e0b', '#f97316', '#eab308', '#ef4444', '#3b82f6', '#22c55e'],
+    colors: [accent, '#f59e0b', '#f97316', '#3b82f6', '#22c55e', '#ffffff'],
   })
 }
 
@@ -101,7 +102,7 @@ function injectStyles() {
     #${JOJO_OVERLAY_ID} .jojo-filter {
       position: absolute;
       inset: 0;
-      background: rgba(200, 160, 60, 0.28);
+      background: rgba(255, 19, 240, 0.24);
       mix-blend-mode: multiply;
       pointer-events: none;
     }
@@ -208,7 +209,7 @@ export function triggerJoJo(onDismiss = null) {
   const prevFilter = document.body.style.filter
   const prevTransition = document.body.style.transition
   document.body.style.transition = 'filter 0.4s ease'
-  document.body.style.filter = 'sepia(0.65) contrast(1.15) saturate(0.8)'
+  document.body.style.filter = 'sepia(0.3) contrast(1.3) saturate(1.1) hue-rotate(290deg)'
 
   // ── Mount ─────────────────────────────────────────────────────────────────
   document.body.appendChild(root)
