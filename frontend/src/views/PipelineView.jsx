@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatDateTimePHT, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole } from '../utils'
+import { formatCurrencyCompact, formatDateLabel, formatDateTimePHT, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole } from '../utils'
 import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP, DEAL_STAGES } from '../constants'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
@@ -66,7 +66,6 @@ export default function PipelineView({
     return map
   }, [companies, leads])
   const contactMap = useMemo(() => Object.fromEntries((contacts  ?? []).map((c) => [c.id, c])), [contacts])
-  const leadMap    = useMemo(() => Object.fromEntries((leads     ?? []).map((l) => [l.id, l])), [leads])
 
   // Reset page on search change (adjusting state during render)
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
@@ -514,7 +513,76 @@ export default function PipelineView({
 
             {/* Body */}
             <div className="modal-body-scroll">
-              {/* 1. Transaction Summary (Top) */}
+              {/* Company & Meta Info */}
+              <div className="u-flex-between u-flex-center" style={{ marginBottom: '16px' }}>
+                <strong className="u-fs-md">{companyMap[selectedDeal.companyId]?.name ?? selectedDeal.companyId}</strong>
+                <div className="u-flex-center-gap-sm">
+                  <span className="u-fs-xs u-text-muted">{selectedDeal.source || 'Manual'}</span>
+                  {!isSr && (
+                    <>
+                      <span className="u-text-muted"> · </span>
+                      <span className="u-fs-xs u-text-muted">{selectedDeal.owner}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {isEditing && (
+                <div className="u-margin-b-24" style={{ padding: '0 28px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                    <div className="deal-modal__field">
+                      <span className="deal-modal__label">Deal Value</span>
+                      <div className="field u-margin-0">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          className="modal-edit-input"
+                          value={editValue === '' ? '' : Number(editValue).toLocaleString('en-US')}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^0-9.]/g, '')
+                            setEditValue(raw === '' ? '' : Number(raw))
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="deal-modal__field">
+                      <span className="deal-modal__label">Probability</span>
+                      <div className="field u-margin-0">
+                        <div className="u-flex-center-gap-sm">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="1"
+                            className="modal-edit-input u-width-80"
+                            value={editProbability}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, '')
+                              const num = raw === '' ? '' : Math.min(100, Math.max(0, parseInt(raw, 10)))
+                              setEditProbability(num)
+                            }}
+                          />
+                          <span className="u-fs-sm u-text-muted">%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="deal-modal__field">
+                      <span className="deal-modal__label">Expected Close</span>
+                      <div className="field u-margin-0">
+                        <input
+                          type="date"
+                          className="modal-edit-input u-width-date"
+                          min={TODAY}
+                          value={editCloseDate}
+                          onChange={(e) => setEditCloseDate(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 1. Transaction Summary */}
               <div className="modal-section-divider u-margin-b-24">
                 <h3 className="deal-modal__subheading">Transaction Summary</h3>
                 <div className="metrics-grid metrics-grid--compact u-grid-3 u-margin-b-16">
@@ -558,121 +626,34 @@ export default function PipelineView({
                 )}
               </div>
 
-              {/* 2. Deal Details (Info Grid) */}
-              <div className="deal-modal__grid u-margin-b-24">
-                <div className="deal-modal__field">
-                  <span className="deal-modal__label">Company</span>
-                  <strong className="deal-modal__value">{companyMap[selectedDeal.companyId]?.name ?? selectedDeal.companyId}</strong>
-                </div>
-                <div className="deal-modal__field">
-                  <span className="deal-modal__label">Deal Value</span>
-                  {isEditing ? (
-                    <div className="field u-margin-0">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        className="modal-edit-input"
-                        value={editValue === '' ? '' : Number(editValue).toLocaleString('en-US')}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(/[^0-9.]/g, '')
-                          setEditValue(raw === '' ? '' : Number(raw))
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <strong className="deal-modal__value u-text-accent">{formatCurrencyFull(selectedDeal.value)}</strong>
-                  )}
-                </div>
-
-                <div className="deal-modal__field">
-                  <span className="deal-modal__label">Probability</span>
-                  {isEditing ? (
-                    <div className="field u-margin-0">
-                      <div className="u-flex-center-gap-sm">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="1"
-                            className="modal-edit-input u-width-80"
-                            value={editProbability}
-                            onChange={(e) => {
-                              const raw = e.target.value.replace(/[^0-9]/g, '')
-                              const num = raw === '' ? '' : Math.min(100, Math.max(0, parseInt(raw, 10)))
-                              setEditProbability(num)
-                            }}
-                          />
-                        <span className="u-fs-sm u-text-muted">%</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <strong className="deal-modal__value u-text-warning">{selectedDeal.probability}%</strong>
-                  )}
-                </div>
-                <div className="deal-modal__field">
-                  <span className="deal-modal__label">Expected Close</span>
-                  {isEditing ? (
-                    <div className="field u-margin-0">
-                      <input
-                        type="date"
-                        className="modal-edit-input u-width-date"
-                        min={TODAY}
-                        value={editCloseDate}
-                        onChange={(e) => setEditCloseDate(e.target.value)}
-                      />
-                    </div>
-                  ) : (
-                    <strong className="deal-modal__value">{formatDateLabel(selectedDeal.expectedClose) || '—'}</strong>
-                  )}
-                </div>
-
-                <div className="deal-modal__field u-span-2 u-text-center">
-                  <span className="deal-modal__label">Source</span>
-                  <strong className="deal-modal__value u-capitalize">{selectedDeal.source || 'Manual'}</strong>
-                </div>
-
-                {!isSr && (
-                  <div className="deal-modal__field">
-                    <span className="deal-modal__label">Contact</span>
-                    <strong className="deal-modal__value">{contactMap[selectedDeal.contactId]?.name ?? selectedDeal.contactId}</strong>
-                  </div>
-                )}
-
-                {/* 3. Company Info (Associated Contacts) */}
-                {dealContacts.length > 0 && (
-                  <div className="deal-modal__field u-span-2 u-margin-t-8">
-                    <span className="deal-modal__label">Associated Contacts</span>
-                    <div className="deal-modal__contact-list">
-                      {dealContacts.map(c => (
-                        <div key={c.id} className="deal-modal__contact-item">
-                          <div className="deal-modal__contact-header">
-                            <span className="deal-modal__contact-name">{c.name}</span>
-                            {(c.phone || c.email) && (
-                               <div className="deal-modal__contact-details u-margin-l-auto">
-                                 {c.phone && <span title="Phone"><IconPhone /> {c.phone}</span>}
-                                 {c.email && <span title="Email">
-                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                                     <polyline points="22,6 12,13 2,6"/>
-                                   </svg>
-                                   {c.email}
-                                 </span>}
-                               </div>
-                            )}
-                          </div>
-                          {c.role && <div className="deal-modal__contact-sub">{c.role}</div>}
+              {/* 3. Associated Contacts */}
+              {dealContacts.length > 0 && (
+                <div className="modal-section-divider u-margin-b-24">
+                  <h3 className="deal-modal__subheading">Associated Contacts</h3>
+                  <div className="deal-modal__contact-list">
+                    {dealContacts.map(c => (
+                      <div key={c.id} className="deal-modal__contact-item">
+                        <div className="deal-modal__contact-header">
+                          <span className="deal-modal__contact-name">{c.name}</span>
+                          {(c.phone || c.email) && (
+                             <div className="deal-modal__contact-details u-margin-l-auto">
+                               {c.phone && <span title="Phone"><IconPhone /> {c.phone}</span>}
+                               {c.email && <span title="Email">
+                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                   <polyline points="22,6 12,13 2,6"/>
+                                 </svg>
+                                 {c.email}
+                               </span>}
+                             </div>
+                          )}
                         </div>
-                      ))}
-                    </div>
+                        {c.role && <div className="deal-modal__contact-sub">{c.role}</div>}
+                      </div>
+                    ))}
                   </div>
-                )}
-                {selectedDeal.leadId && (
-                  <div className="deal-modal__field">
-                    <span className="deal-modal__label">Linked Lead</span>
-                    <strong className="deal-modal__value">{leadMap[selectedDeal.leadId]?.customerName ?? selectedDeal.leadId}</strong>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Proposal Documents (only in Proposal stage) */}
               {selectedDeal.stage === 'Proposal' && (
@@ -838,7 +819,7 @@ export default function PipelineView({
             {/* Footer: Save / Cancel or Stage Updater */}
             <div className="deal-modal__footer">
               {isEditing ? (
-                <div className="deal-modal__edit-actions">
+                <div className="deal-modal__edit-actions u-flex-gap-sm">
                   <button
                     type="button"
                     className="primary-button"

@@ -2943,9 +2943,10 @@
 }
 
 .deal-modal__contact-details span {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
+  will-change: transform;
   text-transform: none;
 }
 

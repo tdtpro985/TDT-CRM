@@ -3364,7 +3364,7 @@ def serve_celebration_music(filename):
 
 # ─── Celebration Animation Settings ─────────────────────────────────────────
 
-_VALID_ANIMATIONS = {'confetti', 'jojo', 'none'}
+_VALID_ANIMATIONS = {'confetti', 'jojo', 'none', 'victory'}
 
 @app.route('/api/admin/settings/celebration-animation', methods=['GET'])
 @jwt_required()
