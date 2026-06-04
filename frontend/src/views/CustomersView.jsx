@@ -4,7 +4,7 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import Modal from '../components/Modal'
-import { formatDateTimePHT, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole, isValidPhone, isValidEmail } from '../utils'
+import { formatDateTimePHT, formatCurrencyCompact, getToneClass, createRecordId, parseAuditValue, getPaginatedData, matchesSearch, isSrRole, isValidPhone, isValidEmail, roleAbbr } from '../utils'
 import { STAGE_COLORS, ITEMS_PER_PAGE } from '../constants'
 import LeadForm from '../components/forms/LeadForm'
 import TaskForm from '../components/forms/TaskForm'
@@ -86,6 +86,12 @@ export default function CustomersView({
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {
+      // "Mine" filter — only customers owned by the current (manager) user
+      if (statusFilter === 'mine') {
+        if (String(c.ownerId) !== String(currentUser?.id)) return false
+        return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
+      }
+
       // Newly-assigned (handover) filter — independent of deal-based status
       if (statusFilter === 'Newly Assigned') {
         if (!c.reassignedAt) return false
@@ -300,6 +306,7 @@ export default function CustomersView({
                   }}
                 >
                   <option value="all">All</option>
+                  {!isSr && <option value="mine">{currentUser?.name} ({roleAbbr(currentUser?.role)})</option>}
                   <option value="Newly Assigned">🆕 Newly Assigned</option>
                   {customerStatuses.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>

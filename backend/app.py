@@ -569,7 +569,7 @@ def get_customers():
             SELECT 
                 c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
                 c.status AS companyStatus, c.created_at AS createdAt,
-                l.contact_num AS contactNum, l.address, l.region, COALESCE(l.owner_name, t_lead.name, t.name) AS sr, l.branch,
+                l.contact_num AS contactNum, l.address, l.region, COALESCE(t_lead.name, l.owner_name, t.name) AS sr, l.branch,
                 l.reassigned_at AS reassignedAt,
                 COALESCE(deal_stats.totalDealCount, 0) AS totalDealCount,
                 COALESCE(deal_stats.activeDealCount, 0) AS activeDealCount,
@@ -654,7 +654,7 @@ def get_customer_detail(customer_id):
             SELECT 
                 c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
                 c.status AS companyStatus, c.created_at AS createdAt,
-                l.contact_num AS contactNum, l.address, l.region, COALESCE(l.owner_name, t_lead.name, t.name) AS sr, l.branch,
+                l.contact_num AS contactNum, l.address, l.region, COALESCE(t_lead.name, l.owner_name, t.name) AS sr, l.branch,
                 l.reassigned_at AS reassignedAt,
                 COALESCE(deal_stats.totalDealCount, 0) AS totalDealCount,
                 COALESCE(deal_stats.activeDealCount, 0) AS activeDealCount,
@@ -807,10 +807,43 @@ def get_team():
     try:
         cursor = conn.cursor()
         branch = request.args.get('branch', '')
+        purpose = request.args.get('purpose', '')
         claims = get_jwt()
         role = claims.get('role', 'Branch Account')
         user_region = claims.get('region', '')
         user_branch = claims.get('branch', '')
+
+        # Filter mode: return ALL team members in the caller's visibility scope,
+        # regardless of rank (incl. self / peer managers). Used only to populate
+        # view-filter dropdowns — NOT assignment targets, so the role hierarchy
+        # restriction below is deliberately skipped. Default behavior is unchanged.
+        if purpose == 'filter':
+            if role in ('Branch Account', 'Sales Representative', 'Sales Rep'):
+                cursor.execute(
+                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
+                    (user_branch,),
+                )
+            elif role == 'Regional Sales Manager':
+                region_branches = REGION_BRANCHES.get(user_region, [])
+                req = normalize_branch(branch)
+                allowed_normalized = [normalize_branch(b) for b in region_branches]
+                if req and req in allowed_normalized:
+                    match = next((b for b in region_branches if normalize_branch(b) == req), None)
+                    cursor.execute('SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name', (match,))
+                elif region_branches:
+                    ph_branches = ', '.join(['%s'] * len(region_branches))
+                    cursor.execute(
+                        f'SELECT id, name, role, branch, region FROM team WHERE branch IN ({ph_branches}) ORDER BY name',
+                        tuple(region_branches),
+                    )
+                else:
+                    cursor.execute('SELECT id, name, role, branch, region FROM team WHERE 1=0')
+            else:  # Head of Sales / Admin
+                if branch and branch != 'Headquarters':
+                    cursor.execute('SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name', (branch,))
+                else:
+                    cursor.execute('SELECT id, name, role, branch, region FROM team ORDER BY name')
+            return jsonify(rows_to_list(cursor))
 
         if role in ('Branch Account', 'Sales Representative', 'Sales Rep'):
             cursor.execute(
@@ -1442,7 +1475,7 @@ def get_deals():
         cursor.execute(f'''
             SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
                    d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
-                   d.probability, t.name AS owner, d.owner_id AS ownerId, d.created_at,
+                   d.probability, t.name AS owner, d.owner_id AS ownerId, t.role AS ownerRole, d.created_at,
                    d.lost_reason AS lostReason, l.branch AS branch,
                    COALESCE(urgency.urgencyScore, 0) AS urgencyScore,
                    CASE
@@ -1620,8 +1653,17 @@ def update_deal_stage(deal_id):
         claims = get_jwt()
         user_id = get_jwt_identity()
         user_role = claims.get('role', '')
-        if ROLE_RANK.get(user_role, 0) <= 40 and str(old_owner_id) != str(user_id):
-            return jsonify({'error': 'Only the assigned SR can update this deal'}), 403
+        if str(old_owner_id) != str(user_id):
+            if ROLE_RANK.get(user_role, 0) <= 40:
+                # SR / Branch Account may only touch their own deals
+                return jsonify({'error': 'Only the assigned SR can update this deal'}), 403
+            if user_role != 'Admin':
+                # Managers may edit deals owned by SRs, but not by another manager
+                cursor.execute('SELECT role FROM team WHERE id = %s', (old_owner_id,))
+                owner_role_row = cursor.fetchone()
+                owner_rank = ROLE_RANK.get(owner_role_row[0], 0) if owner_role_row else 0
+                if owner_rank > 40:
+                    return jsonify({'error': 'You cannot edit a deal owned by another manager'}), 403
 
         updates = []
         params = []
