@@ -31,10 +31,10 @@ const PAGE_SIZE = 5
 const AUDIT_PAGE_SIZE = 20
 
 const DONUT_COLORS = {
-  New: '#7eb8ff',
-  Contacted: '#ff9800',
-  Converted: '#34d399',
-  Lost: '#fb7185',
+  New: 'var(--accent)',
+  Contacted: 'var(--accent-strong)',
+  Converted: 'var(--positive)',
+  Lost: 'var(--alert)',
 }
 
 function DonutChart({ data }) {
@@ -117,7 +117,7 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
       .then((d) => { if (isCurrent) { setData(d); setLoading(false); onLoadingChange?.(false) } })
       .catch(() => { if (isCurrent) { setError('Failed to load analytics.'); setLoading(false); onLoadingChange?.(false) } })
     return () => { isCurrent = false }
-  }, [activeBranch, activeRegion])
+  }, [activeBranch, activeRegion, onLoadingChange])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const fetchAuditLog = useCallback(() => {

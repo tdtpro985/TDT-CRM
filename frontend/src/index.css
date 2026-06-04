@@ -1,82 +1,55 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
-
 :root {
   color-scheme: dark;
-  /* ═══════════════════════════════════════════════════════════════
-     DARK THEME (Default)
-     ═══════════════════════════════════════════════════════════════ */
-  --bg: #1a1a2e;
-  --bg-app: #0a0e17;
-  --bg-card: #16213e;
-  --bg-card-alt: #0f3460;
-  --bg-surface: #1e293b;
-  --bg-input: #1e2a45;
-  --bg-soft: #202b4a;
-  --accent: #ff9800;
-  --accent-strong: #ffb547;
-  --accent-soft: rgba(255, 152, 0, 0.16);
+  --bg: #10131f;
+  --bg-app: #080a12;
+  --bg-card: #141726;
+  --bg-card-alt: #1a1e32;
+  --bg-surface: #10131f;
+  --bg-input: #141726;
+  --bg-soft: #1a1e32;
+  --accent: #ffb547;
+  --accent-rgb: 255, 181, 71;
+  --accent-strong: #ff9800;
+  --accent-strong-rgb: 255, 152, 0;
+  --accent-soft: rgba(var(--accent-rgb), 0.12);
   --text-strong: #f8fafc;
   --text: #e2e8f0;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --border: rgba(255, 255, 255, 0.15);
-  --border-strong: rgba(255, 255, 255, 0.25);
-  --positive: #34d399;
-  --warning: #ffb547;
-  --caution: #fbbf24;
-  --alert: #fb7185;
-  --shadow-soft: none;
-  --shadow-strong: none;
-  --glow-md: 0 0 16px rgba(255, 152, 0, 0.35);
-  --font-body: 'Manrope', 'Segoe UI', sans-serif;
-  --font-heading: 'Sora', 'Segoe UI', sans-serif;
-
-  /* Font Sizes */
-  --fs-3xs: 0.5625rem;
-  --fs-2xs: 0.625rem;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --positive: #10b981;
+  --warning: #f59e0b;
+  --caution: #eab308;
+  --alert: #ef4444;
+  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-strong: 0 8px 24px rgba(0, 0, 0, 0.24);
+  --font-body: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-full: 9999px;
+  --pad-panel: 24px;
+  --pad-card: 16px;
+  --pad-control: 10px 14px;
+  --pad-pill: 4px 10px;
+  --pad-xs:   4px;
+  --pad-sm:   8px;
+  --pad-md:   12px;
+  --pad-lg:   16px;
+  --pad-item: 12px 16px;
+  --fs-2xs:   0.625rem;
+  --bg-surface-2: rgba(255, 255, 255, 0.05);
   --fs-xs: 0.75rem;
   --fs-sm: 0.875rem;
   --fs-md: 1rem;
   --fs-lg: 1.25rem;
   --fs-xl: 1.5rem;
-  --fs-xxl: 2rem;
-  --fs-3xl: 2.5rem;
-
-  /* Spacing */
-  --pad-xs: 4px;
-  --pad-sm: 8px;
-  --pad-md: 12px;
-  --pad-lg: 16px;
-  --pad-control: 8px 14px;
-  --pad-card: 16px;
-  --pad-panel: 20px;
-  --pad-item: 10px 14px;
-  --pad-pill: 4px 10px;
-  --pad-fluid: clamp(16px, 2.5vw, 24px);
-
-  /* Border Radius */
-  --r-sm: 4px;
-  --r-md: 8px;
-  --r-lg: 12px;
-  --r-xl: 16px;
-  --r-full: 9999px;
-
-  /* Gap */
-  --gap-fluid: clamp(12px, 2vw, 24px);
-
-  /* Spacing (used via var(--space-*) in admin views) */
-  --space-xs: 4px;
-  --space-sm: 8px;
-  --space-md: 12px;
-  --space-lg: 16px;
-  --space-xl: 24px;
-
-  --panel-bg: linear-gradient(135deg, rgba(22,33,62,0.8), rgba(22,33,62,0.6));
+  --fs-xxl: 2.5rem;
+  --gap-fluid: clamp(16px, 4vw, 32px);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   LIGHT THEME (White, Orange, Black)
-   ═══════════════════════════════════════════════════════════════ */
 [data-theme="light"] {
   color-scheme: only light;
   --bg: #f0f0f2;
@@ -87,7 +60,9 @@
   --bg-input: #ffffff;
   --bg-soft: #fafafa;
   --accent: #ff9800;
+  --accent-rgb: 255, 152, 0;
   --accent-strong: #f57c00;
+  --accent-strong-rgb: 247, 124, 0;
   --accent-soft: rgba(255, 152, 0, 0.12);
   --text-strong: #1a1a1a;
   --text: #3a3a3a;
@@ -95,6 +70,7 @@
   --text-muted: #7a7a7a;
   --border: rgba(0, 0, 0, 0.12);
   --border-strong: rgba(0, 0, 0, 0.18);
+  --bg-surface-2: rgba(0, 0, 0, 0.04);
   --positive: #10b981;
   --warning: #f59e0b;
   --caution: #fbbf24;
@@ -106,54 +82,101 @@
   --panel-bg: #ffffff;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   NEON THEME (Deep Purple with Vibrant Neon Accents)
-   ═══════════════════════════════════════════════════════════════ */
 [data-theme="neon"] {
-   color-scheme: dark;
-   --bg: #0f0a1a;
-   --bg-app: #0a0612;
-   --bg-card: #150d24;
-   --bg-card-alt: #1a1130;
-   --bg-surface: #0f0a1a;
-   --bg-input: #150d24;
-   --bg-soft: #1a1130;
-   --accent: #a855f7;
-   --accent-strong: #c084fc;
-   --accent-soft: rgba(168, 85, 247, 0.18);
-   --text-strong: #f0eaff;
-   --text: #ddd6fe;
-   --text-secondary: #c4b5fd;
-   --text-muted: #9a8bbf;
-   --border: rgba(168, 85, 247, 0.2);
-   --border-strong: rgba(168, 85, 247, 0.35);
-   --positive: #4ade80;
-   --warning: #c084fc;
-   --caution: #facc15;
-   --alert: #f472b6;
-   --shadow-soft: 0 0 10px rgba(168, 85, 247, 0.15);
-   --shadow-strong: 0 0 20px rgba(168, 85, 247, 0.25);
-   /* Neon Glow Effects */
-   --glow-xs: 0 0 8px rgba(168, 85, 247, 0.3);
-   --glow-sm: 0 0 12px rgba(168, 85, 247, 0.4);
-   --glow-md: 0 0 16px rgba(168, 85, 247, 0.5);
-   --glow-lg: 0 0 24px rgba(168, 85, 247, 0.6);
-   --glow-xl: 0 0 32px rgba(168, 85, 247, 0.7);
-   --panel-bg: linear-gradient(135deg, rgba(21, 13, 36, 0.85), rgba(21, 13, 36, 0.65));
+  color-scheme: dark;
+  --bg: #0a0510;
+  --bg-app: #050208;
+  --bg-card: #0f071a;
+  --bg-card-alt: #150a25;
+  --bg-surface: #0a0510;
+  --bg-input: #0f071a;
+  --bg-soft: #1a0e30;
+  --accent: #FF00FF;
+  --accent-rgb: 255, 0, 255;
+  --accent-strong: #ff4df2;
+  --accent-strong-rgb: 255, 77, 242;
+  --accent-soft: rgba(var(--accent-rgb), 0.25);
+  --text-strong: #ffffff;
+  --text: #ffffff;
+  --text-secondary: #ffdafc;
+  --text-muted: #ffb8f7;
+  --border: rgba(var(--accent-rgb), 0.75);
+  --border-strong: rgba(var(--accent-rgb), 1.0);
+  --positive: #4ade80;
+  --warning: #ff4df2;
+  --caution: #facc15;
+  --alert: #ff00b3;
+  --glow-xs: 0 0 8px var(--accent), 0 0 2px var(--accent);
+  --glow-sm: 0 0 16px var(--accent), 0 0 4px var(--accent);
+  --glow-md: 0 0 28px var(--accent), 0 0 6px var(--accent);
+  --glow-lg: 0 0 42px var(--accent), 0 0 10px var(--accent);
+  --glow-xl: 0 0 60px var(--accent), 0 0 14px var(--accent);
+  --fw-bold: 900;
+  --fw-medium: 800;
+  --fw-normal: 700;
+  --bg-surface-2: rgba(var(--accent-rgb), 0.08);
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+/* ── Neon Color Variants ─────────────────────────────────────── */
+[data-theme="neon"][data-neon-color="cyan"] {
+  --accent: #00FFFF;
+  --accent-rgb: 0, 255, 255;
+  --accent-strong: #4dfff5;
+  --accent-strong-rgb: 77, 255, 245;
+  --text-secondary: #d0ffff;
+  --text-muted: #a0f0f0;
+}
+[data-theme="neon"][data-neon-color="green"] {
+  --accent: #39FF14;
+  --accent-rgb: 57, 255, 20;
+  --accent-strong: #6bff4d;
+  --accent-strong-rgb: 107, 255, 77;
+  --text-secondary: #daffcc;
+  --text-muted: #b0f090;
+}
+[data-theme="neon"][data-neon-color="yellow"] {
+  --accent: #FFFF00;
+  --accent-rgb: 255, 255, 0;
+  --accent-strong: #ffff4d;
+  --accent-strong-rgb: 255, 255, 77;
+  --text-secondary: #fffff0;
+  --text-muted: #f0f0a0;
+}
+[data-theme="neon"][data-neon-color="purple"] {
+  --accent: #CC00FF;
+  --accent-rgb: 204, 0, 255;
+  --accent-strong: #dd4dff;
+  --accent-strong-rgb: 221, 77, 255;
+  --text-secondary: #f0d0ff;
+  --text-muted: #e0b0ff;
+}
+[data-theme="neon"][data-neon-color="blue"] {
+  --accent: #00BFFF;
+  --accent-rgb: 0, 191, 255;
+  --accent-strong: #4dd5ff;
+  --accent-strong-rgb: 77, 213, 255;
+  --text-secondary: #c0f0ff;
+  --text-muted: #90d8f0;
+}
+[data-theme="neon"][data-neon-color="red"] {
+  --accent: #FF003C;
+  --accent-rgb: 255, 0, 60;
+  --accent-strong: #ff4d7a;
+  --accent-strong-rgb: 255, 77, 122;
+  --text-secondary: #ffccd8;
+  --text-muted: #ffaabb;
+}
+[data-theme="neon"][data-neon-color="orange"] {
+  --accent: #FF4800;
+  --accent-rgb: 255, 72, 0;
+  --accent-strong: #ff7240;
+  --accent-strong-rgb: 255, 114, 64;
+  --text-secondary: #ffe0cc;
+  --text-muted: #ffbf99;
 }
 
-html {
-  height: 100%;
-  overflow: hidden;
-  scroll-behavior: smooth;
-}
-
+*, *::before, *::after { box-sizing: border-box; }
+html { height: 100%; overflow: hidden; scroll-behavior: smooth; }
 body {
   margin: 0;
   min-width: 320px;
@@ -169,125 +192,276 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Light theme background */
 [data-theme="light"] body {
   background:
     radial-gradient(circle at top left, rgba(255, 152, 0, 0.1), transparent 30%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-app) 100%);
 }
 
-[data-theme="light"] body::before {
-  background-image:
-    linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
-}
-
-/* Neon theme background */
 [data-theme="neon"] body {
   background:
-    radial-gradient(circle at top left, rgba(168, 85, 247, 0.18), transparent 26%),
-    radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.08), transparent 34%),
-    linear-gradient(180deg, #151025 0%, #0f0a1a 100%);
+    radial-gradient(circle at top left, rgba(var(--accent-rgb), 0.1), transparent 40%),
+    radial-gradient(circle at bottom right, rgba(var(--accent-rgb), 0.05), transparent 50%),
+    linear-gradient(180deg, #0a0510 0%, #050208 100%);
+  font-weight: 600;
 }
 
-/* Disable transitions during theme switching to prevent flashes */
-html.is-theme-switching *,
-html.is-theme-switching *::before,
-html.is-theme-switching *::after {
-  transition-duration: 0s !important;
-  animation-duration: 0s !important;
+[data-theme="neon"] h1, [data-theme="neon"] h2, [data-theme="neon"] h3,
+[data-theme="neon"] strong, [data-theme="neon"] b, [data-theme="neon"] .page-title,
+[data-theme="neon"] .metric-card strong, [data-theme="neon"] .pipeline-card__title {
+  font-weight: var(--fw-bold) !important;
+  color: #fff !important;
 }
 
+[data-theme="neon"] .primary-button {
+  font-weight: 800 !important;
+  border: 2px solid #fff !important;
+  box-shadow: var(--glow-sm) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 10px 18px !important;
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+
+[data-theme="neon"] * { border-width: 1.2px !important; }
+
+[data-theme="neon"] .card, [data-theme="neon"] .panel, [data-theme="neon"] .metric-card,
+[data-theme="neon"] .pipeline-card, [data-theme="neon"] .kanban-card, [data-theme="neon"] .modal-content,
+[data-theme="neon"] .sidebar, [data-theme="neon"] input, [data-theme="neon"] select,
+[data-theme="neon"] textarea, [data-theme="neon"] .search-field {
+  border-width: 1.5px !important;
+  border-color: var(--accent) !important;
+  box-shadow: var(--glow-xs) !important;
+}
+
+[data-theme="neon"] .nav-item.is-active {
+  border-width: 1.5px !important;
+  box-shadow: var(--glow-xs);
+  background: rgba(var(--accent-rgb), 0.2) !important;
+}
+
+[data-theme="neon"] .nav-item.is-active * {
+  color: #fff !important;
+}
+
+[data-theme="neon"] .sidebar-label, [data-theme="neon"] .eyebrow, [data-theme="neon"] .panel-kicker {
+  color: #fff !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.2em !important;
+}
+
+/* Neon Table & List Overrides */
+[data-theme="neon"] .admin-table th,
+[data-theme="neon"] .data-table th {
+  background: rgba(var(--accent-rgb), 0.15) !important;
+  color: #fff !important;
+  font-weight: 900 !important;
+  border-bottom: 2px solid var(--accent) !important;
+}
+
+[data-theme="neon"] .admin-table td, 
+[data-theme="neon"] .data-table td {
+  border-bottom-color: rgba(var(--accent-rgb), 0.2) !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="neon"] .admin-table tr:hover td,
+[data-theme="neon"] .data-table tr:hover td {
+  background: rgba(var(--accent-rgb), 0.1) !important;
+}
+
+[data-theme="neon"] .admin-table tr:nth-child(even) td {
+  background: rgba(var(--accent-rgb), 0.03) !important;
+}
+
+/* Neon Pill & Badge Overrides */
+[data-theme="neon"] .tone-pill, 
+[data-theme="neon"] .status-badge,
+[data-theme="neon"] .admin-role-pill,
+[data-theme="neon"] .timeline-badge,
+[data-theme="neon"] .deal-summary-modal__stage,
+[data-theme="neon"] .deal-modal__contact-role-tag {
+  border-width: 1.5px !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+[data-theme="neon"] .tone-pill.is-neutral,
+[data-theme="neon"] .admin-role-pill--surface {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #fff !important;
+}
+
+[data-theme="neon"] .admin-role-pill--accent,
+[data-theme="neon"] .timeline-badge.is-activity,
+[data-theme="neon"] .deal-summary-modal__stage {
+  background: rgba(var(--accent-rgb), 0.2) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+  box-shadow: var(--glow-xs);
+}
+
+/* Neon Activity & Timeline Overrides */
+[data-theme="neon"] .activity-card {
+  border-left-width: 4px !important;
+  border-left-color: var(--accent);
+}
+
+[data-theme="neon"] .activity-card:hover {
+  background: rgba(var(--accent-rgb), 0.08) !important;
+  box-shadow: var(--glow-xs) !important;
+}
+
+[data-theme="neon"] .timeline-dot {
+  background: var(--accent) !important;
+  box-shadow: var(--glow-xs);
+  border-color: var(--bg-card) !important;
+}
+
+[data-theme="neon"] .timeline-item::after {
+  background: rgba(var(--accent-rgb), 0.3) !important;
+}
+
+/* Neon Interaction States */
+[data-theme="neon"] .tab-button.is-active,
+[data-theme="neon"] .view-button.is-active,
+[data-theme="neon"] .admin-branch-row.is-active {
+  background: var(--accent) !important;
+  color: #fff !important;
+  font-weight: 900 !important;
+  box-shadow: var(--glow-sm) !important;
+  border-color: #fff !important;
+}
+
+[data-theme="neon"] .tab-button:not(.is-active):hover,
+[data-theme="neon"] .view-button:not(.is-active):hover,
+[data-theme="neon"] .admin-branch-row:not(.is-active):hover {
+  background: rgba(var(--accent-rgb), 0.2) !important;
+  border-color: var(--accent) !important;
+}
+
+[data-theme="neon"] .pipeline-pagination__btn:hover:not(:disabled) {
+  background: var(--accent) !important;
+  color: #fff !important;
+  box-shadow: var(--glow-xs);
+}
+
+/* Pipeline Card Health Indicators for Neon */
+[data-theme="neon"] .pipeline-card.is-health-critical::before { border-top-color: #ff0055 !important; }
+[data-theme="neon"] .pipeline-card.is-health-at-risk::before { border-top-color: #ffcc00 !important; }
+[data-theme="neon"] .pipeline-card.is-health-healthy::before { border-top-color: #00ffaa !important; }
+
+/* Neon Layout Overrides */
+[data-theme="neon"] .sidebar,
+[data-theme="neon"] .top-bar {
+  border-color: var(--accent) !important;
+  background: var(--bg-card) !important;
+  box-shadow: var(--glow-sm);
+}
+
+[data-theme="neon"] .brand-user-name {
+  color: #fff !important;
+}
+
+[data-theme="neon"] .brand-user-role {
+  color: var(--accent) !important;
+  font-weight: 800 !important;
+}
+
+[data-theme="neon"] .sidebar-avatar {
+  border-color: #fff !important;
+  box-shadow: var(--glow-xs);
+}
+
+[data-theme="neon"] .hamburger-btn {
+  border-color: var(--accent) !important;
+  box-shadow: var(--glow-xs);
+}
+
+[data-theme="neon"] .sidebar-hover-trigger::before {
+  background: linear-gradient(to bottom, transparent, var(--accent), transparent) !important;
+  opacity: 1 !important;
+  width: 4px !important;
+}
+
+/* Neon Status Pill Refinement */
+[data-theme="neon"] .tone-pill.is-positive,
+[data-theme="neon"] .status-text.is-positive {
+  background: rgba(0, 255, 170, 0.15) !important;
+  color: #00ffaa !important;
+  border-color: #00ffaa !important;
+  box-shadow: 0 0 6px rgba(0, 255, 170, 0.45) !important;
+}
+
+[data-theme="neon"] .tone-pill.is-warning,
+[data-theme="neon"] .status-text.is-warning {
+  background: rgba(255, 204, 0, 0.15) !important;
+  color: #ffcc00 !important;
+  border-color: #ffcc00 !important;
+  box-shadow: 0 0 6px rgba(255, 204, 0, 0.45) !important;
+}
+
+[data-theme="neon"] .tone-pill.is-alert,
+[data-theme="neon"] .status-text.is-alert {
+  background: rgba(255, 0, 85, 0.15) !important;
+  color: #ff0055 !important;
+  border-color: #ff0055 !important;
+  box-shadow: 0 0 6px rgba(255, 0, 85, 0.45) !important;
+}
+
+[data-theme="neon"] .tone-pill.is-open,
+[data-theme="neon"] .status-text.is-open {
+  background: rgba(0, 204, 255, 0.15) !important;
+  color: #00ccff !important;
+  border-color: #00ccff !important;
+  box-shadow: 0 0 6px rgba(0, 204, 255, 0.45) !important;
+}
+
+/* Deal Modal Stage Pips for Neon */
+[data-theme="neon"] .deal-modal__stage-pip.is-done {
+  background: rgba(var(--accent-rgb), 0.1) !important;
+}
+
+[data-theme="neon"] .deal-modal__stage-pip.is-done span {
+  color: #fff !important;
+  opacity: 0.8;
+}
+
+[data-theme="neon"] .deal-modal__stage-pip.is-active {
+  background: var(--accent) !important;
+  border-bottom: 3px solid #fff !important;
+}
+
+[data-theme="neon"] .deal-modal__stage-pip.is-active span {
+  color: #fff !important;
+}
+
+/* Common resets */
+html.is-theme-switching *, html.is-theme-switching *::before, html.is-theme-switching *::after {
+  transition-duration: 0s !important; animation-duration: 0s !important;
+}
 body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
+  content: ''; position: fixed; inset: 0; pointer-events: none; opacity: 0.38;
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 120px 120px, 120px 120px;
-  opacity: 0.38;
+  background-size: 120px 120px;
 }
-
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
-button {
-  color: inherit;
-}
-
-img {
-  display: block;
-  max-width: 100%;
-}
-
-#root {
-  height: 100%;
-  overflow: hidden;
-}
-
-h1,
-h2,
-h3 {
-  margin: 0;
-  color: var(--text-strong);
-  font-family: var(--font-heading);
-  letter-spacing: -0.03em;
-}
-
-/* Prevent browser h2 default size from overriding utility classes */
-h2.page-title {
-  font-size: var(--fs-md);
-}
-
-p {
-  margin: 0;
-}
-
-::selection {
-  color: #10131f;
-  background: rgba(255, 181, 71, 0.9);
-}
-
-/* ── Theme Switching ────────────────────────────────────────── */
-
-/* Disable all transitions during theme switching to prevent flashes */
-html.is-theme-switching *,
-html.is-theme-switching *::before,
-html.is-theme-switching *::after {
-  transition-duration: 0s !important;
-  animation-duration: 0s !important;
-}
-
-/* Light theme selection */
-[data-theme="light"] ::selection {
-  color: #ffffff;
-  background: rgba(255, 152, 0, 0.8);
-}
-
-/* Neon theme selection */
-[data-theme="neon"] ::selection {
-  color: #0f0a1a;
-  background: rgba(168, 85, 247, 0.9);
-}
-
-@keyframes revealUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.u-reveal-up {
-  opacity: 0;
-  transform: translateY(10px);
-  animation: revealUp 0.5s ease forwards;
-}
-
-/* Priority Signaling */
+button, input, select, textarea { font: inherit; }
+button { color: inherit; }
+img { display: block; max-width: 100%; }
+#root { height: 100%; overflow: hidden; }
+h1, h2, h3 { margin: 0; color: var(--text-strong); font-family: var(--font-heading); letter-spacing: -0.03em; }
+h2.page-title { font-size: var(--fs-md); }
+p { margin: 0; }
+::selection { color: #10131f; background: rgba(255, 181, 71, 0.9); }
+[data-theme="light"] ::selection { color: #ffffff; background: rgba(255, 152, 0, 0.8); }
+[data-theme="neon"] ::selection { color: #0f0a1a; background: rgba(var(--accent-rgb), 0.9); }
+@keyframes revealUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.u-reveal-up { opacity: 0; transform: translateY(10px); animation: revealUp 0.5s ease forwards; }
 .is-priority-high { border-left-color: var(--alert) !important; }
 .is-priority-medium { border-left-color: var(--caution) !important; }
 .is-priority-low { border-left-color: var(--positive) !important; }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Routes, Route, Navigate, useLocation, Link } from 'react-router-dom'
 import './App.css'
-import { clearToken, getUser, saveUser } from './api'
+import { clearToken, getUser, saveUser, apiFetch } from './api'
+import { resetThemeToDefaults } from './hooks/useTheme'
 import AdminLoginPage from './components/AdminLoginPage'
 import AdminView from './views/AdminView'
 import AdminAnalyticsView from './views/AdminAnalyticsView'
@@ -42,7 +43,7 @@ export default function AdminPortal() {
   // Ensure we get the correct active view based on the path (e.g. /admin/analytics)
   const activeView = location.pathname.split('/')[2] || 'analytics'
 
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, neonColor, setNeonColor } = useTheme()
   const [adminUser, setAdminUser]       = useState(getUser())
   const [sidebarOpen, setSidebarOpen]   = useState(false)
   const [toast, setToast]               = useState(null)
@@ -57,8 +58,11 @@ export default function AdminPortal() {
   }
 
   function handleLogout() {
+    resetThemeToDefaults()   // synchronous: clears sessionStorage + style tag before re-render
     clearToken()
     setAdminUser(null)
+    setTheme('dark')
+    setNeonColor('pink')
   }
 
   function handleAdminLogin(user) {
@@ -140,7 +144,16 @@ export default function AdminPortal() {
 
 
         <div className="sidebar-footer u-margin-t-auto">
-          <ThemeToggle theme={theme} onThemeChange={setTheme} />
+          <ThemeToggle
+            theme={theme}
+            onThemeChange={setTheme}
+            neonColor={neonColor}
+            onNeonColorChange={setNeonColor}
+            onSaveDefault={(t, nc) => apiFetch('/api/team/profile/preferences', {
+              method: 'PUT',
+              body: JSON.stringify({ theme: t, neonColor: nc }),
+            })}
+          />
           <p className="sidebar-label">Signed in as</p>
           <div className="sidebar-user">
             <span className="sidebar-user__name">{adminUser.name}</span>

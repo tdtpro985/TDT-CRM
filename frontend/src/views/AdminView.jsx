@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import Modal from '../components/Modal'
@@ -32,7 +32,7 @@ export default function AdminView({ currentUser, showToast, onLoadingChange }) {
   const [importResult, setImportResult] = useState(null)
   const importFileRef = useRef(null)
 
-  async function loadUsers() {
+  const loadUsers = useCallback(async () => {
     setLoading(true)
     onLoadingChange?.(true)
     try {
@@ -42,9 +42,9 @@ export default function AdminView({ currentUser, showToast, onLoadingChange }) {
       setLoading(false)
       onLoadingChange?.(false)
     }
-  }
+  }, [onLoadingChange])
 
-  useEffect(() => { loadUsers() }, [])
+  useEffect(() => { loadUsers() }, [loadUsers])
 
   const branchCounts = useMemo(() => {
     const counts = {}

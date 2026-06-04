@@ -171,14 +171,14 @@
 [data-theme="neon"] .field select:focus,
 [data-theme="neon"] .field textarea:focus {
    border-color: var(--accent);
-   box-shadow: var(--glow-sm);
+   box-shadow: var(--glow-md);
+   outline: none;
 }
 
-[data-theme="neon"] .field input:focus,
-[data-theme="neon"] .field select:focus,
-[data-theme="neon"] .field textarea:focus {
-   border-color: var(--accent);
-   box-shadow: var(--glow-sm);
+[data-theme="neon"] input, 
+[data-theme="neon"] select, 
+[data-theme="neon"] textarea {
+  font-weight: 600;
 }
 
 .input--readonly {
@@ -252,6 +252,12 @@
    background: var(--accent);
    color: #10131f;
    box-shadow: none;
+}
+
+[data-theme="neon"] .primary-button {
+  border: 1.5px solid #fff !important;
+  font-weight: 800;
+  box-shadow: var(--glow-xs);
 }
 
 .secondary-button {
@@ -347,7 +353,7 @@
 }
 
 .priority-dot.is-high   { background-color: #fb7185; }
-.priority-dot.is-medium { background-color: #fbbf24; }
+.priority-dot.is-medium { background-color: var(--caution); }
 .priority-dot.is-low    { background-color: #34d399; }
 
 .panel-inline-controls {
@@ -434,7 +440,7 @@
 }
 
 .metric-card--interactive:focus-visible {
-  box-shadow: 0 0 0 2px var(--accent), 0 0 12px rgba(168, 85, 247, 0.3);
+  box-shadow: 0 0 0 2px var(--accent), 0 0 12px rgba(var(--accent-rgb), 0.3);
 }
 
 .metric-card--interactive:hover {
@@ -458,6 +464,12 @@
   font-weight: 900;
   line-height: 1;
   letter-spacing: -0.02em;
+}
+
+
+[data-theme="neon"] .metric-card p {
+  font-weight: 800;
+  color: var(--text-strong);
 }
 
 .metric-card span {
@@ -486,9 +498,9 @@
 [data-theme="neon"] .metric-card--accent {
    background-color: var(--bg-card);
    background-image:
-     radial-gradient(circle at top right, rgba(168, 85, 247, 0.3), transparent 60%),
+     radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.3), transparent 60%),
      linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
-   border-color: rgba(168, 85, 247, 0.35);
+   border-color: rgba(var(--accent-rgb), 0.35);
 }
 
 [data-theme="light"] .metric-card--accent {
@@ -502,9 +514,9 @@
 [data-theme="neon"] .metric-card--accent {
    background-color: var(--bg-card);
    background-image:
-     radial-gradient(circle at top right, rgba(168, 85, 247, 0.3), transparent 60%),
+     radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.3), transparent 60%),
      linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
-   border-color: rgba(168, 85, 247, 0.35);
+   border-color: rgba(var(--accent-rgb), 0.35);
 }
 
 .metric-card--accent strong {
@@ -527,9 +539,9 @@
 [data-theme="neon"] .metric-card--alt {
   background-color: var(--bg-card);
   background-image:
-    radial-gradient(circle at bottom left, rgba(168, 85, 247, 0.3), transparent 60%),
+    radial-gradient(circle at bottom left, rgba(var(--accent-rgb), 0.3), transparent 60%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
-  border-color: rgba(168, 85, 247, 0.25);
+  border-color: rgba(var(--accent-rgb), 0.25);
 }
 
 .metric-card--surface {
@@ -540,16 +552,16 @@
 
 [data-theme="light"] .metric-card--surface {
   background-color: #fdfcf9;
-  background-image: linear-gradient(135deg, rgba(255, 152, 0, 0.12), rgba(255, 152, 0, 0.04));
-  border-color: rgba(255, 152, 0, 0.25);
+  background-image: linear-gradient(135deg, rgba(var(--accent-strong-rgb), 0.12), rgba(255, 152, 0, 0.04));
+  border-color: rgba(var(--accent-strong-rgb), 0.25);
 }
 
 [data-theme="neon"] .metric-card--surface {
   background-color: var(--bg-card);
   background-image:
-    radial-gradient(circle at top right, rgba(168, 85, 247, 0.15), transparent 60%),
+    radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.15), transparent 60%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
-  border-color: rgba(168, 85, 247, 0.2);
+  border-color: rgba(var(--accent-rgb), 0.2);
 }
 
 [data-theme="light"] .metric-card--surface {
@@ -702,8 +714,8 @@ section.content-grid--primary {
 
 .activity-card:hover {
   transform: translateX(4px);
-  background: linear-gradient(135deg, rgba(255, 152, 0, 0.08), rgba(255, 255, 255, 0.04));
-  border-color: rgba(255, 152, 0, 0.2);
+  background: linear-gradient(135deg, rgba(var(--accent-strong-rgb), 0.08), rgba(255, 255, 255, 0.04));
+  border-color: rgba(var(--accent-strong-rgb), 0.2);
 }
 
 [data-theme="light"] .activity-card:hover {
@@ -712,7 +724,7 @@ section.content-grid--primary {
 }
 
 [data-theme="neon"] .activity-card:hover {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(255, 255, 255, 0.02));
   border-color: var(--accent);
 }
 
@@ -737,7 +749,7 @@ section.content-grid--primary {
 
 [data-theme="neon"] .contact-card:hover {
    border-color: var(--accent);
-   background: rgba(168, 85, 247, 0.1);
+   background: rgba(var(--accent-rgb), 0.1);
 }
 
 [data-theme="light"] .contact-card:hover {
@@ -746,7 +758,7 @@ section.content-grid--primary {
 }
 
 [data-theme="neon"] .contact-card:hover {
-  background: rgba(168, 85, 247, 0.06);
+  background: rgba(var(--accent-rgb), 0.06);
   border-color: var(--accent);
 }
 
@@ -757,7 +769,7 @@ section.content-grid--primary {
 
 [data-theme="neon"] .contact-card.is-selected {
    border-color: var(--accent);
-   background: rgba(168, 85, 247, 0.15);
+   background: rgba(var(--accent-rgb), 0.15);
 }
 
 .task-item {
@@ -766,8 +778,8 @@ section.content-grid--primary {
 }
 
 [data-theme="neon"] .task-item {
-   background: rgba(168, 85, 247, 0.1);
-   border-color: rgba(168, 85, 247, 0.25);
+   background: rgba(var(--accent-rgb), 0.1);
+   border-color: rgba(var(--accent-rgb), 0.25);
 }
 
 .task-item p {
@@ -806,7 +818,7 @@ section.content-grid--primary {
 }
 
 .simple-list__item:hover {
-  background: linear-gradient(135deg, rgba(255, 152, 0, 0.08), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(135deg, rgba(var(--accent-strong-rgb), 0.08), rgba(255, 255, 255, 0.04));
   border-color: var(--accent);
   transform: translateX(4px);
   box-shadow: var(--shadow-soft);
@@ -818,7 +830,7 @@ section.content-grid--primary {
 }
 
 [data-theme="neon"] .simple-list__item:hover {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(255, 255, 255, 0.02));
   border-color: var(--accent);
 }
 
@@ -1158,29 +1170,29 @@ section.content-grid--primary {
 }
 
 .deal-modal__stage-pip.is-done {
-   background: rgba(255, 152, 0, 0.08);
+   background: rgba(var(--accent-strong-rgb), 0.08);
 }
 
 [data-theme="neon"] .deal-modal__stage-pip.is-done {
-   background: rgba(168, 85, 247, 0.15);
+   background: rgba(var(--accent-rgb), 0.15);
 }
 
 [data-theme="neon"] .deal-modal__stage-pip.is-done span {
-   color: rgba(168, 85, 247, 0.7);
+   color: rgba(var(--accent-rgb), 0.7);
 }
 
 .deal-modal__stage-pip.is-done span {
-   color: rgba(255, 152, 0, 0.6);
+   color: rgba(var(--accent-strong-rgb), 0.6);
 }
 
 .deal-modal__stage-pip.is-active {
-   background: rgba(255, 152, 0, 0.16);
+   background: rgba(var(--accent-strong-rgb), 0.16);
    border-bottom: 2px solid var(--accent);
    padding-bottom: 6px;
 }
 
 [data-theme="neon"] .deal-modal__stage-pip.is-active {
-   background: rgba(168, 85, 247, 0.25);
+   background: rgba(var(--accent-rgb), 0.25);
 }
 
 .deal-modal__stage-pip.is-active span {
@@ -1260,7 +1272,7 @@ section.content-grid--primary {
   box-sizing: border-box;
 }
 .deal-modal__edit-input:focus {
-   border-color: rgba(255, 152, 0, 0.42);
+   border-color: rgba(var(--accent-strong-rgb), 0.42);
 }
 
 [data-theme="neon"] .deal-modal__edit-input:focus {
@@ -1335,14 +1347,14 @@ section.content-grid--primary {
 }
 
 .deal-modal__stage-btn.is-active {
-   background: rgba(255, 152, 0, 0.15);
-   border-color: rgba(255, 152, 0, 0.4);
+   background: rgba(var(--accent-strong-rgb), 0.15);
+   border-color: rgba(var(--accent-strong-rgb), 0.4);
    color: var(--accent-strong);
    font-weight: 700;
 }
 
 [data-theme="neon"] .deal-modal__stage-btn.is-active {
-   background: rgba(168, 85, 247, 0.2);
+   background: rgba(var(--accent-rgb), 0.2);
    border-color: var(--accent);
    color: var(--accent-strong);
    box-shadow: var(--glow-xs);
@@ -1616,7 +1628,7 @@ section.content-grid--primary {
 
 .dev-card:hover .dev-avatar-badge {
   transform: scale(1.1) rotate(-3deg);
-  box-shadow: 0 6px 15px rgba(255, 152, 0, 0.3);
+  box-shadow: 0 6px 15px rgba(var(--accent-strong-rgb), 0.3);
 }
 
 [data-theme="neon"] .dev-card:hover {
@@ -1774,7 +1786,7 @@ section.content-grid--primary {
 
 .custom-select-option.is-selected {
   color: var(--accent-strong);
-  background: rgba(255, 152, 0, 0.1);
+  background: rgba(var(--accent-strong-rgb), 0.1);
 }
 
 /* ── Skeleton Loaders ────────────────────────────────────────── */
