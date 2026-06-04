@@ -1,0 +1,243 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Victory Splash — "Pipeline Secured" celebration overlay
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Root container ─────────────────────────────────────────────────────── */
+.victory-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: all;
+  overflow: hidden;
+}
+
+.victory-splash.stage-outro {
+  transition: opacity 0.6s ease;
+  opacity: 0;
+}
+
+/* ── ESC hint ───────────────────────────────────────────────────────────── */
+.victory-splash__esc {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 10001;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+  user-select: none;
+  opacity: 0;
+  animation: victory-esc-fade 0.3s ease 0.2s forwards;
+}
+
+@keyframes victory-esc-fade {
+  to { opacity: 1; }
+}
+
+/* ── Stage 1 — Slash banners ────────────────────────────────────────────── */
+.victory-slash-a,
+.victory-slash-b {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.victory-slash-a {
+  clip-path: polygon(0 0, 100% 0, 85% 100%, 0 100%);
+  background: #F59E0B;
+  transform: translateX(-110%);
+  animation: slash-in-left 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.victory-slash-b {
+  clip-path: polygon(15% 0, 100% 0, 100% 100%, 0 100%);
+  background: #0F172A;
+  transform: translateX(110%);
+  animation: slash-in-right 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes slash-in-left {
+  to { transform: translateX(0); }
+}
+
+@keyframes slash-in-right {
+  to { transform: translateX(0); }
+}
+
+/* ── Stage 2 — Wireframe cut-in banner ──────────────────────────────────── */
+.victory-wireframe {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%) translateX(-100%);
+  z-index: 9999;
+  height: clamp(80px, 14vh, 140px);
+  background: #0F172A;
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(99, 179, 237, 0.12) 0px,
+      transparent 1px,
+      transparent 32px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(99, 179, 237, 0.12) 0px,
+      transparent 1px,
+      transparent 32px
+    );
+  border-top: 2px solid rgba(245, 158, 11, 0.4);
+  border-bottom: 2px solid rgba(245, 158, 11, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+}
+
+.victory-wireframe.is-active {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+  animation: wireframe-slide-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes wireframe-slide-in {
+  from {
+    transform: translateY(-50%) translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(-50%) translateX(0);
+    opacity: 1;
+  }
+}
+
+.victory-wireframe__text {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: clamp(1.2rem, 3vw, 2.4rem);
+  font-weight: 900;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(99, 179, 237, 0.5);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ── Stage 3 — Victory splash full-screen ───────────────────────────────── */
+.victory-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #0F172A;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+}
+
+.victory-fullscreen.is-active {
+  opacity: 1;
+  animation: victory-full-fade-in 0.4s ease forwards;
+}
+
+@keyframes victory-full-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Corner accent — top-left */
+.victory-fullscreen::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: clamp(120px, 20vw, 280px);
+  height: clamp(120px, 20vh, 280px);
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.3) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Corner accent — bottom-right */
+.victory-fullscreen::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: clamp(120px, 20vw, 280px);
+  height: clamp(120px, 20vh, 280px);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+  background: linear-gradient(315deg, rgba(245, 158, 11, 0.3) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Typography */
+.victory-title {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 900;
+  letter-spacing: 0.25em;
+  color: #F59E0B;
+  text-transform: uppercase;
+  text-align: center;
+  margin: 0 0 16px 0;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.victory-title.is-visible {
+  animation: victory-text-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.victory-metric {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #F59E0B;
+  text-align: center;
+  margin: 0 0 12px 0;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.victory-metric.is-visible {
+  animation: victory-text-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+}
+
+.victory-deal-name {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #FFFFFF;
+  text-align: center;
+  margin: 0;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.victory-deal-name.is-visible {
+  animation: victory-text-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.2s forwards;
+}
+
+@keyframes victory-text-rise {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Divider line between title and metrics ──────────────────────────────── */
+.victory-divider {
+  width: clamp(80px, 12vw, 160px);
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #F59E0B, transparent);
+  margin: 0 0 20px 0;
+  opacity: 0;
+}
+
+.victory-divider.is-visible {
+  animation: victory-text-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.05s forwards;
+}

@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS celebration_music (
 
 -- ─── Application Settings (key-value) ────────────────────────────────────────
 -- Stores generic app-wide toggles, e.g. celebration_animation_won / _lost.
--- Valid values for celebration_animation_*: 'confetti' | 'jojo' | 'none'
+-- Valid values for celebration_animation_*: 'confetti' | 'jojo' | 'none' | 'victory'
 CREATE TABLE IF NOT EXISTS app_settings (
     setting_key   VARCHAR(100) PRIMARY KEY,
     setting_value TEXT,
