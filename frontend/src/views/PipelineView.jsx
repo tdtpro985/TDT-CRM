@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import { formatCurrencyCompact, formatDateLabel, formatDateTimePHT, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole } from '../utils'
+import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatDateTimePHT, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole, roleAbbr } from '../utils'
 import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP, DEAL_STAGES } from '../constants'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
@@ -52,7 +52,6 @@ export default function PipelineView({
   handleTaskStatusToggle,
   onViewTasks,
   currentUser,
-  teamMembers,
   activeBranch,
   searchQuery
 }) {
@@ -99,6 +98,11 @@ export default function PipelineView({
   const [srFilter, setSrFilter] = useState('')
   useEffect(() => { setSrFilter('') }, [activeBranch])
 
+  // Owners selectable in the SR-Accounts filter — everyone in the manager's
+  // visibility scope (SRs + peer managers + self), fetched separately so it
+  // never feeds the assignment dropdowns. Empty for non-managers.
+  const [filterOwners, setFilterOwners] = useState([])
+
   // PDF attachments
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -142,11 +146,12 @@ export default function PipelineView({
   const location = useLocation()
   const navigate = useNavigate()
 
+  // Managers may edit their own deals or those owned by SRs, but not another manager's.
+  const ownerIsManager = ['Admin', 'Head of Sales', 'Regional Sales Manager'].includes(selectedDeal?.ownerRole)
   const canEdit = selectedDeal && (
     currentUser?.role === 'Admin' ||
-    currentUser?.role === 'Head of Sales' ||
-    currentUser?.role === 'Regional Sales Manager' ||
-    String(currentUser?.id) === String(selectedDeal.ownerId)
+    String(currentUser?.id) === String(selectedDeal.ownerId) ||
+    ((currentUser?.role === 'Head of Sales' || currentUser?.role === 'Regional Sales Manager') && !ownerIsManager)
   )
 
   const visibleStages = showClosed
@@ -200,11 +205,27 @@ export default function PipelineView({
     !!activeBranch
   )
 
+  // Fetch the scope-wide owner list (all roles, incl. self + peer managers) for
+  // the filter dropdown. Kept separate from teamMembers so assignment dropdowns
+  // are unaffected. Empty for non-managers.
+  useEffect(() => {
+    if (!canFilterBySR) { setFilterOwners([]); return }
+    let isCurrent = true
+    const q = activeBranch ? `?purpose=filter&branch=${encodeURIComponent(activeBranch)}` : '?purpose=filter'
+    apiFetch(`/api/team${q}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => { if (isCurrent) setFilterOwners(Array.isArray(d) ? d : []) })
+      .catch(() => { if (isCurrent) setFilterOwners([]) })
+    return () => { isCurrent = false }
+  }, [canFilterBySR, activeBranch])
+
+  // Filter options: scope-wide owners, current user pinned to the top.
   const srOptions = canFilterBySR
-    ? (teamMembers ?? []).filter(
-        (m) => m.branch === activeBranch &&
-               (m.role === 'Sales Representative' || m.role === 'Branch Account' || m.role === 'Sales Rep')
-      )
+    ? [...filterOwners].sort((a, b) => {
+        if (String(a.id) === String(currentUser?.id)) return -1
+        if (String(b.id) === String(currentUser?.id)) return 1
+        return (a.name || '').localeCompare(b.name || '')
+      })
     : []
 
   const srFilteredDeals = (canFilterBySR && srFilter)
@@ -357,15 +378,16 @@ export default function PipelineView({
               </label>
               {canFilterBySR && (
                 <label className="filter-wrap">
-                  <span>Branch Account</span>
+                  <span>SR Accounts</span>
                   <select
                     value={srFilter}
                     onChange={(e) => { setSrFilter(e.target.value); setCurrentPage(1) }}
                   >
                     <option value="">All reps</option>
-                    {srOptions.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
+                    {srOptions.map((m) => {
+                      const tag = (m.role && m.role !== 'Sales Representative' && m.role !== 'Sales Rep') ? ` (${roleAbbr(m.role)})` : ''
+                      return <option key={m.id} value={m.id}>{m.name}{tag}</option>
+                    })}
                   </select>
                 </label>
               )}

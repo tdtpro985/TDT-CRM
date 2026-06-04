@@ -9,9 +9,9 @@ from .database import get_db_connection, close_connection
 load_dotenv()
 
 MANILA_SRS = [
-    # Management — same person (Marky), two separate accounts
-    {'username': 'markyhos', 'name': 'Markyhos', 'role': 'Head of Sales'},
-    {'username': 'marky',    'name': 'Marky',    'role': 'Regional Sales Manager'},
+    # Management — Head of Sales (Jasmin) and Regional Sales Manager (Marky)
+    {'username': 'jasmin', 'name': 'Jasmin', 'role': 'Head of Sales'},
+    {'username': 'marky',  'name': 'Marky',  'role': 'Regional Sales Manager'},
     # Sales Representatives
     {'username': 'melody', 'name': 'Melody', 'role': 'Sales Representative'},
     {'username': 'emma',   'name': 'Emma',   'role': 'Sales Representative'},
