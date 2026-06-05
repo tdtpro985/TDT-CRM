@@ -39,6 +39,7 @@ function WonOverTimeChart({ data, type }) {
 function LostReasonBreakdown({ countData, valueData }) {
   const r = 65, cx = 85, cy = 85, sw = 22
   const circumference = 2 * Math.PI * r
+  const [hoveredReason, setHoveredReason] = useState(null)
   const total = countData.reduce((sum, d) => sum + d.count, 0)
   const { slices } = countData.reduce(
     ({ slices: acc, cum }, s) => {
@@ -71,7 +72,7 @@ function LostReasonBreakdown({ countData, valueData }) {
         <svg viewBox="0 0 170 170" className="donut-svg">
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
           {slices.map((s) => s.pct > 0 && (
-            <circle
+              <circle
               key={s.reason}
               cx={cx} cy={cy} r={r}
               fill="none"
@@ -79,7 +80,10 @@ function LostReasonBreakdown({ countData, valueData }) {
               strokeWidth={sw}
               strokeDasharray={`${s.pct * circumference} ${circumference}`}
               transform={`rotate(${s.startPct * 360 - 90}, ${cx}, ${cy})`}
-              style={{ transition: 'stroke-dasharray 0.5s ease' }}
+              style={{
+                transition: 'stroke-dasharray 0.5s ease, opacity 0.25s ease',
+                opacity: hoveredReason === null || hoveredReason === s.reason ? 1 : 0.12
+              }}
             />
           ))}
           <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--text-strong)" fontSize="22" fontWeight="800" fontFamily="inherit">
@@ -91,7 +95,9 @@ function LostReasonBreakdown({ countData, valueData }) {
         </svg>
         <div className="donut-legend">
           {slices.map((s) => (
-            <div key={s.reason} className="legend-item">
+            <div key={s.reason} className="legend-item"
+              onMouseEnter={() => setHoveredReason(s.reason)}
+              onMouseLeave={() => setHoveredReason(null)}>
               <span className="legend-dot" style={{ background: COLORS[s.reason] || '#64748b' }} />
               <span className="legend-label">{s.reason}</span>
               <span className="legend-count">{s.count.toLocaleString()}</span>
@@ -114,7 +120,9 @@ function LostReasonBreakdown({ countData, valueData }) {
           {valueData.map(d => {
             const pct = maxValue > 0 ? (d.value / maxValue) * 100 : 0
             return (
-              <div key={d.reason} className="lrb-bar-row">
+              <div key={d.reason} className="lrb-bar-row"
+                onMouseEnter={() => setHoveredReason(d.reason)}
+                onMouseLeave={() => setHoveredReason(null)}>
                 <span className="lrb-bar-dot" style={{ background: COLORS[d.reason] || '#64748b' }} />
                 <span className="lrb-bar-label">{d.reason}</span>
                 <div className="lrb-bar-track">
