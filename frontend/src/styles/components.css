@@ -97,6 +97,10 @@
   color: rgba(151,163,182,0.6);
 }
 
+[data-theme="light"] .search-field input::placeholder {
+  color: rgba(80, 80, 80, 0.5);
+}
+
 .search-field input[type="search"]::-webkit-search-cancel-button {
   display: none;
 }
@@ -115,6 +119,10 @@
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s ease, color 0.15s ease;
+}
+
+[data-theme="light"] .search-clear {
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .search-clear:hover {

@@ -64,10 +64,10 @@
   --accent-strong: #f57c00;
   --accent-strong-rgb: 247, 124, 0;
   --accent-soft: rgba(255, 152, 0, 0.12);
-  --text-strong: #1a1a1a;
-  --text: #3a3a3a;
-  --text-secondary: #5a5a5a;
-  --text-muted: #7a7a7a;
+  --text-strong: #0d0d0d;
+  --text: #1a1a1a;
+  --text-secondary: #3d3d3d;
+  --text-muted: #5a5a5a;
   --border: rgba(0, 0, 0, 0.12);
   --border-strong: rgba(0, 0, 0, 0.18);
   --bg-surface-2: rgba(0, 0, 0, 0.04);
@@ -196,6 +196,8 @@ body {
   background:
     radial-gradient(circle at top left, rgba(255, 152, 0, 0.1), transparent 30%),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-app) 100%);
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
 }
 
 [data-theme="neon"] body {
