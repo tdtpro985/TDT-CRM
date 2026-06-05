@@ -164,7 +164,15 @@ def ensure_schema():
         if 'profile_rotation' not in existing_columns:
             print("Adding missing 'profile_rotation' column to 'team' table...")
             cursor.execute("ALTER TABLE team ADD COLUMN profile_rotation INT DEFAULT 0")
-        
+
+        if 'theme' not in existing_columns:
+            print("Adding missing 'theme' column to 'team' table...")
+            cursor.execute("ALTER TABLE team ADD COLUMN theme VARCHAR(50) DEFAULT 'dark'")
+
+        if 'neon_color' not in existing_columns:
+            print("Adding missing 'neon_color' column to 'team' table...")
+            cursor.execute("ALTER TABLE team ADD COLUMN neon_color VARCHAR(50) DEFAULT 'pink'")
+
         conn.commit()
 
         # Migrate 'Sales Rep' role → 'Branch Account'
@@ -450,7 +458,7 @@ def admin_login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """SELECT id, name, email, role, branch, password, username, region, profile_pic, profile_zoom, profile_offset_y
+            """SELECT id, name, email, role, branch, password, username, region, profile_pic, profile_zoom, profile_offset_y, theme, neon_color
                FROM team
                WHERE LOWER(TRIM(username)) = %s AND role = 'Admin'""",
             (normalize_username(username),)
@@ -469,16 +477,18 @@ def admin_login():
             conn.commit()
 
         user = {
-            'id':          row[0],
-            'name':        row[1],
-            'email':       row[2],
-            'role':        row[3],
-            'branch':      row[4],
-            'username':    row[6],
-            'region':      row[7],
-            'profilePic':  row[8],
-            'profileZoom': row[9],
-            'profileOffsetY': row[10]
+            'id':             row[0],
+            'name':           row[1],
+            'email':          row[2],
+            'role':           row[3],
+            'branch':         row[4],
+            'username':       row[6],
+            'region':         row[7],
+            'profilePic':     row[8],
+            'profileZoom':    row[9],
+            'profileOffsetY': row[10],
+            'theme':          row[11] or 'dark',
+            'neonColor':      row[12] or 'pink',
         }
         
         # Ensure identity is a string and include role/branch in claims
@@ -508,7 +518,7 @@ def login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            """SELECT id, name, email, role, branch, password, username, region, profile_pic, profile_zoom, profile_offset_y
+            """SELECT id, name, email, role, branch, password, username, region, profile_pic, profile_zoom, profile_offset_y, theme, neon_color
                FROM team
                WHERE LOWER(TRIM(username)) = %s
                  AND LOWER(TRIM(branch)) = %s""",
@@ -528,16 +538,18 @@ def login():
             conn.commit()
 
         user = {
-            'id':          row[0],
-            'name':        row[1],
-            'email':       row[2],
-            'role':        row[3],
-            'branch':      row[4],
-            'username':    row[6],
-            'region':      row[7],
-            'profilePic':  row[8],
-            'profileZoom': row[9],
-            'profileOffsetY': row[10]
+            'id':             row[0],
+            'name':           row[1],
+            'email':          row[2],
+            'role':           row[3],
+            'branch':         row[4],
+            'username':       row[6],
+            'region':         row[7],
+            'profilePic':     row[8],
+            'profileZoom':    row[9],
+            'profileOffsetY': row[10],
+            'theme':          row[11] or 'dark',
+            'neonColor':      row[12] or 'pink',
         }
         
         # Ensure identity is a string and include role/branch in claims
@@ -546,6 +558,28 @@ def login():
             additional_claims={"role": user['role'], "branch": user['branch'], "region": user['region']}
         )
         return jsonify({'message': 'Login successful', 'user': user, 'access_token': access_token}), 200
+    finally:
+        close_connection(conn)
+
+
+# ─── User Preferences ────────────────────────────────────────────────────────
+
+@app.route('/api/team/profile/preferences', methods=['PUT'])
+@jwt_required()
+def save_user_preferences():
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    theme      = data.get('theme', 'dark')
+    neon_color = data.get('neonColor', 'pink')
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'UPDATE team SET theme = %s, neon_color = %s WHERE id = %s',
+            (theme, neon_color, user_id)
+        )
+        conn.commit()
+        return jsonify({'message': 'Preferences saved'}), 200
     finally:
         close_connection(conn)
 

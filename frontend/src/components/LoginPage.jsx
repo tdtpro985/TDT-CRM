@@ -20,8 +20,20 @@ const BRANCHES = [
   'Headquarters',
 ]
 
+const NEON_COLOR_SWATCHES = [
+  { id: 'pink',    color: '#FF00FF', label: 'Pink' },
+  { id: 'cyan',    color: '#00FFFF', label: 'Cyan' },
+  { id: 'green',   color: '#39FF14', label: 'Green' },
+  { id: 'yellow',  color: '#FFFF00', label: 'Yellow' },
+  { id: 'purple',  color: '#CC00FF', label: 'Purple' },
+  { id: 'blue',    color: '#00BFFF', label: 'Blue' },
+  { id: 'red',     color: '#FF003C', label: 'Red' },
+  { id: 'orange',  color: '#FF4800', label: 'Orange' },
+  { id: 'rainbow', color: null,      label: 'Rainbow', isRainbow: true },
+]
+
 export default function LoginPage({ onLogin }) {
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, neonColor, setNeonColor } = useTheme()
   const themes = [
     { id: 'dark', label: 'Dark', icon: IconMoon },
     { id: 'light', label: 'Light', icon: IconSun },
@@ -187,11 +199,29 @@ export default function LoginPage({ onLogin }) {
                   className={`login-theme-btn ${theme === t.id ? 'is-active' : ''}`}
                   onClick={() => setTheme(t.id)}
                   title={`Switch to ${t.label} theme`}
+                  aria-label={`Switch to ${t.label} theme`}
+                  aria-pressed={theme === t.id}
                 >
                   <span className="login-theme-icon"><t.icon /></span>
                 </button>
               ))}
             </div>
+            {theme === 'neon' && (
+              <div className="login-neon-color-picker">
+                {NEON_COLOR_SWATCHES.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`neon-color-dot ${s.isRainbow ? 'neon-color-dot--rainbow' : ''} ${neonColor === s.id ? 'is-active' : ''}`}
+                    style={!s.isRainbow ? { background: s.color } : undefined}
+                    onClick={() => setNeonColor(s.id)}
+                    title={s.label}
+                    aria-label={`Neon ${s.label}`}
+                    aria-pressed={neonColor === s.id}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <p className="login-footer">© {new Date().getFullYear()} TDT Powersteel. All rights reserved.</p>

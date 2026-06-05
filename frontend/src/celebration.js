@@ -180,7 +180,7 @@ function injectStyles() {
     #${JOJO_OVERLAY_ID} .jojo-filter {
       position: absolute;
       inset: 0;
-      background: rgba(200, 160, 60, 0.28);
+      background: rgba(255, 19, 240, 0.24);
       mix-blend-mode: multiply;
       pointer-events: none;
     }
@@ -287,7 +287,7 @@ export function triggerJoJo(onDismiss = null) {
   const prevFilter = document.body.style.filter
   const prevTransition = document.body.style.transition
   document.body.style.transition = 'filter 0.4s ease'
-  document.body.style.filter = 'sepia(0.65) contrast(1.15) saturate(0.8)'
+  document.body.style.filter = 'sepia(0.3) contrast(1.3) saturate(1.1) hue-rotate(290deg)'
 
   // ── Mount ─────────────────────────────────────────────────────────────────
   document.body.appendChild(root)
