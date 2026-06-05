@@ -64,12 +64,20 @@ export function useTheme() {
   const [theme, setThemeState] = useState(() => {
     const saved = sessionStorage.getItem(STORAGE_KEY)
     if (saved && THEMES.includes(saved)) return saved
+    try {
+      const user = JSON.parse(sessionStorage.getItem('crm_user') || 'null')
+      if (user?.theme && THEMES.includes(user.theme)) return user.theme
+    } catch { /* ignore */ }
     return DEFAULT_THEME
   })
 
   const [neonColor, setNeonColorState] = useState(() => {
     const saved = sessionStorage.getItem(NEON_COLOR_KEY)
     if (saved && NEON_COLORS.includes(saved)) return saved
+    try {
+      const user = JSON.parse(sessionStorage.getItem('crm_user') || 'null')
+      if (user?.neonColor && NEON_COLORS.includes(user.neonColor)) return user.neonColor
+    } catch { /* ignore */ }
     return DEFAULT_NEON_COLOR
   })
 
@@ -107,7 +115,11 @@ export function useTheme() {
   }, [theme, neonColor])
 
   const setTheme = (newTheme) => {
-    if (THEMES.includes(newTheme)) setThemeState(newTheme)
+    if (!THEMES.includes(newTheme)) return
+    setThemeState(newTheme)
+    document.documentElement.setAttribute('data-theme', newTheme)
+    sessionStorage.setItem(STORAGE_KEY, newTheme)
+    if (newTheme !== 'neon') clearNeonColor()
   }
 
   const setNeonColor = (color) => {
