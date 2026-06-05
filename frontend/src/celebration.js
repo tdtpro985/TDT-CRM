@@ -1,50 +1,128 @@
 import confetti from 'canvas-confetti'
 import tbcArrow from './assets/tbc.png'
+import { createRoot } from 'react-dom/client'
+import { createElement } from 'react'
+import VictorySplash from './components/VictorySplash'
 
 // ─── Confetti ─────────────────────────────────────────────────────────────────
 
-export function celebrateWon() {
-  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#FF00FF'
-  const duration = 2000
+const CONFETTI_COLORS = ['#f59e0b', '#f97316', '#eab308', '#ef4444', '#3b82f6', '#22c55e']
+
+let _activeConfettiDismiss = null
+
+export function celebrateWon(duration = 2000, onDismiss = null) {
+  if (_activeConfettiDismiss) {
+    _activeConfettiDismiss()
+    _activeConfettiDismiss = null
+  }
+
+  confetti.reset()
+
   const end = Date.now() + duration
+  let active = true
 
   const frame = () => {
+    if (!active) return
     confetti({
       particleCount: 3,
       angle: 60,
-      spread: 55,
-      origin: { x: 0 },
-      colors: [accent, '#f59e0b', '#f97316'],
+      spread: 90,
+      origin: { x: 0, y: 0.5 },
+      colors: CONFETTI_COLORS,
+      zIndex: 10000,
     })
     confetti({
       particleCount: 3,
       angle: 120,
-      spread: 55,
-      origin: { x: 1 },
-      colors: [accent, '#f59e0b', '#f97316'],
+      spread: 90,
+      origin: { x: 1, y: 0.5 },
+      colors: CONFETTI_COLORS,
+      zIndex: 10000,
+    })
+    confetti({
+      particleCount: 3,
+      angle: 270,
+      spread: 90,
+      origin: { x: 0.5, y: 0 },
+      colors: CONFETTI_COLORS,
+      zIndex: 10000,
+    })
+    confetti({
+      particleCount: 3,
+      angle: 90,
+      spread: 90,
+      origin: { x: 0.5, y: 1 },
+      colors: CONFETTI_COLORS,
+      zIndex: 10000,
     })
     if (Date.now() < end) requestAnimationFrame(frame)
   }
   frame()
 
-  confetti({
-    particleCount: 80,
-    spread: 100,
-    origin: { y: 0.6 },
-    colors: [accent, '#f59e0b', '#f97316', '#3b82f6', '#22c55e', '#ffffff'],
+  const hint = document.createElement('div')
+  hint.id = 'confetti-skip-hint'
+  hint.textContent = '[ Esc to dismiss ]'
+  Object.assign(hint.style, {
+    position: 'fixed',
+    top: '20px',
+    right: '24px',
+    zIndex: '10001',
+    fontFamily: "'Manrope', 'Segoe UI', sans-serif",
+    fontSize: '0.72rem',
+    letterSpacing: '0.1em',
+    color: 'rgba(255, 255, 255, 0.4)',
+    pointerEvents: 'none',
+    userSelect: 'none',
+    opacity: '0',
+    transition: 'opacity 0.3s ease',
   })
+  document.body.appendChild(hint)
+  requestAnimationFrame(() => { hint.style.opacity = '1' })
+
+  let destroyed = false
+  let deferredTimer = null
+
+  function cleanup(immediate, callOnDismiss) {
+    if (destroyed) return
+    if (immediate) {
+      destroyed = true
+      _activeConfettiDismiss = null
+      clearTimeout(deferredTimer)
+      confetti.reset()
+      hint.remove()
+      document.removeEventListener('keydown', onKeyDown)
+      if (callOnDismiss && onDismiss) onDismiss()
+    }
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'Escape') {
+      clearTimeout(naturalTimer)
+      cleanup(true, true)
+    }
+  }
+
+  document.addEventListener('keydown', onKeyDown)
+
+  _activeConfettiDismiss = () => {
+    clearTimeout(naturalTimer)
+    cleanup(true, true)
+  }
+
+  // Stop firing new particles when sound ends; let remaining particles fall naturally
+  const naturalTimer = setTimeout(() => {
+    active = false
+    hint.remove()
+    document.removeEventListener('keydown', onKeyDown)
+    deferredTimer = setTimeout(() => cleanup(true, false), 5000)
+  }, duration)
 }
 
-export function celebrateLost() {
-  confetti({
-    particleCount: 40,
-    spread: 70,
-    origin: { y: 0 },
-    colors: ['#6b7280', '#9ca3af', '#d1d5db'],
-    gravity: 0.6,
-    scalar: 0.6,
-    drift: 0.5,
-  })
+export function dismissActiveConfetti() {
+  if (_activeConfettiDismiss) {
+    _activeConfettiDismiss()
+    _activeConfettiDismiss = null
+  }
 }
 
 // ─── JoJo "To Be Continued" Overlay ──────────────────────────────────────────
@@ -290,5 +368,69 @@ export function dismissActiveJoJo() {
   if (_activeJoJo) {
     _activeJoJo.dismiss()
     _activeJoJo = null
+  }
+}
+
+// ─── Victory Splash "Pipeline Secured" Overlay ────────────────────────────────
+
+let _activeVictorySplash = null
+
+/**
+ * Mount the Victory Splash celebration overlay.
+ * @param {{ name: string, value: number }} dealMeta – deal snapshot
+ * @param {(() => void)|null} onDismiss – optional callback after overlay is removed
+ */
+export function triggerVictorySplash(dealMeta, onDismiss = null) {
+  // Tear down any previous instance
+  if (_activeVictorySplash) {
+    _activeVictorySplash.forceRemove()
+    _activeVictorySplash = null
+  }
+
+  const container = document.createElement('div')
+  container.id = 'victory-splash-root'
+  document.body.appendChild(container)
+  const root = createRoot(container)
+
+  let removed = false
+
+  function remove() {
+    if (removed) return
+    removed = true
+    _activeVictorySplash = null
+    try { root.unmount() } catch { /* noop */ }
+    container.remove()
+    onDismiss?.()
+  }
+
+  function forceRemove() {
+    if (removed) return
+    removed = true
+    _activeVictorySplash = null
+    try { root.unmount() } catch { /* noop */ }
+    container.remove()
+  }
+
+  _activeVictorySplash = { dismiss: remove, forceRemove }
+
+  root.render(
+    createElement(VictorySplash, {
+      dealName: dealMeta.name,
+      dealValue: dealMeta.value,
+      onDismiss: remove,
+    })
+  )
+
+  return { dismiss: remove, forceRemove }
+}
+
+/**
+ * Dismiss any active Victory Splash overlay — safe to call even if none is active.
+ * Used by route-change cleanup.
+ */
+export function dismissActiveVictorySplash() {
+  if (_activeVictorySplash) {
+    _activeVictorySplash.dismiss()
+    _activeVictorySplash = null
   }
 }

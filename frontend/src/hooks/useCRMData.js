@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiFetch, API_BASE, updatePassword, uploadProfilePhoto, removeProfilePhoto, adjustProfilePhoto } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
-import { celebrateWon, celebrateLost, triggerJoJo, dismissActiveJoJo } from '../celebration'
+import { celebrateWon, triggerJoJo, dismissActiveJoJo, dismissActiveConfetti, triggerVictorySplash, dismissActiveVictorySplash } from '../celebration'
 import jojoSound from '../assets/sounds/jojo.mp3'
+import confettiSound from '../assets/sounds/yeah-boiii-i-i-i.mp3'
 
 const CURRENT_DATE = getTodayISO()
 
@@ -141,26 +142,28 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     } catch { /* best-effort background refresh */ }
   }
 
-  function playCelebrationAnimation(outcome) {
+  function playCelebrationAnimation(outcome, snapshot = null) {
     let style = animationRef.current[outcome] ?? 'confetti'
     if (outcome === 'won' && style === 'jojo') style = 'confetti'
     if (style === 'none') return
-    if (style === 'jojo') {
+    if (style === 'victory' && snapshot) {
+      triggerVictorySplash(
+        { name: snapshot.name, value: snapshot.value },
+        () => { /* audio cleanup handled inside component */ }
+      )
+    } else if (style === 'jojo') {
       triggerJoJo(() => {
-        // When the JoJo overlay is dismissed, also stop the audio
         if (audioRef.current) {
           audioRef.current.pause()
           audioRef.current = null
         }
       })
-    } else {
-      // Default: confetti
-      if (outcome === 'won') celebrateWon()
-      else celebrateLost()
+    } else if (outcome === 'won') {
+      celebrateWon()
     }
   }
 
-  /** Stop any active audio stream and JoJo overlay — call on route change. */
+  /** Stop any active audio, confetti, JoJo, and Victory Splash — call on route change. */
   function stopAllCelebration() {
     if (audioRef.current) {
       audioRef.current.pause()
@@ -168,6 +171,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       audioRef.current = null
     }
     dismissActiveJoJo()
+    dismissActiveConfetti()
+    dismissActiveVictorySplash()
   }
 
   async function loadAll() {
@@ -646,21 +651,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         preloadedAudio = new Audio(
           entry.url.startsWith('http') ? entry.url : `${API_BASE}${entry.url}`
         )
-        preloadedAudio.preload = 'auto'
+      } else {
+        preloadedAudio = new Audio(confettiSound)
       }
+      preloadedAudio.preload = 'auto'
     } else if (nextStage === 'Closed Lost') {
       if (animationRef.current.lost === 'jojo') {
         preloadedAudio = new Audio(jojoSound)
         preloadedAudio.preload = 'auto'
-      } else {
-        const entries = musicRef.current.lost
-        const entry = entries?.length ? entries[Math.floor(Math.random() * entries.length)] : null
-        if (entry?.url) {
-          preloadedAudio = new Audio(
-            entry.url.startsWith('http') ? entry.url : `${API_BASE}${entry.url}`
-          )
-          preloadedAudio.preload = 'auto'
-        }
       }
     }
 
@@ -674,14 +672,30 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         throw new Error(errData.error || `Server error: ${res.status}`)
       }
       if (nextStage === 'Closed Won') {
-        if (preloadedAudio) {
+        if (animationRef.current.won === 'victory') {
+          // Victory Splash handles its own audio — no admin-configured audio used
+          playCelebrationAnimation('won', snapshot)
+        } else if (preloadedAudio) {
           audioRef.current = preloadedAudio
           preloadedAudio.play().catch(() => {})
+
+          const audioDuration = (preloadedAudio.duration && isFinite(preloadedAudio.duration) && preloadedAudio.duration > 0)
+            ? Math.round(preloadedAudio.duration * 1000)
+            : 2000
+
+          celebrateWon(audioDuration, () => {
+            if (audioRef.current) {
+              audioRef.current.pause()
+              audioRef.current = null
+            }
+          })
+
           preloadedAudio.addEventListener('ended', () => {
             if (audioRef.current === preloadedAudio) audioRef.current = null
           })
+        } else {
+          celebrateWon(2000)
         }
-        playCelebrationAnimation('won')
       } else if (nextStage === 'Closed Lost') {
         if (preloadedAudio) {
           audioRef.current = preloadedAudio
@@ -690,7 +704,9 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
             if (audioRef.current === preloadedAudio) audioRef.current = null
           })
         }
-        playCelebrationAnimation('lost')
+        if (animationRef.current.lost === 'jojo') {
+          playCelebrationAnimation('lost')
+        }
       }
       showToast(`Deal stage updated to ${nextStage}`)
       const syncs = [fetchDeals(), fetchCustomers()]
