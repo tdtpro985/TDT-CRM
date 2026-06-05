@@ -34,7 +34,7 @@ export const DEAL_STAGES = Object.keys(STAGE_WORKFLOW)
 export const SHORT_STAGE_LABEL = { 'New Opportunity': 'New Opp', 'Closed Won': 'Won', 'Closed Lost': 'Lost' }
 
 export const STAGE_COLORS = {
-  'Qualified':       '#ff9800',
+  'Qualified':       'var(--accent-strong)',
   'New Opportunity': '#38bdf8',
   'Proposal':        '#34d399',
   'Negotiation':     '#fb7185',
@@ -51,7 +51,7 @@ export const REGION_BRANCHES = {
 export const LOST_REASONS = ['Price', 'Competitor', 'Budget', 'Timeline', 'No response', 'Other']
 
 export const HEALTH_LABELS = ['Critical', 'At Risk', 'Healthy']
-export const HEALTH_COLORS = { Critical: '#fb7185', 'At Risk': '#fbbf24', Healthy: '#34d399' }
+export const HEALTH_COLORS = { Critical: '#fb7185', 'At Risk': 'var(--warning)', Healthy: '#34d399' }
 export const HEALTH_MAP = { Overdue: 'Critical', 'High Priority': 'At Risk', 'Due Today': 'Healthy' }
 
 export const NAV_CONFIG = [

@@ -1,16 +1,49 @@
+import { useState } from 'react'
 import './ThemeToggle.css'
 import { IconMoon, IconSun, IconSparkle } from './Icons'
 
-export default function ThemeToggle({ theme, onThemeChange }) {
+const NEON_COLOR_SWATCHES = [
+  { id: 'pink',    color: '#FF00FF', label: 'Pink' },
+  { id: 'cyan',    color: '#00FFFF', label: 'Cyan' },
+  { id: 'green',   color: '#39FF14', label: 'Green' },
+  { id: 'yellow',  color: '#FFFF00', label: 'Yellow' },
+  { id: 'purple',  color: '#CC00FF', label: 'Purple' },
+  { id: 'blue',    color: '#00BFFF', label: 'Blue' },
+  { id: 'red',     color: '#FF003C', label: 'Red' },
+  { id: 'orange',  color: '#FF4800', label: 'Orange' },
+  { id: 'rainbow', color: null,      label: 'Rainbow', isRainbow: true },
+]
+
+export default function ThemeToggle({ theme, onThemeChange, neonColor, onNeonColorChange, onSaveDefault }) {
+  const [saved, setSaved] = useState(false)
+
   const themes = [
-    { id: 'dark', label: 'Dark', icon: IconMoon },
+    { id: 'dark',  label: 'Dark',  icon: IconMoon },
     { id: 'light', label: 'Light', icon: IconSun },
-    { id: 'neon', label: 'Neon', icon: IconSparkle },
+    { id: 'neon',  label: 'Neon',  icon: IconSparkle },
   ]
+
+  function handleSave() {
+    onSaveDefault(theme, neonColor)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
 
   return (
     <div className="theme-toggle">
-      <p className="theme-toggle-label">Theme</p>
+      <div className="theme-toggle-header">
+        <p className="theme-toggle-label">Theme</p>
+        {onSaveDefault && (
+          <button
+            type="button"
+            className={`theme-save-btn ${saved ? 'is-saved' : ''}`}
+            onClick={handleSave}
+            title="Save theme as default for your account"
+          >
+            {saved ? '✓ Saved' : 'Save default'}
+          </button>
+        )}
+      </div>
       <div className="theme-toggle-buttons">
         {themes.map((t) => (
           <button
@@ -27,6 +60,23 @@ export default function ThemeToggle({ theme, onThemeChange }) {
           </button>
         ))}
       </div>
+
+      {theme === 'neon' && (
+        <div className="neon-color-picker">
+          {NEON_COLOR_SWATCHES.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              className={`neon-color-dot ${s.isRainbow ? 'neon-color-dot--rainbow' : ''} ${neonColor === s.id ? 'is-active' : ''}`}
+              style={!s.isRainbow ? { background: s.color } : undefined}
+              onClick={() => onNeonColorChange(s.id)}
+              title={s.label}
+              aria-label={`Neon ${s.label}`}
+              aria-pressed={neonColor === s.id}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

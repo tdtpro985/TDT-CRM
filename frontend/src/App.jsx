@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-
 import './App.css'
 import { formatCurrencyCompact, displayRole, shortStageLabel, getTodayISO } from './utils'
 import { clearToken, getUser, saveUser, apiFetch, API_BASE } from './api'
+import { resetThemeToDefaults } from './hooks/useTheme'
 import {
   CUSTOMER_STATUSES,
   TASK_TYPES,
@@ -56,7 +57,7 @@ export default function App() {
   const sidebarCloseTimer = useRef(null)
   
   // Theme management
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, neonColor, setNeonColor } = useTheme()
 
   // ─── Performance: Search Debounce ──────────────────────────────────────────
   useEffect(() => {
@@ -69,12 +70,17 @@ export default function App() {
   function handleLogin(user) {
     saveUser(user)
     setCurrentUser(user)
+    if (user.theme) setTheme(user.theme)
+    if (user.neonColor) setNeonColor(user.neonColor)
     setNotice(`Welcome back, ${user.name}! You are logged in to the ${user.branch} branch.`)
   }
 
   function handleLogout() {
+    resetThemeToDefaults()   // synchronous: clears sessionStorage + style tag before re-render
     clearToken()
     setCurrentUser(null)
+    setTheme('dark')
+    setNeonColor('pink')
     setNotice('You have been logged out.')
   }
 
@@ -545,7 +551,16 @@ export default function App() {
             <span>Open tasks still waiting on follow-through</span>
           </div>
           
-          <ThemeToggle theme={theme} onThemeChange={setTheme} />
+          <ThemeToggle
+            theme={theme}
+            onThemeChange={setTheme}
+            neonColor={neonColor}
+            onNeonColorChange={setNeonColor}
+            onSaveDefault={(t, nc) => apiFetch('/api/team/profile/preferences', {
+              method: 'PUT',
+              body: JSON.stringify({ theme: t, neonColor: nc }),
+            })}
+          />
           
           <div className="sidebar-user">
             <button type="button" className="about-button" style={{ marginBottom: '4px' }} onClick={() => setShowProfile(true)}>My Profile</button>

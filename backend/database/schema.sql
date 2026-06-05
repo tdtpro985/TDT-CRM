@@ -15,7 +15,9 @@ CREATE TABLE IF NOT EXISTS team (
     role     VARCHAR(100) DEFAULT 'Branch Account',
     branch   VARCHAR(100) NOT NULL,
     region   ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'Central',
-    profile_pic VARCHAR(500) NULL
+    profile_pic VARCHAR(500) NULL,
+    theme       VARCHAR(50)  DEFAULT 'dark',
+    neon_color  VARCHAR(50)  DEFAULT 'pink'
 );
 
 -- ─── Companies ───────────────────────────────────────────────────────────────
