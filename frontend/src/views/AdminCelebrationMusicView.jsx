@@ -7,9 +7,15 @@ const OUTCOMES = [
   { key: 'lost', label: ' Lost Sound', icon: '' },
 ]
 
-const ANIMATION_OPTIONS = [
+const WON_ANIMATION_OPTIONS = [
   { value: 'confetti', label: 'Confetti' },
+  { value: 'victory', label: 'Pipeline Secured' },
+  { value: 'none', label: 'None' },
+]
+
+const LOST_ANIMATION_OPTIONS = [
   { value: 'jojo', label: 'To Be Continued' },
+  { value: 'confetti', label: 'Confetti' },
   { value: 'none', label: 'None' },
 ]
 
@@ -198,9 +204,9 @@ export default function AdminCelebrationMusicView({ showToast }) {
         ) : (
           <div className="profile-grid">
             {[
-              { key: 'won', label: 'Closed Won Animation', hideJojo: true },
-              { key: 'lost', label: 'Closed Lost Animation', hideJojo: false },
-            ].map(({ key, label, hideJojo }) => (
+              { key: 'won', label: 'Closed Won Animation', options: WON_ANIMATION_OPTIONS },
+              { key: 'lost', label: 'Closed Lost Animation', options: LOST_ANIMATION_OPTIONS },
+            ].map(({ key, label, options }) => (
               <div key={key}>
                 <span style={{
                   display: 'block',
@@ -212,7 +218,7 @@ export default function AdminCelebrationMusicView({ showToast }) {
                   {label}
                 </span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xs)' }}>
-                  {(hideJojo ? ANIMATION_OPTIONS.filter(o => o.value !== 'jojo') : ANIMATION_OPTIONS).map((opt) => {
+                  {options.map((opt) => {
                     const isActive = animation[key] === opt.value
                     return (
                       <button
