@@ -191,7 +191,6 @@ export default function PageSkeleton({ view }) {
   if (view === 'dashboard') {
     return (
       <div className="sk-page">
-        <SkHero />
         <SkMetricsRow count={5} />
         <div className="sk-two-col">
           <SkPanel lines={5} />
@@ -201,6 +200,11 @@ export default function PageSkeleton({ view }) {
           <SkPanel lines={4} />
           <SkPanel lines={4} />
         </div>
+        <div className="sk-two-col">
+          <SkPanel lines={3} />
+          <SkPanel lines={3} />
+        </div>
+        <SkPanel lines={5} />
       </div>
     )
   }
