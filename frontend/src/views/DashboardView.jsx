@@ -5,24 +5,25 @@ import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, isSrRole } from '../utils'
 import { ITEMS_PER_PAGE } from '../constants'
 
-function WonOverTimeChart({ data, type }) {
+function WonOverTimeChart({ data, type, mode }) {
+  const label = mode === 'won' ? 'won' : 'lost'
   if (data.length === 0) {
-    return <div className="dashboard-chart-empty">No deals won in this period.</div>
+    return <div className="dashboard-chart-empty">No deals {label} in this period.</div>
   }
 
   const maxValue = Math.max(...data.map(d => type === 'revenue' ? d.value : d.count), 1)
 
   return (
-    <div className="dashboard-chart">
+    <div className={`dashboard-chart ${mode === 'lost' ? 'dashboard-chart--lost' : ''}`}>
       {data.map(d => {
         const val = type === 'revenue' ? d.value : d.count
         const height = (val / maxValue) * 100
         return (
           <div key={d.month} className="chart-bar-container">
             <div 
-              className="chart-bar" 
+              className={`chart-bar ${mode === 'lost' ? 'chart-bar--lost' : ''}`}
               style={{ height: `${height}%` }}
-              title={`${d.month}: ${type === 'revenue' ? formatCurrencyCompact(d.value) : d.count + ' deals'}`}
+              title={`${d.month}: ${type === 'revenue' ? formatCurrencyCompact(d.value) : d.count + ' deals'} (${label})`}
             >
               <span className="chart-bar__value">
                 {type === 'revenue' ? formatCurrencyCompact(val) : val}
@@ -138,6 +139,69 @@ function LostReasonBreakdown({ countData, valueData }) {
   )
 }
 
+function StageDonutChart({ data, hovered, onHover }) {
+  const r = 65, cx = 85, cy = 85, sw = 22
+  const circumference = 2 * Math.PI * r
+
+  const activeStages = data.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost' && s.count > 0)
+  const total = activeStages.reduce((sum, s) => sum + s.count, 0)
+
+  const STAGE_COLORS = {
+    'Qualified':       '#ff9800',
+    'New Opportunity': '#38bdf8',
+    'Proposal':        '#34d399',
+    'Negotiation':     '#fb7185',
+  }
+
+  const slices = activeStages.reduce((acc, s) => {
+    const pct = total ? s.count / total : 0
+    const startPct = acc.length ? acc[acc.length - 1].startPct + acc[acc.length - 1].pct : 0
+    return [...acc, { ...s, pct, startPct }]
+  }, [])
+
+  if (total === 0) {
+    return <div className="u-text-muted u-fs-sm u-margin-t-16">No deals in pipeline.</div>
+  }
+
+  return (
+    <div className="donut-wrapper">
+      <svg viewBox="0 0 170 170" className="donut-svg">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
+        {slices.map((s) => s.pct > 0 && (
+          <circle
+            key={s.stage}
+            cx={cx} cy={cy} r={r}
+            fill="none"
+            stroke={STAGE_COLORS[s.stage] || '#64748b'}
+            strokeWidth={sw}
+            strokeDasharray={`${s.pct * circumference} ${circumference}`}
+            transform={`rotate(${s.startPct * 360 - 90}, ${cx}, ${cy})`}
+            style={{
+              transition: 'stroke-dasharray 0.5s ease, opacity 0.25s ease',
+              opacity: hovered === null || hovered === s.stage ? 1 : 0.12
+            }}
+          />
+        ))}
+        <text x={cx} y={cy + 4} textAnchor="middle" fill="var(--text-strong)" fontSize="24" fontWeight="800" fontFamily="inherit">
+          {total.toLocaleString()}
+        </text>
+      </svg>
+      <div className="donut-legend">
+        {slices.map((s) => (
+          <div key={s.stage} className="legend-item"
+            onMouseEnter={() => onHover(s.stage)}
+            onMouseLeave={() => onHover(null)}>
+            <span className="legend-dot" style={{ background: STAGE_COLORS[s.stage] || '#64748b' }} />
+            <span className="legend-label">{s.stage}</span>
+            <span className="legend-count">{s.count.toLocaleString()}</span>
+            <span className="legend-pct">{Math.round(s.pct * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardView({
   topKpis,
   stageSummary,
@@ -153,7 +217,6 @@ export default function DashboardView({
   const isSr = isSrRole(currentUser?.role)
   const stageListRef = useRef(null)
   const healthRef = useRef(null)
-  const [visible, setVisible] = useState(false)
   const [healthVisible, setHealthVisible] = useState(false)
 
   // Chart state
@@ -164,10 +227,20 @@ export default function DashboardView({
   })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 7))
   const [chartType, setChartType] = useState('revenue')
+  const [chartMode, setChartMode] = useState('won')
+  const [hoveredStage, setHoveredStage] = useState(null)
+
+  const PIPELINE_STAGE_COLORS = {
+    'Qualified':       '#ff9800',
+    'New Opportunity': '#38bdf8',
+    'Proposal':        '#34d399',
+    'Negotiation':     '#fb7185',
+  }
 
   const chartData = useMemo(() => {
-    const wonDeals = deals.filter(d => {
-      if (d.stage !== 'Closed Won') return false
+    const targetStage = chartMode === 'won' ? 'Closed Won' : 'Closed Lost'
+    const filteredDeals = deals.filter(d => {
+      if (d.stage !== targetStage) return false
       const date = d.closeDate || d.createdAt
       if (!date) return false
       const month = date.slice(0, 7)
@@ -191,7 +264,7 @@ export default function DashboardView({
       }
     }
 
-    wonDeals.forEach(d => {
+    filteredDeals.forEach(d => {
       const month = (d.closeDate || d.createdAt).slice(0, 7)
       if (!groups[month]) groups[month] = { month, count: 0, value: 0 }
       groups[month].count++
@@ -199,7 +272,7 @@ export default function DashboardView({
     })
 
     return Object.values(groups).sort((a, b) => a.month.localeCompare(b.month))
-  }, [deals, startDate, endDate])
+  }, [deals, startDate, endDate, chartMode])
 
   // Won/Lost Metrics
   const wonStats = useMemo(() => {
@@ -261,22 +334,6 @@ export default function DashboardView({
     Medium: openTasks.filter(t => t.priority === 'Medium').length,
     Low: openTasks.filter(t => t.priority === 'Low').length,
   }
-
-  useEffect(() => {
-    const el = stageListRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true)
-          observer.disconnect()
-        }
-      },
-      { threshold: 0.2 },
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
 
   useEffect(() => {
     const el = healthRef.current
@@ -416,6 +473,32 @@ export default function DashboardView({
           background: var(--accent);
           color: #10131f;
         }
+        .chart-mode-btn {
+          padding: 2px 8px;
+          border-radius: 3px;
+          border: none;
+          background: transparent;
+          color: var(--text-muted);
+          font-size: 10px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .chart-mode-btn.is-active {
+          color: #10131f;
+        }
+        .chart-mode-btn.is-active:first-child {
+          background: var(--positive);
+        }
+        .chart-mode-btn.is-active:last-child {
+          background: var(--alert);
+        }
+        .chart-bar--lost {
+          background: var(--alert) !important;
+        }
+        .dashboard-chart--lost .chart-bar:hover {
+          filter: brightness(1.2);
+          box-shadow: 0 0 12px var(--alert);
+        }
         .lost-reason-breakdown {
           display: grid;
           grid-template-columns: auto 1fr;
@@ -546,6 +629,30 @@ export default function DashboardView({
           text-align: right;
           font-weight: 600;
         }
+        .pipeline-snapshot-layout {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          align-items: start;
+        }
+        .pipeline-snapshot-donut {
+          display: flex;
+          align-items: center;
+          min-height: 160px;
+        }
+        .pipeline-snapshot-donut .donut-legend {
+          min-width: 140px;
+        }
+        .pipeline-snapshot-donut .donut-svg {
+          width: 150px;
+          height: 150px;
+        }
+        .stage-row--hovered {
+          border-left: 3px solid;
+          padding-left: 13px;
+          background: rgba(255,255,255,0.03);
+          border-radius: 0 4px 4px 0;
+        }
         .history-table-container {
           width: 100%;
           overflow-x: auto;
@@ -637,10 +744,24 @@ export default function DashboardView({
       <section className="content-grid content-grid--2">
         <Panel
           kicker="Performance"
-          title="Deals Won Over Time"
-          detail="Growth tracking for successfully closed opportunities."
+          title={`Deals ${chartMode === 'won' ? 'Won' : 'Lost'} Over Time`}
+          detail={chartMode === 'won' ? 'Growth tracking for successfully closed opportunities.' : 'Analysis of lost deals and missed opportunities.'}
           action={
             <div className="chart-filters">
+              <div className="chart-type-toggle">
+                <button
+                  className={`chart-mode-btn ${chartMode === 'won' ? 'is-active' : ''}`}
+                  onClick={() => setChartMode('won')}
+                >
+                  Won
+                </button>
+                <button
+                  className={`chart-mode-btn ${chartMode === 'lost' ? 'is-active' : ''}`}
+                  onClick={() => setChartMode('lost')}
+                >
+                  Lost
+                </button>
+              </div>
               <div className="chart-type-toggle">
                 <button 
                   className={`chart-type-btn ${chartType === 'revenue' ? 'is-active' : ''}`}
@@ -672,7 +793,7 @@ export default function DashboardView({
           }
         >
           <div className="dashboard-chart-container">
-            <WonOverTimeChart data={chartData} type={chartType} />
+            <WonOverTimeChart data={chartData} type={chartType} mode={chartMode} />
           </div>
         </Panel>
 
@@ -681,32 +802,35 @@ export default function DashboardView({
           title="Deals by stage with expected revenue"
           detail="This keeps opportunity movement visible without leaving the dashboard."
         >
-          <div ref={stageListRef} className="stage-list">
-            {stageSummary.map((stage, i) => (
-              <div key={stage.stage} className="stage-row">
-                <div className="stage-meta">
-                  <div>
-                    <strong>{stage.stage}</strong>
-                    <span> - {stage.count} deals tracked</span>
+          <div className="pipeline-snapshot-layout">
+            <div className="pipeline-snapshot-donut">
+              <StageDonutChart
+                data={stageSummary.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost')}
+                hovered={hoveredStage}
+                onHover={setHoveredStage}
+              />
+            </div>
+            <div className="pipeline-snapshot-list">
+              <div ref={stageListRef} className="stage-list">
+                {stageSummary.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost' && s.count > 0).map((stage) => (
+                  <div
+                    key={stage.stage}
+                    className={`stage-row${hoveredStage === stage.stage ? ' stage-row--hovered' : ''}`}
+                    style={{ borderLeftColor: hoveredStage === stage.stage ? (PIPELINE_STAGE_COLORS[stage.stage] || '#ffb547') : 'transparent' }}
+                    onMouseEnter={() => setHoveredStage(stage.stage)}
+                    onMouseLeave={() => setHoveredStage(null)}
+                  >
+                    <div className="stage-meta">
+                      <div>
+                        <strong>{stage.stage}</strong>
+                        <span>{stage.count}</span>
+                      </div>
+                      <span>{formatCurrencyCompact(stage.value)}</span>
+                    </div>
                   </div>
-                  <span>{formatCurrencyCompact(stage.value)}</span>
-                </div>
-                {stage.stage !== 'Closed Won' && stage.stage !== 'Closed Lost' && (
-                  <div className="stage-track">
-                    <div
-                      className={`stage-fill${visible ? ' visible' : ''}`}
-                      style={{
-                        width: `${stage.count > 0
-                          ? Math.min(Math.round((stage.count / ITEMS_PER_PAGE) * 100), 100)
-                          : 0}%`,
-                        animationDelay: visible ? `${i * 0.1}s` : undefined,
-                      }}
-                    />
-                  </div>
-                )}
-
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         </Panel>
       </section>
