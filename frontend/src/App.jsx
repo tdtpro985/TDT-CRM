@@ -54,6 +54,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarClosing, setSidebarClosing] = useState(false)
+  const [showCustomize, setShowCustomize] = useState(false)
   const sidebarCloseTimer = useRef(null)
   
   // Theme management
@@ -293,6 +294,8 @@ export default function App() {
             openTasks={openTasks}
             linkHealth={linkHealth}
             currentUser={currentUser}
+            showCustomize={showCustomize}
+            setShowCustomize={setShowCustomize}
           />
         } />
         <Route path="/database" element={
@@ -627,7 +630,10 @@ export default function App() {
               </datalist>
             </label>
             <button type="button" className="secondary-button" onClick={handleShareCurrentView}>Share view</button>
-            {activeView !== 'pipeline' && (
+            {activeView === 'dashboard' && (
+              <button type="button" className="secondary-button" onClick={() => setShowCustomize(true)}>Customize Layout</button>
+            )}
+            {activeView !== 'pipeline' && activeView !== 'dashboard' && (
               <button type="button" className="primary-button" onClick={handlePrimaryAction}>{primaryActionLabel}</button>
             )}
           </div>

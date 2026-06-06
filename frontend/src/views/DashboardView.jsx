@@ -1,5 +1,8 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, isSrRole } from '../utils'
@@ -202,6 +205,61 @@ function StageDonutChart({ data, hovered, onHover }) {
   )
 }
 
+const DEFAULT_LAYOUT = [
+  { id: 'kpi_metrics',    enabled: true },
+  { id: 'deals_chart',    enabled: true },
+  { id: 'stage_donut',    enabled: true },
+  { id: 'record_health',  enabled: true },
+  { id: 'priority_tasks', enabled: true },
+  { id: 'totals',         enabled: true },
+  { id: 'recent_wins',    enabled: true },
+  { id: 'recent_losses',  enabled: true },
+  { id: 'loss_analysis',  enabled: true },
+]
+
+const WIDGET_LABELS = {
+  kpi_metrics:     'KPI Metrics',
+  deals_chart:     'Deals Won/Lost Chart',
+  stage_donut:     'Deals by Stage',
+  record_health:   'Record Health',
+  priority_tasks:  'Priority Follow-ups',
+  totals:          'Won/Lost Totals',
+  recent_wins:     'Recent Wins',
+  recent_losses:   'Recent Losses',
+  loss_analysis:   'Loss Analysis',
+}
+
+const HALF_WIDTH = new Set(['deals_chart','stage_donut','record_health','priority_tasks','recent_wins','recent_losses'])
+
+function loadLayout(key) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(key))
+    if (!raw) return DEFAULT_LAYOUT
+    if (Array.isArray(raw)) {
+      const knownIds = new Set(raw.map(w => w.id))
+      const missing = DEFAULT_LAYOUT.filter(w => !knownIds.has(w.id))
+      return [...raw, ...missing]
+    }
+    // Migrate old object format
+    return DEFAULT_LAYOUT.map(w => ({ ...w, enabled: raw[w.id] ?? true }))
+  } catch { return DEFAULT_LAYOUT }
+}
+
+function SortableWidgetRow({ widget, onToggle }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
+  return (
+    <div ref={setNodeRef} style={style} className="customize-widget-row">
+      <span className="drag-handle" {...attributes} {...listeners}>⠿</span>
+      <span className="customize-widget-label">{WIDGET_LABELS[widget.id]}</span>
+      <label className="toggle-switch">
+        <input type="checkbox" checked={widget.enabled} onChange={onToggle} />
+        <span className="toggle-track" />
+      </label>
+    </div>
+  )
+}
+
 export default function DashboardView({
   topKpis,
   stageSummary,
@@ -212,12 +270,41 @@ export default function DashboardView({
   openTasks,
   linkHealth,
   currentUser,
+  showCustomize,
+  setShowCustomize,
 }) {
   const navigate = useNavigate()
   const isSr = isSrRole(currentUser?.role)
   const stageListRef = useRef(null)
   const healthRef = useRef(null)
   const [healthVisible, setHealthVisible] = useState(false)
+
+  // Layout customization
+  const layoutKey = `dashboard_layout_${currentUser?.id}`
+  const [layout, setLayout] = useState(() => loadLayout(`dashboard_layout_${currentUser?.id}`))
+  const [draftLayout, setDraftLayout] = useState(layout)
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  function handleDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return
+    setDraftLayout(prev => {
+      const from = prev.findIndex(w => w.id === active.id)
+      const to = prev.findIndex(w => w.id === over.id)
+      return arrayMove(prev, from, to)
+    })
+  }
+
+  function cancelCustomize() {
+    setDraftLayout(layout)
+    setShowCustomize(false)
+  }
+
+  function saveLayout() {
+    setLayout(draftLayout)
+    try { localStorage.setItem(layoutKey, JSON.stringify(draftLayout)) } catch { /* ignore */ }
+    setShowCustomize(false)
+  }
 
   // Chart state
   const [startDate, setStartDate] = useState(() => {
@@ -364,6 +451,176 @@ export default function DashboardView({
       .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
     return low.slice(0, 5)
   })()
+
+  // Build ordered render rows from layout array (smart 2-col pairing)
+  const renderRows = useMemo(() => {
+    const enabled = layout.filter(w => w.enabled).map(w => w.id)
+    const rows = []
+    let i = 0
+    while (i < enabled.length) {
+      const cur = enabled[i]
+      const nxt = enabled[i + 1]
+      if (HALF_WIDTH.has(cur) && nxt && HALF_WIDTH.has(nxt)) {
+        rows.push({ type: 'pair', a: cur, b: nxt })
+        i += 2
+      } else {
+        rows.push({ type: 'single', id: cur })
+        i++
+      }
+    }
+    return rows
+  }, [layout])
+
+  function renderWidget(id) {
+    switch (id) {
+      case 'kpi_metrics': return (
+        <section key="kpi_metrics" className="metrics-grid metrics-grid--five" aria-label="Core KPIs">
+          {topKpis.map((kpi) => (
+            <MetricCard key={kpi.label} label={kpi.label} value={kpi.value} meta={kpi.meta} accent={kpi.accent} route={kpi.route} />
+          ))}
+        </section>
+      )
+      case 'deals_chart': return (
+        <Panel key="deals_chart"
+          kicker="Performance"
+          title={`Deals ${chartMode === 'won' ? 'Won' : 'Lost'} Over Time`}
+          detail={chartMode === 'won' ? 'Growth tracking for successfully closed opportunities.' : 'Analysis of lost deals and missed opportunities.'}
+          action={
+            <div className="chart-filters">
+              <div className="chart-type-toggle">
+                <button className={`chart-mode-btn ${chartMode === 'won' ? 'is-active' : ''}`} onClick={() => setChartMode('won')}>Won</button>
+                <button className={`chart-mode-btn ${chartMode === 'lost' ? 'is-active' : ''}`} onClick={() => setChartMode('lost')}>Lost</button>
+              </div>
+              <div className="chart-type-toggle">
+                <button className={`chart-type-btn ${chartType === 'revenue' ? 'is-active' : ''}`} onClick={() => setChartType('revenue')}>Value</button>
+                <button className={`chart-type-btn ${chartType === 'count' ? 'is-active' : ''}`} onClick={() => setChartType('count')}>Count</button>
+              </div>
+              <input type="month" value={startDate} onChange={e => setStartDate(e.target.value)} className="chart-filter-input" />
+              <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>to</span>
+              <input type="month" value={endDate} onChange={e => setEndDate(e.target.value)} className="chart-filter-input" />
+            </div>
+          }
+        >
+          <div className="dashboard-chart-container">
+            <WonOverTimeChart data={chartData} type={chartType} mode={chartMode} />
+          </div>
+        </Panel>
+      )
+      case 'stage_donut': return (
+        <Panel key="stage_donut" kicker="Pipeline snapshot" title="Deals by stage with expected revenue" detail="This keeps opportunity movement visible without leaving the dashboard.">
+          <div className="pipeline-snapshot-layout">
+            <div className="pipeline-snapshot-donut">
+              <StageDonutChart data={stageSummary.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost')} hovered={hoveredStage} onHover={setHoveredStage} />
+            </div>
+            <div className="pipeline-snapshot-list">
+              <div ref={stageListRef} className="stage-list">
+                {stageSummary.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost' && s.count > 0).map((stage) => (
+                  <div key={stage.stage} className={`stage-row${hoveredStage === stage.stage ? ' stage-row--hovered' : ''}`}
+                    style={{ borderLeftColor: hoveredStage === stage.stage ? (PIPELINE_STAGE_COLORS[stage.stage] || '#ffb547') : 'transparent' }}
+                    onMouseEnter={() => setHoveredStage(stage.stage)} onMouseLeave={() => setHoveredStage(null)}>
+                    <div className="stage-meta">
+                      <div><strong>{stage.stage}</strong><span>{stage.count}</span></div>
+                      <span>{formatCurrencyCompact(stage.value)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Panel>
+      )
+      case 'record_health': return (
+        <Panel key="record_health" kicker="Customer database" title="Linked record health" detail="Clean links make follow-ups, ownership, and reporting much more reliable.">
+          <div ref={healthRef} className="stage-list">
+            <div className="stage-row">
+              <div className="stage-meta"><div><strong>{leads.length} leads</strong><span> - Lead records ready for qualification tracking</span></div><span className="status-text is-warning">{linkHealth}% linked</span></div>
+              <div className="stage-track"><div className={`stage-fill${healthVisible ? ' visible' : ''}`} style={{ width: `${linkHealth}%`, animationDelay: healthVisible ? '0s' : undefined }} /></div>
+            </div>
+            <div className="stage-row">
+              <div className="stage-meta"><div><strong>{contacts.length} contacts</strong><span> - Decision makers and buying contacts tied to companies</span></div><span className="status-text is-neutral">Directory</span></div>
+              <div className="stage-track"><div className={`stage-fill${healthVisible ? ' visible' : ''}`} style={{ width: `${Math.min(Math.round((contacts.length / ITEMS_PER_PAGE) * 100), 100)}%`, animationDelay: healthVisible ? '0.1s' : undefined }} /></div>
+            </div>
+            <div className="stage-row">
+              <div className="stage-meta"><div><strong>{companies.length} companies</strong><span> - Accounts organized with owners and status</span></div><span className="status-text is-positive">Clean structure</span></div>
+              <div className="stage-track"><div className={`stage-fill${healthVisible ? ' visible' : ''}`} style={{ width: `${Math.min(Math.round((companies.length / ITEMS_PER_PAGE) * 100), 100)}%`, animationDelay: healthVisible ? '0.2s' : undefined }} /></div>
+            </div>
+          </div>
+        </Panel>
+      )
+      case 'priority_tasks': return (
+        <Panel key="priority_tasks" kicker="Task focus" title="Priority follow-ups" detail="Open work is visible from the dashboard so reps always know what is next."
+          action={
+            <div className="priority-indicators">
+              <span className="priority-indicator"><span className="priority-dot is-high" /><span>{priorityCounts.High}</span></span>
+              <span className="priority-indicator"><span className="priority-dot is-medium" /><span>{priorityCounts.Medium}</span></span>
+              <span className="priority-indicator"><span className="priority-dot is-low" /><span>{priorityCounts.Low}</span></span>
+            </div>
+          }
+        >
+          <div className="simple-list">
+            {focusTasks.map((task) => (
+              <article key={task.id} className={`simple-list__item is-priority-${task.priority.toLowerCase()} u-border-l-3-transparent u-cursor-pointer`}
+                onClick={() => navigate('/tasks', { state: { highlightTaskId: task.id } })}>
+                <div className="u-flex-1 u-min-w-0">
+                  <strong className="u-truncate u-block">{task.title}</strong>
+                  <p className="u-margin-t-4 u-fs-11 u-text-muted">{!isSr ? `${task.owner} | ` : ''}due {formatDateLabel(task.dueDate)}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </Panel>
+      )
+      case 'totals': return (
+        <section key="totals" className="content-grid content-grid--2">
+          <MetricCard label="Deals Won (Total)" value={wonStats.count} meta={formatCurrencyCompact(wonStats.value)} accent="accent" />
+          <MetricCard label="Deals Lost (Total)" value={lostStats.count} meta={formatCurrencyCompact(lostStats.value)} accent="alt" />
+        </section>
+      )
+      case 'recent_wins': return (
+        <Panel key="recent_wins" kicker="History" title="Recent Wins" detail="Latest closed won opportunities.">
+          <div className="history-table-container">
+            <div className="history-list wins-list">
+              <div className="history-list-header"><span>Deal Title</span><span>Won Date</span><span>Owner</span><span style={{ textAlign: 'right' }}>Value</span></div>
+              {recentWins.length === 0 ? <p className="u-pad-16 u-text-muted u-fs-sm">No recent wins.</p> : recentWins.map(d => (
+                <div key={d.id} className="history-list-row is-won">
+                  <strong>{d.name}</strong>
+                  <span className="u-text-muted">{formatDateLabel(d.closeDate || d.createdAt)}</span>
+                  <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
+                  <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Panel>
+      )
+      case 'recent_losses': return (
+        <Panel key="recent_losses" kicker="History" title="Recent Losses" detail="Latest closed lost opportunities.">
+          <div className="history-table-container">
+            <div className="history-list losses-list">
+              <div className="history-list-header lost-header"><span>Deal Title</span><span>Lost Date</span><span>Owner</span><span>Reason</span><span style={{ textAlign: 'right' }}>Value</span></div>
+              {recentLosses.length === 0 ? <p className="u-pad-16 u-text-muted u-fs-sm">No recent losses.</p> : recentLosses.map(d => (
+                <div key={d.id} className="history-list-row is-lost">
+                  <strong>{d.name}</strong>
+                  <span className="u-text-muted">{formatDateLabel(d.closeDate || d.createdAt)}</span>
+                  <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
+                  <span className="status-text is-warning" style={{ width: 'fit-content' }}>{d.lostReason || 'Unspecified'}</span>
+                  <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Panel>
+      )
+      case 'loss_analysis': return (
+        <section key="loss_analysis" className="content-grid">
+          <Panel kicker="Loss Analysis" title="Why we lost" detail="Distribution of reasons for closed lost deals. Captured from pipeline data.">
+            <LostReasonBreakdown countData={lostReasonData} valueData={lostValueData} />
+          </Panel>
+        </section>
+      )
+      default: return null
+    }
+  }
 
   return (
     <>
@@ -726,302 +983,174 @@ export default function DashboardView({
         .history-list-row.is-lost {
           border-left: 3px solid #fb7185;
         }
+        .customize-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.55);
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .customize-modal {
+          background: var(--bg-card);
+          border: 1px solid var(--border-strong);
+          border-radius: 14px;
+          width: 100%;
+          max-width: 420px;
+          padding: 24px;
+          box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+        }
+        .customize-modal__header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 20px;
+        }
+        .customize-modal__title {
+          font-size: 15px;
+          font-weight: 700;
+          color: var(--text);
+        }
+        .customize-modal__close {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--text-muted);
+          font-size: 20px;
+          line-height: 1;
+          padding: 2px 6px;
+          border-radius: 6px;
+        }
+        .customize-modal__close:hover { color: var(--text); }
+        .customize-widget-list {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin-bottom: 24px;
+        }
+        .customize-widget-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 12px;
+          border-radius: 8px;
+          transition: background 0.15s;
+        }
+        .customize-widget-row:hover { background: var(--bg-card-alt); }
+        .drag-handle {
+          cursor: grab;
+          color: var(--text-muted);
+          font-size: 16px;
+          flex-shrink: 0;
+          user-select: none;
+          line-height: 1;
+        }
+        .drag-handle:active { cursor: grabbing; }
+        .customize-widget-label {
+          font-size: 13px;
+          color: var(--text);
+          flex: 1;
+        }
+        .toggle-switch {
+          position: relative;
+          width: 38px;
+          height: 22px;
+          flex-shrink: 0;
+        }
+        .toggle-switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+          position: absolute;
+        }
+        .toggle-track {
+          position: absolute;
+          inset: 0;
+          background: var(--border-strong);
+          border-radius: 99px;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .toggle-track::after {
+          content: '';
+          position: absolute;
+          top: 3px;
+          left: 3px;
+          width: 16px;
+          height: 16px;
+          background: #fff;
+          border-radius: 50%;
+          transition: transform 0.2s;
+        }
+        .toggle-switch input:checked + .toggle-track {
+          background: var(--accent);
+        }
+        .toggle-switch input:checked + .toggle-track::after {
+          transform: translateX(16px);
+        }
+        .customize-modal__footer {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+        }
       `}</style>
 
-      <section className="metrics-grid metrics-grid--five" aria-label="Core KPIs">
-        {topKpis.map((kpi) => (
-          <MetricCard
-            key={kpi.label}
-            label={kpi.label}
-            value={kpi.value}
-            meta={kpi.meta}
-            accent={kpi.accent}
-            route={kpi.route}
-          />
-        ))}
-      </section>
-
-      <section className="content-grid content-grid--2">
-        <Panel
-          kicker="Performance"
-          title={`Deals ${chartMode === 'won' ? 'Won' : 'Lost'} Over Time`}
-          detail={chartMode === 'won' ? 'Growth tracking for successfully closed opportunities.' : 'Analysis of lost deals and missed opportunities.'}
-          action={
-            <div className="chart-filters">
-              <div className="chart-type-toggle">
-                <button
-                  className={`chart-mode-btn ${chartMode === 'won' ? 'is-active' : ''}`}
-                  onClick={() => setChartMode('won')}
-                >
-                  Won
-                </button>
-                <button
-                  className={`chart-mode-btn ${chartMode === 'lost' ? 'is-active' : ''}`}
-                  onClick={() => setChartMode('lost')}
-                >
-                  Lost
-                </button>
-              </div>
-              <div className="chart-type-toggle">
-                <button 
-                  className={`chart-type-btn ${chartType === 'revenue' ? 'is-active' : ''}`}
-                  onClick={() => setChartType('revenue')}
-                >
-                  Value
-                </button>
-                <button 
-                  className={`chart-type-btn ${chartType === 'count' ? 'is-active' : ''}`}
-                  onClick={() => setChartType('count')}
-                >
-                  Count
-                </button>
-              </div>
-              <input 
-                type="month" 
-                value={startDate} 
-                onChange={e => setStartDate(e.target.value)}
-                className="chart-filter-input"
-              />
-              <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>to</span>
-              <input 
-                type="month" 
-                value={endDate} 
-                onChange={e => setEndDate(e.target.value)}
-                className="chart-filter-input"
-              />
+      {showCustomize && (
+        <div className="customize-overlay" onClick={(e) => { if (e.target === e.currentTarget) cancelCustomize() }}>
+          <div className="customize-modal">
+            <div className="customize-modal__header">
+              <span className="customize-modal__title">Customize Layout</span>
+              <button className="customize-modal__close" onClick={cancelCustomize}>×</button>
             </div>
-          }
-        >
-          <div className="dashboard-chart-container">
-            <WonOverTimeChart data={chartData} type={chartType} mode={chartMode} />
-          </div>
-        </Panel>
-
-        <Panel
-          kicker="Pipeline snapshot"
-          title="Deals by stage with expected revenue"
-          detail="This keeps opportunity movement visible without leaving the dashboard."
-        >
-          <div className="pipeline-snapshot-layout">
-            <div className="pipeline-snapshot-donut">
-              <StageDonutChart
-                data={stageSummary.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost')}
-                hovered={hoveredStage}
-                onHover={setHoveredStage}
-              />
-            </div>
-            <div className="pipeline-snapshot-list">
-              <div ref={stageListRef} className="stage-list">
-                {stageSummary.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost' && s.count > 0).map((stage) => (
-                  <div
-                    key={stage.stage}
-                    className={`stage-row${hoveredStage === stage.stage ? ' stage-row--hovered' : ''}`}
-                    style={{ borderLeftColor: hoveredStage === stage.stage ? (PIPELINE_STAGE_COLORS[stage.stage] || '#ffb547') : 'transparent' }}
-                    onMouseEnter={() => setHoveredStage(stage.stage)}
-                    onMouseLeave={() => setHoveredStage(null)}
-                  >
-                    <div className="stage-meta">
-                      <div>
-                        <strong>{stage.stage}</strong>
-                        <span>{stage.count}</span>
-                      </div>
-                      <span>{formatCurrencyCompact(stage.value)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </Panel>
-      </section>
-
-      <section className="content-grid content-grid--2">
-        <Panel
-          kicker="Customer database"
-          title="Linked record health"
-          detail="Clean links make follow-ups, ownership, and reporting much more reliable."
-        >
-          <div ref={healthRef} className="stage-list">
-            <div className="stage-row">
-              <div className="stage-meta">
-                <div>
-                  <strong>{leads.length} leads</strong>
-                  <span> - Lead records ready for qualification tracking</span>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={draftLayout.map(w => w.id)} strategy={verticalListSortingStrategy}>
+                <div className="customize-widget-list">
+                  {draftLayout.map((widget) => (
+                    <SortableWidgetRow
+                      key={widget.id}
+                      widget={widget}
+                      onToggle={(e) => setDraftLayout(prev =>
+                        prev.map(w => w.id === widget.id ? { ...w, enabled: e.target.checked } : w)
+                      )}
+                    />
+                  ))}
                 </div>
-                <span className="status-text is-warning">{linkHealth}% linked</span>
-              </div>
-              <div className="stage-track">
-                <div
-                  className={`stage-fill${healthVisible ? ' visible' : ''}`}
-                  style={{
-                    width: `${linkHealth}%`,
-                    animationDelay: healthVisible ? '0s' : undefined,
-                  }}
-                />
-              </div>
-            </div>
-            <div className="stage-row">
-              <div className="stage-meta">
-                <div>
-                  <strong>{contacts.length} contacts</strong>
-                  <span> - Decision makers and buying contacts tied to companies</span>
-                </div>
-                <span className="status-text is-neutral">Directory</span>
-              </div>
-              <div className="stage-track">
-                <div
-                  className={`stage-fill${healthVisible ? ' visible' : ''}`}
-                  style={{
-                    width: `${Math.min(Math.round((contacts.length / ITEMS_PER_PAGE) * 100), 100)}%`,
-                    animationDelay: healthVisible ? '0.1s' : undefined,
-                  }}
-                />
-              </div>
-            </div>
-            <div className="stage-row">
-              <div className="stage-meta">
-                <div>
-                  <strong>{companies.length} companies</strong>
-                  <span> - Accounts organized with owners and status</span>
-                </div>
-                <span className="status-text is-positive">Clean structure</span>
-              </div>
-              <div className="stage-track">
-                <div
-                  className={`stage-fill${healthVisible ? ' visible' : ''}`}
-                  style={{
-                    width: `${Math.min(Math.round((companies.length / ITEMS_PER_PAGE) * 100), 100)}%`,
-                    animationDelay: healthVisible ? '0.2s' : undefined,
-                  }}
-                />
-              </div>
+              </SortableContext>
+            </DndContext>
+            <div className="customize-modal__footer">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setDraftLayout([...DEFAULT_LAYOUT])}
+              >
+                Reset to Default
+              </button>
+              <button type="button" className="primary-button" onClick={saveLayout}>Save</button>
             </div>
           </div>
-        </Panel>
+        </div>
+      )}
 
-        <Panel
-          kicker="Task focus"
-          title="Priority follow-ups"
-          detail="Open work is visible from the dashboard so reps always know what is next."
-          action={
-            <div className="priority-indicators">
-              <span className="priority-indicator">
-                <span className="priority-dot is-high" />
-                <span>{priorityCounts.High}</span>
-              </span>
-              <span className="priority-indicator">
-                <span className="priority-dot is-medium" />
-                <span>{priorityCounts.Medium}</span>
-              </span>
-              <span className="priority-indicator">
-                <span className="priority-dot is-low" />
-                <span>{priorityCounts.Low}</span>
-              </span>
-            </div>
-          }
-        >
-          <div className="simple-list">
-            {focusTasks.map((task) => {
-              const priorityClass = `is-priority-${task.priority.toLowerCase()}`
-              return (
-                <article
-                  key={task.id}
-                  className={`simple-list__item ${priorityClass} u-border-l-3-transparent u-cursor-pointer`}
-                  onClick={() => navigate('/tasks', { state: { highlightTaskId: task.id } })}
-                >
-                  <div className="u-flex-1 u-min-w-0">
-                    <strong className="u-truncate u-block">
-                      {task.title}
-                    </strong>
-                    <p className="u-margin-t-4 u-fs-11 u-text-muted">
-                      {!isSr ? `${task.owner} | ` : ''}due {formatDateLabel(task.dueDate)}
-                    </p>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-        </Panel>
-      </section>
-
-      <section className="content-grid content-grid--2">
-        <MetricCard 
-          label="Deals Won (Total)" 
-          value={wonStats.count} 
-          meta={formatCurrencyCompact(wonStats.value)} 
-          accent="accent" 
-        />
-        <MetricCard 
-          label="Deals Lost (Total)" 
-          value={lostStats.count} 
-          meta={formatCurrencyCompact(lostStats.value)} 
-          accent="alt" 
-        />
-      </section>
-
-      <section className="content-grid content-grid--2">
-        <Panel kicker="History" title="Recent Wins" detail="Latest closed won opportunities.">
-          <div className="history-table-container">
-            <div className="history-list wins-list">
-              <div className="history-list-header">
-                <span>Deal Title</span>
-                <span>Won Date</span>
-                <span>Owner</span>
-                <span style={{ textAlign: 'right' }}>Value</span>
-              </div>
-              {recentWins.length === 0 ? (
-                <p className="u-pad-16 u-text-muted u-fs-sm">No recent wins.</p>
-              ) : (
-                recentWins.map(d => (
-                  <div key={d.id} className="history-list-row is-won">
-                    <strong>{d.name}</strong>
-                    <span className="u-text-muted">{formatDateLabel(d.closeDate || d.createdAt)}</span>
-                    <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
-                    <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </Panel>
-
-        <Panel kicker="History" title="Recent Losses" detail="Latest closed lost opportunities.">
-          <div className="history-table-container">
-            <div className="history-list losses-list">
-              <div className="history-list-header lost-header">
-                <span>Deal Title</span>
-                <span>Lost Date</span>
-                <span>Owner</span>
-                <span>Reason</span>
-                <span style={{ textAlign: 'right' }}>Value</span>
-              </div>
-              {recentLosses.length === 0 ? (
-                <p className="u-pad-16 u-text-muted u-fs-sm">No recent losses.</p>
-              ) : (
-                recentLosses.map(d => (
-                  <div key={d.id} className="history-list-row is-lost">
-                    <strong>{d.name}</strong>
-                    <span className="u-text-muted">{formatDateLabel(d.closeDate || d.createdAt)}</span>
-                    <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
-                    <span className="status-text is-warning" style={{ width: 'fit-content' }}>{d.lostReason || 'Unspecified'}</span>
-                    <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </Panel>
-      </section>
-
-      <section className="content-grid">
-        <Panel
-          kicker="Loss Analysis"
-          title="Why we lost"
-          detail="Distribution of reasons for closed lost deals. Captured from pipeline data."
-        >
-          <LostReasonBreakdown countData={lostReasonData} valueData={lostValueData} />
-        </Panel>
-      </section>
+      {renderRows.map((row, i) => {
+        if (row.type === 'pair') {
+          return (
+            <section key={i} className="content-grid content-grid--2">
+              {renderWidget(row.a)}
+              {renderWidget(row.b)}
+            </section>
+          )
+        }
+        // 'totals', 'kpi_metrics', 'loss_analysis' return their own section wrapper
+        const widget = renderWidget(row.id)
+        if (['totals', 'kpi_metrics', 'loss_analysis'].includes(row.id)) return widget
+        // half-width widgets rendered solo get a full-width single-column section
+        return (
+          <section key={i} className="content-grid content-grid--2">
+            {widget}
+          </section>
+        )
+      })}
     </>
   )
 }
