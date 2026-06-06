@@ -57,6 +57,8 @@ export default function CustomersView({
   const [logTypeFilter, setLogTypeFilter] = useState('all')
   const [logDateFrom, setLogDateFrom] = useState('')
   const [logDateTo, setLogDateTo] = useState('')
+  const [dealFilterMonth, setDealFilterMonth] = useState('')
+  const [dealFilterYear, setDealFilterYear] = useState('')
   const activityLogBodyRef = useRef(null)
   const savedActivityScrollRef = useRef(0)
   const handleToggleActivityLog = useCallback(() => {
@@ -259,16 +261,25 @@ export default function CustomersView({
       })
   , [deals, selectedCustomer?.id])
 
+  const filteredDeals = useMemo(() => {
+    return customerDeals.filter(d => {
+      const date = new Date(d.closeDate || d.createdAt)
+      if (dealFilterMonth && date.getMonth() + 1 !== Number(dealFilterMonth)) return false
+      if (dealFilterYear && date.getFullYear() !== Number(dealFilterYear)) return false
+      return true
+    })
+  }, [customerDeals, dealFilterMonth, dealFilterYear])
+
   const wonCount = useMemo(() =>
-    customerDeals.filter(d => d.stage === 'Closed Won').length, [customerDeals])
+    filteredDeals.filter(d => d.stage === 'Closed Won').length, [filteredDeals])
   const lostCount = useMemo(() =>
-    customerDeals.filter(d => d.stage === 'Closed Lost').length, [customerDeals])
+    filteredDeals.filter(d => d.stage === 'Closed Lost').length, [filteredDeals])
   const closedWonValue = useMemo(() =>
-    customerDeals.filter(d => d.stage === 'Closed Won')
-      .reduce((sum, d) => sum + Number(d.value || 0), 0), [customerDeals])
+    filteredDeals.filter(d => d.stage === 'Closed Won')
+      .reduce((sum, d) => sum + Number(d.value || 0), 0), [filteredDeals])
   const closedLostValue = useMemo(() =>
-    customerDeals.filter(d => d.stage === 'Closed Lost')
-      .reduce((sum, d) => sum + Number(d.value || 0), 0), [customerDeals])
+    filteredDeals.filter(d => d.stage === 'Closed Lost')
+      .reduce((sum, d) => sum + Number(d.value || 0), 0), [filteredDeals])
   const winLossRatio = useMemo(() => {
     if (wonCount === 0 && lostCount === 0) return '—'
     if (lostCount === 0) return wonCount
@@ -390,11 +401,52 @@ export default function CustomersView({
                   <div className="customer-detail-view--sections">
                     <div className="detail-section">
                       {(() => {
-                        const displayDeals = customerDeals
+                        const displayDeals = filteredDeals
                         return (
                           <>
                             <div className="section-header u-margin-b-12 u-flex-between u-flex-center" style={{ flexShrink: 0 }}>
                               <h4 className="u-margin-0 u-text-strong">Deal History</h4>
+                              <div className="log-filters u-flex-center-gap-8">
+                                <select
+                                  value={dealFilterMonth}
+                                  onChange={e => setDealFilterMonth(e.target.value)}
+                                  className="admin-select u-fs-11"
+                                  style={{ padding: '4px 8px', height: 'auto', width: 'auto' }}
+                                >
+                                  <option value="">Month</option>
+                                  <option value="1">January</option>
+                                  <option value="2">February</option>
+                                  <option value="3">March</option>
+                                  <option value="4">April</option>
+                                  <option value="5">May</option>
+                                  <option value="6">June</option>
+                                  <option value="7">July</option>
+                                  <option value="8">August</option>
+                                  <option value="9">September</option>
+                                  <option value="10">October</option>
+                                  <option value="11">November</option>
+                                  <option value="12">December</option>
+                                </select>
+                                <select
+                                  value={dealFilterYear}
+                                  onChange={e => setDealFilterYear(e.target.value)}
+                                  className="admin-select u-fs-11"
+                                  style={{ padding: '4px 8px', height: 'auto', width: 'auto' }}
+                                >
+                                  <option value="">Year</option>
+                                  {Array.from({ length: new Date().getFullYear() - 2019 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                    <option key={y} value={y}>{y}</option>
+                                  ))}
+                                </select>
+                                {(dealFilterMonth || dealFilterYear) && (
+                                  <button
+                                    className="admin-action-btn u-pad-2-6 u-fs-10"
+                                    onClick={() => { setDealFilterMonth(''); setDealFilterYear('') }}
+                                  >
+                                    Clear
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             <div className="metrics-grid metrics-grid--compact u-grid-3 u-flex-gap-sm u-margin-b-24" style={{ flexShrink: 0 }}>
@@ -449,15 +501,15 @@ export default function CustomersView({
                                 </table>
                               </div>
                             </div>
-                            {customerDeals.length > 6 && (
+                            {filteredDeals.length > 6 && (
                               <div className="collapse-bar" onClick={() => setDealHistoryExpanded(!dealHistoryExpanded)}>
-                                <svg 
+                                <svg
                                   width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
                                   style={{ transform: `rotate(${dealHistoryExpanded ? 180 : 0}deg)`, transition: 'transform 0.2s' }}
                                 >
                                   <polyline points="6 9 12 15 18 9"></polyline>
                                 </svg>
-                                <span>{dealHistoryExpanded ? 'Show less' : `Show all ${customerDeals.length} deals`}</span>
+                                <span>{dealHistoryExpanded ? 'Show less' : `Show all ${filteredDeals.length} deals`}</span>
                               </div>
                             )}
                           </>
