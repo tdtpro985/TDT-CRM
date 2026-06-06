@@ -3039,16 +3039,15 @@ def import_customers():
                     )
                     existing_contact = cursor.fetchone()
                     if not existing_contact:
-                        if contact_person or contact_num:
-                            cursor.execute('''
-                                INSERT INTO contacts (id, name, company_id, phone, role, status)
-                                VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
-                            ''', (str(uuid.uuid4()), contact_person or '—', existing_lead_id, contact_num))
+                        cursor.execute('''
+                            INSERT INTO contacts (id, name, company_id, phone, role, status)
+                            VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
+                        ''', (str(uuid.uuid4()), contact_person or customer_name, existing_lead_id, contact_num))
                     elif existing_contact[1] in ('', customer_name):
                         # Auto-created with company-name fallback or blank — correct it
                         cursor.execute(
                             'UPDATE contacts SET name=%s, phone=%s WHERE id=%s',
-                            (contact_person or '—', contact_num, existing_contact[0])
+                            (contact_person or customer_name, contact_num, existing_contact[0])
                         )
                     cursor.execute('RELEASE SAVEPOINT import_row')
                     skipped += 1
@@ -3070,11 +3069,10 @@ def import_customers():
 
                 # column 24 = Primary Contact person name; col 25 = phone
                 contact_person = _parse_contact_name(row[24])
-                if contact_person or contact_num:
-                    cursor.execute('''
-                        INSERT INTO contacts (id, name, company_id, phone, role, status)
-                        VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
-                    ''', (str(uuid.uuid4()), contact_person or '—', lead_id, contact_num))
+                cursor.execute('''
+                    INSERT INTO contacts (id, name, company_id, phone, role, status)
+                    VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
+                ''', (str(uuid.uuid4()), contact_person or customer_name, lead_id, contact_num))
 
                 cursor.execute('RELEASE SAVEPOINT import_row')
                 inserted += 1
