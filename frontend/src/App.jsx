@@ -294,6 +294,7 @@ export default function App() {
             openTasks={openTasks}
             linkHealth={linkHealth}
             currentUser={currentUser}
+            teamMembers={teamMembers}
             showCustomize={showCustomize}
             setShowCustomize={setShowCustomize}
           />

@@ -7,6 +7,7 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, isSrRole } from '../utils'
 import { ITEMS_PER_PAGE } from '../constants'
+import Pagination from '../components/Pagination'
 
 function WonOverTimeChart({ data, type, mode }) {
   const label = mode === 'won' ? 'won' : 'lost'
@@ -207,6 +208,7 @@ function StageDonutChart({ data, hovered, onHover }) {
 
 const DEFAULT_LAYOUT = [
   { id: 'kpi_metrics',    enabled: true },
+  { id: 'top_srs',        enabled: true },
   { id: 'deals_chart',    enabled: true },
   { id: 'stage_donut',    enabled: true },
   { id: 'record_health',  enabled: true },
@@ -219,6 +221,7 @@ const DEFAULT_LAYOUT = [
 
 const WIDGET_LABELS = {
   kpi_metrics:     'KPI Metrics',
+  top_srs:         'Top Sales Reps',
   deals_chart:     'Deals Won/Lost Chart',
   stage_donut:     'Deals by Stage',
   record_health:   'Record Health',
@@ -229,7 +232,7 @@ const WIDGET_LABELS = {
   loss_analysis:   'Loss Analysis',
 }
 
-const HALF_WIDTH = new Set(['deals_chart','stage_donut','record_health','priority_tasks','recent_wins','recent_losses'])
+const HALF_WIDTH = new Set(['deals_chart','stage_donut','record_health','priority_tasks','recent_wins','recent_losses','top_srs'])
 
 function loadLayout(key) {
   try {
@@ -270,6 +273,7 @@ export default function DashboardView({
   openTasks,
   linkHealth,
   currentUser,
+  teamMembers,
   showCustomize,
   setShowCustomize,
 }) {
@@ -316,6 +320,56 @@ export default function DashboardView({
   const [chartType, setChartType] = useState('revenue')
   const [chartMode, setChartMode] = useState('won')
   const [hoveredStage, setHoveredStage] = useState(null)
+  const [srSort, setSrSort] = useState('dealsWon')
+  const [srPage, setSrPage] = useState(1)
+  const SR_PAGE_SIZE = 5
+
+  function handleSrSort(key) {
+    setSrSort(key)
+    setSrPage(1)
+  }
+
+  const isHosOrAdmin = currentUser?.role === 'Head of Sales' || currentUser?.role === 'Admin'
+
+  const topSRs = useMemo(() => {
+    if (!isHosOrAdmin) return []
+
+    const stats = {}
+
+    deals.forEach(d => {
+      const owner = d.owner || 'Unassigned'
+      if (!stats[owner]) {
+        stats[owner] = { name: owner, dealsWon: 0, dealsLost: 0, pipelineValue: 0, branch: d.branch || '' }
+      }
+      if (d.stage === 'Closed Won') stats[owner].dealsWon++
+      if (d.stage === 'Closed Lost') stats[owner].dealsLost++
+      if (d.stage !== 'Closed Won' && d.stage !== 'Closed Lost') {
+        stats[owner].pipelineValue += Number(d.value || 0)
+      }
+    })
+
+    leads.forEach(l => {
+      const owner = l.sr || l.ownerName || 'Unassigned'
+      if (!stats[owner]) {
+        stats[owner] = { name: owner, dealsWon: 0, dealsLost: 0, pipelineValue: 0, branch: l.branch || '', leadsCount: 0, converted: 0 }
+      }
+      stats[owner].leadsCount = (stats[owner].leadsCount || 0) + 1
+      if (l.status === 'Converted') stats[owner].converted = (stats[owner].converted || 0) + 1
+    })
+
+    teamMembers.forEach(m => {
+      if (isSrRole(m.role) && !stats[m.name]) {
+        stats[m.name] = { name: m.name, dealsWon: 0, dealsLost: 0, pipelineValue: 0, branch: m.branch || '', leadsCount: 0, converted: 0 }
+      }
+    })
+
+    return Object.values(stats)
+      .filter(s => s.name !== 'Unassigned')
+      .sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0))
+  }, [deals, leads, srSort, isHosOrAdmin, teamMembers])
+
+  const srTotalPages = Math.ceil(topSRs.length / SR_PAGE_SIZE) || 1
+  const paginatedSRs = topSRs.slice((srPage - 1) * SR_PAGE_SIZE, srPage * SR_PAGE_SIZE)
 
   const PIPELINE_STAGE_COLORS = {
     'Qualified':       '#ff9800',
@@ -335,8 +389,7 @@ export default function DashboardView({
     })
 
     const groups = {}
-    
-    // Fill in all months in range
+
     if (startDate && endDate) {
       let [y, m] = startDate.split('-').map(Number)
       let curr = `${y}-${String(m).padStart(2, '0')}`
@@ -361,7 +414,6 @@ export default function DashboardView({
     return Object.values(groups).sort((a, b) => a.month.localeCompare(b.month))
   }, [deals, startDate, endDate, chartMode])
 
-  // Won/Lost Metrics
   const wonStats = useMemo(() => {
     const won = deals.filter(d => d.stage === 'Closed Won')
     return {
@@ -480,6 +532,58 @@ export default function DashboardView({
           ))}
         </section>
       )
+      case 'top_srs': {
+        if (!isHosOrAdmin) return null
+        return (
+          <Panel key="top_srs" kicker="Rankings" title="Top Sales Reps"
+            action={
+              <div className="dashboard-sr-sort">
+                {[['Won', 'dealsWon'], ['Leads', 'leadsCount'], ['Value', 'pipelineValue']].map(([label, key]) => (
+                  <button key={key} type="button" className={`dashboard-sr-sort-btn${srSort === key ? ' is-active' : ''}`}
+                    onClick={() => handleSrSort(key)}>{label}</button>
+                ))}
+              </div>
+            }
+          >
+            <div className="dashboard-sr-panel-content">
+              <div className="dashboard-sr-list-wrap">
+                {paginatedSRs.length === 0 ? (
+                  <p className="u-pad-16 u-text-muted u-fs-sm">No SR data available for the current scope.</p>
+                ) : (
+                  <div className="sr-rank-list">
+                    {paginatedSRs.map((sr, i) => {
+                      const rank = (srPage - 1) * SR_PAGE_SIZE + i + 1
+                      return (
+                        <div key={sr.name} className="sr-rank-item">
+                          <div className="sr-rank-badge">{rank}</div>
+                          <div className="sr-rank-info">
+                            <div className="sr-rank-name">{sr.name}</div>
+                            <div className="sr-rank-branch">{sr.branch}</div>
+                          </div>
+                          <div className="sr-rank-stats">
+                            {srSort === 'dealsWon' && (
+                              <span className="admin-role-pill admin-role-pill--accent">{sr.dealsWon} won</span>
+                            )}
+                            {srSort === 'leadsCount' && (
+                              <span className="admin-role-pill admin-role-pill--alt">{sr.leadsCount} leads</span>
+                            )}
+                            {srSort === 'pipelineValue' && (
+                              <span className="admin-role-pill admin-role-pill--surface">{formatCurrencyCompact(sr.pipelineValue)}</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              {topSRs.length > 0 && (
+                <Pagination currentPage={srPage} totalPages={srTotalPages} onPageChange={setSrPage} />
+              )}
+            </div>
+          </Panel>
+        )
+      }
       case 'deals_chart': return (
         <Panel key="deals_chart"
           kicker="Performance"
@@ -1093,6 +1197,42 @@ export default function DashboardView({
           display: flex;
           gap: 8px;
           justify-content: flex-end;
+        }
+        .dashboard-sr-sort {
+          display: flex;
+          gap: 2px;
+          background: rgba(255,255,255,0.04);
+          border-radius: 4px;
+          padding: 2px;
+        }
+        .dashboard-sr-sort-btn {
+          padding: 2px 8px;
+          border-radius: 3px;
+          border: none;
+          background: transparent;
+          color: var(--text-muted);
+          font-size: 10px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .dashboard-sr-sort-btn.is-active {
+          background: var(--accent);
+          color: #10131f;
+        }
+        .dashboard-sr-sort-btn:hover:not(.is-active) {
+          background: rgba(255,255,255,0.06);
+        }
+        .sr-rank-item:hover {
+          background: rgba(255,255,255,0.06);
+          border-color: var(--border-strong);
+        }
+        .dashboard-sr-panel-content {
+          display: flex;
+          flex-direction: column;
+          min-height: 380px;
+        }
+        .dashboard-sr-list-wrap {
+          flex: 1;
         }
       `}</style>
 
