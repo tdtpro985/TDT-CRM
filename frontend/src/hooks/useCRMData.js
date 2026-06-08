@@ -835,12 +835,16 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     setLeads(current => current.map(l =>
       l.id === leadId ? { ...l, ownerId: newOwnerId, sr: newOwner?.name ?? '' } : l
     ))
+    setCustomers(current => current.map(c =>
+      c.id === leadId ? { ...c, ownerId: newOwnerId, sr: newOwner?.name ?? '' } : c
+    ))
     try {
       const res = await apiFetch(`/api/leads/${leadId}/reassign`, {
         method: 'PATCH',
         body: JSON.stringify({ newOwnerId }),
       })
       if (!res.ok) throw new Error('Reassign failed')
+      fetchCustomers()
       fetchLeads()
       setNotice('Lead reassigned successfully.')
       showToast('Lead reassigned!')

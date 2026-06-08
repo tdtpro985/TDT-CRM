@@ -41,7 +41,8 @@ export default function CustomersView({
   fetchContacts,
   setNotice,
   currentUser,
-  searchQuery
+  searchQuery,
+  onReassignLead
 }) {
   const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState('all')
@@ -78,6 +79,10 @@ export default function CustomersView({
   }, [activityLogExpanded])
   const isSr = isSrRole(currentUser?.role)
   const [dealSummary, setDealSummary] = useState(null)
+  const [assigningCustomerId, setAssigningCustomerId] = useState(null)
+  const [assignOwnerId, setAssignOwnerId] = useState('')
+  const [assignProcessing, setAssignProcessing] = useState(false)
+  const isManager = !isSr && currentUser?.role !== 'Branch Account'
 
   // Reset page on search change (adjusting state during render)
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
@@ -97,6 +102,12 @@ export default function CustomersView({
       // Newly-assigned (handover) filter — independent of deal-based status
       if (statusFilter === 'Newly Assigned') {
         if (!c.reassignedAt) return false
+        return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
+      }
+
+      // Unassigned filter — customers with no owner/SR
+      if (statusFilter === 'Unassigned') {
+        if (c.ownerId) return false
         return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
       }
 
@@ -319,6 +330,7 @@ export default function CustomersView({
                   <option value="all">All</option>
                   {!isSr && <option value="mine">{currentUser?.name} ({roleAbbr(currentUser?.role)})</option>}
                   <option value="Newly Assigned">🆕 Newly Assigned</option>
+                  {isManager && <option value="Unassigned">Unassigned</option>}
                   {customerStatuses.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </label>
@@ -363,6 +375,72 @@ export default function CustomersView({
                             )}
                           </div>
                         </div>
+                        {isManager && !customer.ownerId && (
+                          <div className="u-margin-t-8">
+                            {assigningCustomerId === customer.id ? (
+                              <div className="u-flex-center-gap-8" style={{ padding: '4px 0' }}>
+                                <select
+                                  value={assignOwnerId}
+                                  onChange={e => setAssignOwnerId(e.target.value)}
+                                  className="admin-select"
+                                  style={{ flex: 1, fontSize: 'var(--fs-sm)' }}
+                                  disabled={assignProcessing}
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  <option value="">Select SR…</option>
+                                  {(teamMembers ?? []).filter(m =>
+                                    isSrRole(m.role) && String(m.branch).toLowerCase() === String(customer.branch || '').toLowerCase()
+                                  ).map(m => (
+                                    <option key={m.id} value={String(m.id)}>{m.name}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="primary-button"
+                                  style={{ fontSize: 'var(--fs-sm)', padding: '4px 12px' }}
+                                  disabled={assignProcessing || !assignOwnerId}
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    setAssignProcessing(true)
+                                    try {
+                                      await onReassignLead?.(customer.id, assignOwnerId)
+                                      setAssigningCustomerId(null)
+                                      setAssignOwnerId('')
+                                    } finally {
+                                      setAssignProcessing(false)
+                                    }
+                                  }}
+                                >
+                                  {assignProcessing ? (<><span className="spinner-small" /> Saving…</>) : 'Confirm'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ghost-button"
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    setAssigningCustomerId(null)
+                                    setAssignOwnerId('')
+                                  }}
+                                  disabled={assignProcessing}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="ghost-button u-fs-10"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setAssigningCustomerId(customer.id)
+                                  setAssignOwnerId('')
+                                }}
+                              >
+                                Assign SR
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
