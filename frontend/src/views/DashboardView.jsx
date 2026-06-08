@@ -209,6 +209,7 @@ function StageDonutChart({ data, hovered, onHover }) {
 const DEFAULT_LAYOUT = [
   { id: 'kpi_metrics',    enabled: true },
   { id: 'top_srs',        enabled: true },
+  { id: 'branch_overview', enabled: true },
   { id: 'deals_chart',    enabled: true },
   { id: 'stage_donut',    enabled: true },
   { id: 'record_health',  enabled: true },
@@ -222,6 +223,7 @@ const DEFAULT_LAYOUT = [
 const WIDGET_LABELS = {
   kpi_metrics:     'KPI Metrics',
   top_srs:         'Top Sales Reps',
+  branch_overview: 'Branch Overview',
   deals_chart:     'Deals Won/Lost Chart',
   stage_donut:     'Deals by Stage',
   record_health:   'Record Health',
@@ -371,6 +373,26 @@ export default function DashboardView({
   const srTotalPages = Math.ceil(topSRs.length / SR_PAGE_SIZE) || 1
   const paginatedSRs = topSRs.slice((srPage - 1) * SR_PAGE_SIZE, srPage * SR_PAGE_SIZE)
 
+  const branchStats = useMemo(() => {
+    const stats = {}
+    teamMembers.forEach(m => {
+      if (!isSrRole(m.role)) return
+      const b = m.branch || 'Unknown'
+      if (!stats[b]) stats[b] = { branch: b, srs: 0, activeDeals: 0, pipelineValue: 0, won: 0 }
+      stats[b].srs++
+    })
+    deals.forEach(d => {
+      const b = d.branch || 'Unknown'
+      if (!stats[b]) stats[b] = { branch: b, srs: 0, activeDeals: 0, pipelineValue: 0, won: 0 }
+      if (d.stage !== 'Closed Won' && d.stage !== 'Closed Lost') {
+        stats[b].activeDeals++
+        stats[b].pipelineValue += Number(d.value || 0)
+      }
+      if (d.stage === 'Closed Won') stats[b].won++
+    })
+    return Object.values(stats).sort((a, b) => a.branch.localeCompare(b.branch))
+  }, [deals, teamMembers])
+
   const PIPELINE_STAGE_COLORS = {
     'Qualified':       '#ff9800',
     'New Opportunity': '#38bdf8',
@@ -382,7 +404,7 @@ export default function DashboardView({
     const targetStage = chartMode === 'won' ? 'Closed Won' : 'Closed Lost'
     const filteredDeals = deals.filter(d => {
       if (d.stage !== targetStage) return false
-      const date = d.closeDate || d.createdAt
+      const date = d.closeDate || d.created_at
       if (!date) return false
       const month = date.slice(0, 7)
       return (!startDate || month >= startDate) && (!endDate || month <= endDate)
@@ -405,7 +427,7 @@ export default function DashboardView({
     }
 
     filteredDeals.forEach(d => {
-      const month = (d.closeDate || d.createdAt).slice(0, 7)
+      const month = (d.closeDate || d.created_at).slice(0, 7)
       if (!groups[month]) groups[month] = { month, count: 0, value: 0 }
       groups[month].count++
       groups[month].value += Number(d.value || 0)
@@ -433,14 +455,14 @@ export default function DashboardView({
   const recentWins = useMemo(() => {
     return deals
       .filter(d => d.stage === 'Closed Won')
-      .sort((a, b) => new Date(b.closeDate || b.createdAt) - new Date(a.closeDate || a.createdAt))
+      .sort((a, b) => new Date(b.closeDate || b.created_at) - new Date(a.closeDate || a.created_at))
       .slice(0, 5)
   }, [deals])
 
   const recentLosses = useMemo(() => {
     return deals
       .filter(d => d.stage === 'Closed Lost')
-      .sort((a, b) => new Date(b.closeDate || b.createdAt) - new Date(a.closeDate || a.createdAt))
+      .sort((a, b) => new Date(b.closeDate || b.created_at) - new Date(a.closeDate || a.created_at))
       .slice(0, 5)
   }, [deals])
 
@@ -584,6 +606,45 @@ export default function DashboardView({
           </Panel>
         )
       }
+      case 'branch_overview': {
+        if (isSr) return null
+        return (
+          <Panel key="branch_overview"
+            kicker="Regional Summary"
+            title="Branch Overview"
+            detail="Active deals, pipeline value, and SR coverage per branch."
+          >
+            <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Branch</th>
+                    <th>SRs</th>
+                    <th>Active Deals</th>
+                    <th>Pipeline Value</th>
+                    <th>Won</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {branchStats.length === 0 ? (
+                    <tr><td colSpan={5} className="admin-table__muted u-text-center u-pad-16">No data for the selected scope.</td></tr>
+                  ) : (
+                    branchStats.map(s => (
+                      <tr key={s.branch}>
+                        <td className="admin-table__name">{s.branch}</td>
+                        <td>{s.srs}</td>
+                        <td>{s.activeDeals}</td>
+                        <td>{formatCurrencyCompact(s.pipelineValue)}</td>
+                        <td>{s.won}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+        )
+      }
       case 'deals_chart': return (
         <Panel key="deals_chart"
           kicker="Performance"
@@ -623,7 +684,7 @@ export default function DashboardView({
                     style={{ borderLeftColor: hoveredStage === stage.stage ? (PIPELINE_STAGE_COLORS[stage.stage] || '#ffb547') : 'transparent' }}
                     onMouseEnter={() => setHoveredStage(stage.stage)} onMouseLeave={() => setHoveredStage(null)}>
                     <div className="stage-meta">
-                      <div><strong>{stage.stage}</strong><span>{stage.count}</span></div>
+                      <div><strong>{stage.stage}</strong></div>
                       <span>{formatCurrencyCompact(stage.value)}</span>
                     </div>
                   </div>
@@ -688,7 +749,7 @@ export default function DashboardView({
               {recentWins.length === 0 ? <p className="u-pad-16 u-text-muted u-fs-sm">No recent wins.</p> : recentWins.map(d => (
                 <div key={d.id} className="history-list-row is-won">
                   <strong>{d.name}</strong>
-                  <span className="u-text-muted">{formatDateLabel(d.closeDate || d.createdAt)}</span>
+                  <span className="u-text-muted">{formatDateLabel(d.closeDate || d.created_at)}</span>
                   <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
                   <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
                 </div>
@@ -705,7 +766,7 @@ export default function DashboardView({
               {recentLosses.length === 0 ? <p className="u-pad-16 u-text-muted u-fs-sm">No recent losses.</p> : recentLosses.map(d => (
                 <div key={d.id} className="history-list-row is-lost">
                   <strong>{d.name}</strong>
-                  <span className="u-text-muted">{formatDateLabel(d.closeDate || d.createdAt)}</span>
+                  <span className="u-text-muted">{formatDateLabel(d.closeDate || d.created_at)}</span>
                   <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
                   <span className="status-text is-warning" style={{ width: 'fit-content' }}>{d.lostReason || 'Unspecified'}</span>
                   <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>

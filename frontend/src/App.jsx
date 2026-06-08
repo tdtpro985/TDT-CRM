@@ -322,6 +322,7 @@ export default function App() {
             setShowCustomerForm={setShowLeadForm}
             currentUser={currentUser}
             searchQuery={searchQuery}
+            onReassignLead={actions.reassignLead}
           />
         } />
         <Route path="/pipeline" element={

@@ -682,8 +682,8 @@ def get_customer_detail(customer_id):
             where_parts.append('l.owner_id = %s')
             params.append(user_id)
         
-        where_sql = 'WHERE ' + ' AND '.join(where_parts)
-        
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+
         cursor.execute(f"""
             SELECT 
                 c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
@@ -1500,12 +1500,12 @@ def get_deals():
         claims = get_jwt()
         user_id = get_jwt_identity()
         scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
-        where_parts = list(scope_parts) + ['l.branch IS NOT NULL']
+        where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
             where_parts.append('d.owner_id = %s')
             params.append(user_id)
-        where_sql = 'WHERE ' + ' AND '.join(where_parts)
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
         cursor.execute(f'''
             SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
                    d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
@@ -2113,12 +2113,12 @@ def get_dashboard():
         direct_parts, _, direct_params = build_scope(claims, branch, col='LOWER(TRIM(branch))', requested_region=region)
 
         # Build WHERE fragments for joined (deals+leads) and direct (leads) queries
-        deal_where = list(scope_parts) + ['l.branch IS NOT NULL']
+        deal_where = list(scope_parts)
         deal_params = list(scope_params)
         if restrict_owner:
             deal_where.append('d.owner_id = %s')
             deal_params.append(user_id)
-        deal_where_sql = 'WHERE ' + ' AND '.join(deal_where)
+        deal_where_sql = 'WHERE ' + ' AND '.join(deal_where) if deal_where else ''
 
         lead_where = ["DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"] + list(direct_parts)
         lead_params = list(direct_params)
