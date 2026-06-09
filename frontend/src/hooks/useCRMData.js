@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiFetch, API_BASE, getUser, updatePassword, uploadProfilePhoto, removeProfilePhoto, adjustProfilePhoto } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
-import { celebrateWon, triggerJoJo, dismissActiveJoJo, dismissActiveConfetti, triggerVictorySplash, dismissActiveVictorySplash } from '../celebration'
+import { celebrateWon, triggerJoJo, dismissActiveJoJo, dismissActiveConfetti, triggerVictorySplash, dismissActiveVictorySplash, triggerClosedLostSplash, dismissActiveClosedLostSplash } from '../celebration'
 import jojoSound from '../assets/sounds/jojo.mp3'
 import confettiSound from '../assets/sounds/yeah-boiii-i-i-i.mp3'
 
@@ -174,6 +174,17 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           audioRef.current = null
         }
       })
+    } else if (style === 'lost-splash' && snapshot) {
+      const resolvedCompany = companies.find(c => c.id === snapshot.companyId)
+      triggerClosedLostSplash(
+        {
+          dealName:    snapshot.name,
+          dealValue:   snapshot.value,
+          companyName: resolvedCompany?.name ?? null,
+          lostReason:  snapshot.lostReason ?? '',
+        },
+        () => { /* audio cleanup handled inside component */ }
+      )
     } else if (outcome === 'won') {
       celebrateWon()
     }
@@ -189,6 +200,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     dismissActiveJoJo()
     dismissActiveConfetti()
     dismissActiveVictorySplash()
+    dismissActiveClosedLostSplash()
   }
 
   async function loadAll() {
@@ -761,6 +773,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         }
         if (animationRef.current.lost === 'jojo') {
           playCelebrationAnimation('lost')
+        } else if (animationRef.current.lost === 'lost-splash') {
+          playCelebrationAnimation('lost', { ...snapshot, lostReason: extra.lostReason ?? snapshot?.lostReason })
         }
       }
       showToast(`Deal stage updated to ${nextStage}`)
