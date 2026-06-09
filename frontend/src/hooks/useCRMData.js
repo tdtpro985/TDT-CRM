@@ -764,6 +764,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           celebrateWon(2000)
         }
       } else if (nextStage === 'Closed Lost') {
+        // 'lost-splash' manages its own audio internally; preloadedAudio is null for that style
         if (preloadedAudio) {
           audioRef.current = preloadedAudio
           preloadedAudio.play().catch(() => {})
@@ -774,7 +775,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         if (animationRef.current.lost === 'jojo') {
           playCelebrationAnimation('lost')
         } else if (animationRef.current.lost === 'lost-splash') {
-          playCelebrationAnimation('lost', { ...snapshot, lostReason: extra.lostReason ?? snapshot?.lostReason })
+          playCelebrationAnimation('lost', { ...snapshot, lostReason: extra.lostReason ?? snapshot.lostReason })
         }
       }
       showToast(`Deal stage updated to ${nextStage}`)
