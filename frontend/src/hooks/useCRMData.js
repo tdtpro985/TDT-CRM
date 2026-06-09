@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { apiFetch, API_BASE, updatePassword, uploadProfilePhoto, removeProfilePhoto, adjustProfilePhoto } from '../api'
+import { apiFetch, API_BASE, getUser, updatePassword, uploadProfilePhoto, removeProfilePhoto, adjustProfilePhoto } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
 import { celebrateWon, triggerJoJo, dismissActiveJoJo, dismissActiveConfetti, triggerVictorySplash, dismissActiveVictorySplash } from '../celebration'
@@ -8,6 +8,9 @@ import confettiSound from '../assets/sounds/yeah-boiii-i-i-i.mp3'
 
 const CURRENT_DATE = getTodayISO()
 
+const POLL_FAST   = 15_000
+const POLL_MEDIUM = 30_000
+const POLL_SLOW   = 60_000
 
 function getProbabilityForStage(stage) { return STAGE_WORKFLOW[stage]?.probability ?? 20 }
 
@@ -27,6 +30,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   const musicRef = useRef({ won: [], lost: [] })
   // animationRef stores the per-outcome animation style: 'confetti' | 'jojo' | 'none'
   const animationRef = useRef({ won: 'confetti', lost: 'confetti' })
+  const pollingRef = useRef({ timers: [] })
 
   const getSignal = useCallback(() => {
     if (abortControllerRef.current) {
@@ -147,8 +151,20 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     if (outcome === 'won' && style === 'jojo') style = 'confetti'
     if (style === 'none') return
     if (style === 'victory' && snapshot) {
+      const currentUser = getUser()
+      const profilePicUrl = currentUser?.profilePic ? `${API_BASE}${currentUser.profilePic}` : null
+      const userInitials = currentUser?.name
+        ? currentUser.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+        : '?'
+      const resolvedCompany = companies.find(c => c.id === snapshot.companyId)
       triggerVictorySplash(
-        { name: snapshot.name, value: snapshot.value },
+        {
+          name: snapshot.name,
+          value: snapshot.value,
+          companyName: resolvedCompany?.name ?? null,
+          profilePicUrl,
+          userInitials,
+        },
         () => { /* audio cleanup handled inside component */ }
       )
     } else if (style === 'jojo') {
@@ -223,7 +239,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       musicRef.current = musicMap
       animationRef.current = {
         won:  fetchedAnimation.won  ?? 'confetti',
-        lost: fetchedAnimation.lost ?? 'confetti',
+        lost: fetchedAnimation.lost ?? 'none',
       }
 
       setLeads(fetchedLeads)
@@ -274,6 +290,45 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
       }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, activeBranch, activeRegion])
+
+  // ─── Real-time polling ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentUser) return
+
+    const p = pollingRef.current
+
+    function start() {
+      p.timers = [
+        setInterval(fetchLeads, POLL_FAST),
+        setInterval(fetchDeals, POLL_FAST),
+        setInterval(fetchTasks, POLL_FAST),
+        setInterval(fetchCustomers, POLL_MEDIUM),
+        setInterval(fetchCompanies, POLL_SLOW),
+        setInterval(fetchContacts, POLL_SLOW),
+        setInterval(fetchTeam, POLL_SLOW),
+        setInterval(fetchDealContactMap, POLL_SLOW),
+      ]
+    }
+
+    function stop() {
+      p.timers.forEach(clearInterval)
+      p.timers = []
+    }
+
+    function onVisibility() {
+      if (document.hidden) stop()
+      else start()
+    }
+
+    document.addEventListener('visibilitychange', onVisibility)
+    start()
+
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, activeBranch, activeRegion])

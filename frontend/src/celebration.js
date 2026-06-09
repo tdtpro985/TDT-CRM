@@ -7,6 +7,8 @@ import VictorySplash from './components/VictorySplash'
 // ─── Confetti ─────────────────────────────────────────────────────────────────
 
 const CONFETTI_COLORS = ['#f59e0b', '#f97316', '#eab308', '#ef4444', '#3b82f6', '#22c55e']
+const BURST_SHAPES = ['square', 'circle']
+const BURST_INTERVAL = 400
 
 let _activeConfettiDismiss = null
 
@@ -20,44 +22,52 @@ export function celebrateWon(duration = 2000, onDismiss = null) {
 
   const end = Date.now() + duration
   let active = true
+  let timeoutId = null
 
-  const frame = () => {
+  function fireBurst() {
     if (!active) return
+
     confetti({
-      particleCount: 3,
-      angle: 60,
-      spread: 90,
-      origin: { x: 0, y: 0.5 },
+      particleCount: 28,
+      spread: 110,
+      origin: { x: 0.5, y: 0.55 },
       colors: CONFETTI_COLORS,
+      shapes: BURST_SHAPES,
+      scalar: 1.2,
+      ticks: 200,
       zIndex: 10000,
     })
+
     confetti({
-      particleCount: 3,
-      angle: 120,
-      spread: 90,
-      origin: { x: 1, y: 0.5 },
+      particleCount: 10,
+      angle: 55,
+      spread: 65,
+      origin: { x: 0, y: 0.65 },
       colors: CONFETTI_COLORS,
+      shapes: ['square'],
+      scalar: 0.9,
+      startVelocity: 30,
+      ticks: 180,
       zIndex: 10000,
     })
+
     confetti({
-      particleCount: 3,
-      angle: 270,
-      spread: 90,
-      origin: { x: 0.5, y: 0 },
+      particleCount: 10,
+      angle: 125,
+      spread: 65,
+      origin: { x: 1, y: 0.65 },
       colors: CONFETTI_COLORS,
+      shapes: ['square'],
+      scalar: 0.9,
+      startVelocity: 30,
+      ticks: 180,
       zIndex: 10000,
     })
-    confetti({
-      particleCount: 3,
-      angle: 90,
-      spread: 90,
-      origin: { x: 0.5, y: 1 },
-      colors: CONFETTI_COLORS,
-      zIndex: 10000,
-    })
-    if (Date.now() < end) requestAnimationFrame(frame)
+
+    if (Date.now() < end) timeoutId = setTimeout(fireBurst, BURST_INTERVAL)
   }
-  frame()
+
+  fireBurst()
 
   const hint = document.createElement('div')
   hint.id = 'confetti-skip-hint'
@@ -87,6 +97,7 @@ export function celebrateWon(duration = 2000, onDismiss = null) {
     if (immediate) {
       destroyed = true
       _activeConfettiDismiss = null
+      clearTimeout(timeoutId)
       clearTimeout(deferredTimer)
       confetti.reset()
       hint.remove()
@@ -112,6 +123,7 @@ export function celebrateWon(duration = 2000, onDismiss = null) {
   // Stop firing new particles when sound ends; let remaining particles fall naturally
   const naturalTimer = setTimeout(() => {
     active = false
+    clearTimeout(timeoutId)
     hint.remove()
     document.removeEventListener('keydown', onKeyDown)
     deferredTimer = setTimeout(() => cleanup(true, false), 5000)
@@ -413,10 +425,16 @@ export function triggerVictorySplash(dealMeta, onDismiss = null) {
 
   _activeVictorySplash = { dismiss: remove, forceRemove }
 
+  const theme = document.documentElement.getAttribute('data-theme') || 'dark'
+
   root.render(
     createElement(VictorySplash, {
       dealName: dealMeta.name,
       dealValue: dealMeta.value,
+      companyName: dealMeta.companyName ?? null,
+      profilePicUrl: dealMeta.profilePicUrl ?? null,
+      userInitials: dealMeta.userInitials ?? '?',
+      theme,
       onDismiss: remove,
     })
   )

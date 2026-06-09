@@ -649,8 +649,19 @@ def get_customers():
         where_clauses = ["1=1"] + list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_clauses.append("l.owner_id = %s")
-            params.append(user_id)
+            user_branch = normalize_branch(claims.get('branch', ''))
+            is_manila_sr = (user_branch == 'manila' and
+                            normalize_branch(claims.get('region', '')) == 'central')
+            if is_manila_sr:
+                where_clauses.append(
+                    "(l.owner_id = %s OR (l.owner_id IS NULL AND LOWER(TRIM(l.region)) = 'central'))"
+                )
+                params.append(user_id)
+            else:
+                where_clauses.append(
+                    "(l.owner_id = %s OR (l.owner_id IS NULL AND LOWER(TRIM(l.branch)) = %s))"
+                )
+                params.extend([user_id, user_branch])
 
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
@@ -946,12 +957,23 @@ def get_companies():
         user_id = get_jwt_identity()
         scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
         if restrict_owner:
-            # SR: include companies they own directly OR companies referenced by their deals.
-            # The second condition covers Agos-synced companies where owner_id was never set
-            # because the sync predates the cascade fix.
-            where_sql = ('WHERE (c.owner_id = %s '
-                         'OR c.id IN (SELECT d.company_id FROM deals d WHERE d.owner_id = %s AND d.company_id IS NOT NULL))')
-            params_tuple = (user_id, user_id)
+            user_branch = normalize_branch(claims.get('branch', ''))
+            is_manila_sr = (user_branch == 'manila' and
+                            normalize_branch(claims.get('region', '')) == 'central')
+            if is_manila_sr:
+                where_sql = (
+                    'WHERE (c.owner_id = %s '
+                    'OR c.id IN (SELECT d.company_id FROM deals d WHERE d.owner_id = %s AND d.company_id IS NOT NULL) '
+                    'OR (c.owner_id IS NULL AND LOWER(TRIM(l.region)) = \'central\'))'
+                )
+                params_tuple = (user_id, user_id)
+            else:
+                where_sql = (
+                    'WHERE (c.owner_id = %s '
+                    'OR c.id IN (SELECT d.company_id FROM deals d WHERE d.owner_id = %s AND d.company_id IS NOT NULL) '
+                    'OR (c.owner_id IS NULL AND LOWER(TRIM(l.branch)) = %s))'
+                )
+                params_tuple = (user_id, user_id, user_branch)
         else:
             where_parts = list(scope_parts)
             where_sql = ('WHERE ' + ' AND '.join(where_parts)) if where_parts else ''
@@ -1286,11 +1308,20 @@ def get_leads():
         where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
-            where_parts.append('l.owner_id = %s')
-            params.append(user_id)
+            user_branch = normalize_branch(claims.get('branch', ''))
+            is_manila_sr = (user_branch == 'manila' and
+                            normalize_branch(claims.get('region', '')) == 'central')
+            if is_manila_sr:
+                where_parts.append(
+                    "(l.owner_id = %s OR (l.owner_id IS NULL AND LOWER(TRIM(l.region)) = 'central'))"
+                )
+                params.append(user_id)
+            else:
+                where_parts.append(
+                    "(l.owner_id = %s OR (l.owner_id IS NULL AND LOWER(TRIM(l.branch)) = %s))"
+                )
+                params.extend([user_id, user_branch])
         where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
-
-
 
         cursor.execute(f'''
             SELECT l.id, l.customer_name AS customerName, l.contact_num AS contactNum,
@@ -1931,6 +1962,7 @@ def create_activity():
             if row:
                 final_owner_id = row[0]
 
+        deal_id = data.get('dealId') or None
         cursor.execute(
             """INSERT INTO activities (id, subject, type, owner_id, deal_id, due_date, priority, status, notes, stage, contact_name, metadata)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
@@ -1939,7 +1971,7 @@ def create_activity():
                 data['subject'],
                 data.get('type', 'Follow-up'),
                 final_owner_id,
-                data.get('dealId') or None,
+                deal_id,
                 data.get('dueDate') or None,
                 data.get('priority', 'Medium'),
                 data.get('status', 'Open'),
@@ -1949,6 +1981,26 @@ def create_activity():
                 data.get('metadata'),
             ),
         )
+
+        # If the task is linked to a deal, auto-assign the company to the task creator
+        # when it is currently unassigned (owner_id IS NULL).
+        if deal_id and final_owner_id:
+            cursor.execute('SELECT company_id FROM deals WHERE id = %s', (deal_id,))
+            deal_row = cursor.fetchone()
+            if deal_row and deal_row[0]:
+                cid = deal_row[0]
+                cursor.execute(
+                    'UPDATE companies SET owner_id = %s WHERE id = %s AND owner_id IS NULL',
+                    (final_owner_id, cid),
+                )
+                if cursor.rowcount > 0:
+                    cursor.execute(
+                        'UPDATE leads SET owner_id = %s, reassigned_at = CURRENT_DATE WHERE id = %s AND owner_id IS NULL',
+                        (final_owner_id, cid),
+                    )
+                    log_audit(conn, 'company', cid, 'assigned_via_task',
+                              old_value=None, new_value=final_owner_id, user_id=final_owner_id)
+
         conn.commit()
         return jsonify({'message': 'Activity created', 'id': data['id']}), 201
     finally:
@@ -3458,7 +3510,7 @@ def admin_get_celebration_animation():
         rows = {r['setting_key']: r['setting_value'] for r in rows_to_list(cursor)}
         return jsonify({
             'won':  rows.get('celebration_animation_won',  'confetti'),
-            'lost': rows.get('celebration_animation_lost', 'confetti'),
+            'lost': rows.get('celebration_animation_lost', 'none'),
         })
     finally:
         close_connection(conn)
@@ -3512,7 +3564,7 @@ def get_celebration_animation():
         rows = {r['setting_key']: r['setting_value'] for r in rows_to_list(cursor)}
         return jsonify({
             'won':  rows.get('celebration_animation_won',  'confetti'),
-            'lost': rows.get('celebration_animation_lost', 'confetti'),
+            'lost': rows.get('celebration_animation_lost', 'none'),
         })
     finally:
         close_connection(conn)

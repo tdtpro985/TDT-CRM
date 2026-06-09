@@ -16,6 +16,7 @@
   animation: lost-backdrop-in 0.3s ease both;
 }
 
+/* Hardcoded to match design tokens: dark=#0f172a (--bg-app), light=#f8fafc (--bg), neon=#050208 (intentionally darker than any token — overlay mounted outside React tree so CSS class variants are used instead of var(--bg)) */
 .lost-splash--dark  { background: #0f172a; }
 .lost-splash--light { background: #f8fafc; }
 .lost-splash--neon  { background: #050208; }
@@ -43,10 +44,10 @@
   opacity: 0;
   pointer-events: none;
   user-select: none;
-  animation: esc-fade 0.3s ease 0.2s forwards;
+  animation: lost-esc-fade 0.3s ease 0.2s forwards;
 }
 
-@keyframes esc-fade {
+@keyframes lost-esc-fade {
   to { opacity: 0.4; }
 }
 
@@ -57,10 +58,10 @@
 .lost-card-wrap {
   position: relative;
   z-index: 2;
-  animation: card-rise 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: lost-card-rise 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-@keyframes card-rise {
+@keyframes lost-card-rise {
   from { opacity: 0; transform: translateY(32px) scale(0.92); }
   to   { opacity: 1; transform: translateY(0)    scale(1);    }
 }
@@ -313,7 +314,7 @@
   width: 6px;
   height: 6px;
   background: #475569;
-  animation: lost-particle-fall linear infinite;
+  animation: lost-particle-fall linear infinite both;
 }
 
 @keyframes lost-particle-fall {

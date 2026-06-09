@@ -42,7 +42,8 @@
 }
 
 [data-theme="light"] .sidebar {
-  background: #f8f9fa; /* slightly different from page bg to create chrome feel */
+  background: #F1F5F9;
+  border-right: 1px solid var(--border);
 }
 
 .sidebar.is-open {
@@ -506,7 +507,9 @@
 
 /* No lift/shadow on top-bar for light theme, keeps only border-bottom */
 [data-theme="light"] .top-bar {
+  background: #ffffff;
   box-shadow: none;
+  border-bottom: 1px solid var(--border);
 }
 
 .top-bar-title {
