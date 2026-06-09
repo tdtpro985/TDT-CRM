@@ -6,7 +6,7 @@ import { CSS } from '@dnd-kit/utilities'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, isSrRole } from '../utils'
-import { ITEMS_PER_PAGE } from '../constants'
+import { ITEMS_PER_PAGE, REGION_BRANCHES } from '../constants'
 import Pagination from '../components/Pagination'
 
 function WonOverTimeChart({ data, type, mode }) {
@@ -208,8 +208,8 @@ function StageDonutChart({ data, hovered, onHover }) {
 
 const DEFAULT_LAYOUT = [
   { id: 'kpi_metrics',    enabled: true },
-  { id: 'top_srs',        enabled: true },
   { id: 'branch_overview', enabled: true },
+  { id: 'top_srs',        enabled: true },
   { id: 'deals_chart',    enabled: true },
   { id: 'stage_donut',    enabled: true },
   { id: 'record_health',  enabled: true },
@@ -234,7 +234,7 @@ const WIDGET_LABELS = {
   loss_analysis:   'Loss Analysis',
 }
 
-const HALF_WIDTH = new Set(['deals_chart','stage_donut','record_health','priority_tasks','recent_wins','recent_losses','top_srs'])
+const HALF_WIDTH = new Set(['deals_chart','stage_donut','record_health','priority_tasks','recent_wins','recent_losses','top_srs','branch_overview'])
 
 function loadLayout(key) {
   try {
@@ -332,9 +332,10 @@ export default function DashboardView({
   }
 
   const isHosOrAdmin = currentUser?.role === 'Head of Sales' || currentUser?.role === 'Admin'
+  const isRsm = currentUser?.role === 'Regional Sales Manager'
 
   const topSRs = useMemo(() => {
-    if (!isHosOrAdmin) return []
+    if (!isHosOrAdmin && !isRsm) return []
 
     const stats = {}
 
@@ -368,7 +369,7 @@ export default function DashboardView({
     return Object.values(stats)
       .filter(s => s.name !== 'Unassigned')
       .sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0))
-  }, [deals, leads, srSort, isHosOrAdmin, teamMembers])
+  }, [deals, leads, srSort, isHosOrAdmin, isRsm, teamMembers])
 
   const srTotalPages = Math.ceil(topSRs.length / SR_PAGE_SIZE) || 1
   const paginatedSRs = topSRs.slice((srPage - 1) * SR_PAGE_SIZE, srPage * SR_PAGE_SIZE)
@@ -534,7 +535,9 @@ export default function DashboardView({
     while (i < enabled.length) {
       const cur = enabled[i]
       const nxt = enabled[i + 1]
-      if (HALF_WIDTH.has(cur) && nxt && HALF_WIDTH.has(nxt)) {
+      const curHalf = HALF_WIDTH.has(cur) && !(isHosOrAdmin && cur === 'branch_overview')
+      const nxtHalf = nxt && HALF_WIDTH.has(nxt) && !(isHosOrAdmin && nxt === 'branch_overview')
+      if (curHalf && nxt && nxtHalf) {
         rows.push({ type: 'pair', a: cur, b: nxt })
         i += 2
       } else {
@@ -543,7 +546,7 @@ export default function DashboardView({
       }
     }
     return rows
-  }, [layout])
+  }, [layout, isHosOrAdmin])
 
   function renderWidget(id) {
     switch (id) {
@@ -555,7 +558,7 @@ export default function DashboardView({
         </section>
       )
       case 'top_srs': {
-        if (!isHosOrAdmin) return null
+        if (isSr) return null
         return (
           <Panel key="top_srs" kicker="Rankings" title="Top Sales Reps"
             action={
@@ -608,40 +611,111 @@ export default function DashboardView({
       }
       case 'branch_overview': {
         if (isSr) return null
+
+        const branchToRegion = {}
+        Object.entries(REGION_BRANCHES).forEach(([region, branches]) => {
+          branches.forEach(b => { branchToRegion[b.toLowerCase()] = region })
+        })
+
+        const regionGroups = {}
+        branchStats.forEach(s => {
+          const region = branchToRegion[s.branch.toLowerCase()] || 'Other'
+          if (!regionGroups[region]) regionGroups[region] = { region, branches: [], srs: 0, activeDeals: 0, pipelineValue: 0, won: 0 }
+          regionGroups[region].branches.push(s)
+          regionGroups[region].srs += s.srs
+          regionGroups[region].activeDeals += s.activeDeals
+          regionGroups[region].pipelineValue += s.pipelineValue
+          regionGroups[region].won += s.won
+        })
+
+        const regionOrder = Object.keys(REGION_BRANCHES)
+        const sortedRegions = Object.values(regionGroups).sort((a, b) => {
+          const ai = regionOrder.indexOf(a.region)
+          const bi = regionOrder.indexOf(b.region)
+          if (ai === -1 && bi === -1) return 0
+          if (ai === -1) return 1
+          if (bi === -1) return -1
+          return ai - bi
+        })
+
+        const hasData = branchStats.length > 0
+
+        if (isHosOrAdmin) {
+          const filteredRegions = sortedRegions.filter(g => g.region !== 'Other')
+          return (
+            <section key="branch_overview" className="content-grid">
+              <Panel kicker="Regional Summary"
+                title="Branch Overview by Region"
+                detail="Active deals, pipeline value, and SR coverage per branch."
+              >
+                {!hasData ? (
+                  <div className="admin-table__muted u-text-center u-pad-16">No data for the selected scope.</div>
+                ) : (
+                  <div className="region-columns">
+                    {filteredRegions.map(grp => (
+                      <div key={grp.region} className="region-column">
+                        <div className="region-column__header">{grp.region}</div>
+                        <div className="region-column__body">
+                          {grp.branches.map(s => (
+                            <div key={s.branch} className="region-column__row">
+                              <span className="region-column__name">{s.branch}</span>
+                              <span className="region-column__num">{s.srs}</span>
+                              <span className="region-column__num">{s.activeDeals}</span>
+                              <span className="region-column__num-mono">{formatCurrencyCompact(s.pipelineValue)}</span>
+                              <span className="region-column__num">{s.won}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="region-column__divider" />
+                        <div className="region-column__row region-column__row--total">
+                          <span className="region-column__name">Total</span>
+                          <span className="region-column__num">{grp.srs}</span>
+                          <span className="region-column__num">{grp.activeDeals}</span>
+                          <span className="region-column__num-mono">{formatCurrencyCompact(grp.pipelineValue)}</span>
+                          <span className="region-column__num">{grp.won}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+            </section>
+          )
+        }
+
         return (
-          <Panel key="branch_overview"
-            kicker="Regional Summary"
+          <Panel kicker="Regional Summary"
             title="Branch Overview"
             detail="Active deals, pipeline value, and SR coverage per branch."
           >
-            <div className="admin-table-wrap">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Branch</th>
-                    <th>SRs</th>
-                    <th>Active Deals</th>
-                    <th>Pipeline Value</th>
-                    <th>Won</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {branchStats.length === 0 ? (
-                    <tr><td colSpan={5} className="admin-table__muted u-text-center u-pad-16">No data for the selected scope.</td></tr>
-                  ) : (
-                    branchStats.map(s => (
+            {!hasData ? (
+              <div className="admin-table__muted u-text-center u-pad-16">No data for the selected scope.</div>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Branch</th>
+                      <th className="num">SRs</th>
+                      <th className="num">Active Deals</th>
+                      <th className="num">Pipeline Value</th>
+                      <th className="num">Won</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {branchStats.map(s => (
                       <tr key={s.branch}>
                         <td className="admin-table__name">{s.branch}</td>
-                        <td>{s.srs}</td>
-                        <td>{s.activeDeals}</td>
-                        <td>{formatCurrencyCompact(s.pipelineValue)}</td>
-                        <td>{s.won}</td>
+                        <td className="num">{s.srs}</td>
+                        <td className="num">{s.activeDeals}</td>
+                        <td className="num-mono">{formatCurrencyCompact(s.pipelineValue)}</td>
+                        <td className="num">{s.won}</td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </Panel>
         )
       }
@@ -1344,7 +1418,7 @@ export default function DashboardView({
         }
         // 'totals', 'kpi_metrics', 'loss_analysis' return their own section wrapper
         const widget = renderWidget(row.id)
-        if (['totals', 'kpi_metrics', 'loss_analysis'].includes(row.id)) return widget
+        if (['totals', 'kpi_metrics', 'loss_analysis', 'branch_overview'].includes(row.id)) return widget
         // half-width widgets rendered solo get a full-width single-column section
         return (
           <section key={i} className="content-grid content-grid--2">

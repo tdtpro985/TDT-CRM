@@ -1831,6 +1831,126 @@
   letter-spacing: 0.05em;
 }
 
+.admin-table__region-heading td {
+  padding: 12px 8px 4px !important;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+}
+
+.admin-table__region-heading strong {
+  font-size: var(--fs-sm);
+  color: var(--accent-strong);
+  letter-spacing: 0.04em;
+}
+
+.admin-table__region-total td {
+  padding: 8px 8px 12px !important;
+  border-bottom: 2px solid var(--border-strong);
+  font-weight: 600;
+}
+
+.admin-table__region-total .admin-table__name {
+  color: var(--accent-strong);
+}
+
+/* ── Number alignment for admin tables ──────────────────────── */
+
+.admin-table th.num,
+.admin-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-table td.num-mono {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: var(--fs-xs);
+}
+
+/* ── Region columns (HOS dashboard) ─────────────────────────── */
+
+.region-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--pad-lg);
+  padding: var(--pad-sm) 0;
+}
+
+.region-column {
+  background: rgba(var(--accent-strong-rgb), 0.03);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--pad-lg);
+  display: flex;
+  flex-direction: column;
+}
+
+.region-column__header {
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-strong);
+  padding-bottom: var(--pad-sm);
+  margin-bottom: var(--pad-sm);
+  border-bottom: 2px solid var(--accent-strong);
+}
+
+.region-column__body {
+  flex: 1;
+}
+
+.region-column__row {
+  display: grid;
+  grid-template-columns: 1fr repeat(4, auto);
+  gap: 8px;
+  padding: 6px 0;
+  align-items: center;
+  font-size: var(--fs-sm);
+}
+
+.region-column__row + .region-column__row {
+  border-top: 1px solid var(--border);
+}
+
+.region-column__row--total {
+  font-weight: 700;
+}
+
+.region-column__name {
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.region-column__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  color: var(--text);
+}
+
+.region-column__num-mono {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: var(--fs-xs);
+  min-width: 60px;
+  color: var(--text);
+}
+
+.region-column__divider {
+  height: 1px;
+  background: var(--border-strong);
+  margin: var(--pad-sm) 0;
+}
+
+@media (max-width: 768px) {
+  .region-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Role pills */
 
 .admin-role-pill {
