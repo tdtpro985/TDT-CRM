@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { formatCurrencyCompact } from '../utils'
 import '../styles/closed-lost-splash.css'
 import wagKaNaMp3 from '../assets/sounds/wag-ka-na-magpaliwanag.mp3'
@@ -37,7 +37,7 @@ function GlitchCanvas() {
   return <canvas ref={canvasRef} className="lost-glitch-canvas" aria-hidden="true" />
 }
 
-// ─── Card content (shared between reason-lock and tear halves) ────────────
+// ─── Card content (shared between terminated-stamp and tear halves) ───────
 
 function CardContent({ lostReason = '', theme }) {
   const colonIdx = lostReason.indexOf(': ')
@@ -59,17 +59,24 @@ function CardContent({ lostReason = '', theme }) {
  * ClosedLostSplash — "Wag Ka Na Magpaliwanag" full-viewport deal-loss overlay.
  *
  * Stage machine:
- *   reason-lock (0ms) → reason-tear (1200ms) → outro (audio.onended) → [unmount]
+ *   terminated-stamp (0ms) → reason-tear (1200ms) → outro (audio.onended) → [unmount]
+ *
+ * Visual sequence:
+ *   1. "DEAL TERMINATED" stamps down at viewport center
+ *   2. Lost-reason card visible at sourceRect position (where the modal form section was)
+ *   3. At 1.2s: card tears at sourceRect, pieces scatter
+ *   4. Audio ends → fade out
  */
 export default function ClosedLostSplash({
   dealName,
   dealValue,
   companyName,
   lostReason,
+  sourceRect,
   theme = 'dark',
   onDismiss,
 }) {
-  const [stage, setStage] = useState('reason-lock')
+  const [stage, setStage] = useState('terminated-stamp')
   const timers    = useRef([])
   const audioRef  = useRef(null)
   const dismissed = useRef(false)
@@ -95,7 +102,6 @@ export default function ClosedLostSplash({
     audioRef.current = audio
     audio.play().catch(() => {})
 
-    // At 1.2s the vocal line ends — trigger the tear
     timers.current.push(setTimeout(() => setStage('reason-tear'), 1200))
     audio.onended = () => setStage('outro')
 
@@ -117,14 +123,27 @@ export default function ClosedLostSplash({
     return () => document.removeEventListener('keydown', onKey)
   }, [cleanup])
 
-  const showCard       = stage === 'reason-lock'
-  const showTear       = stage === 'reason-tear' || stage === 'outro'
-  const showParticles  = theme === 'dark' && showTear
-  const showGlitch     = theme === 'neon'
+  // Compute CSS vars: offset from viewport center to sourceRect center.
+  // Applied to root so card-wrap and tear-halves both inherit them.
+  const splashStyle = useMemo(() => {
+    if (!sourceRect) return {}
+    const srcCx = sourceRect.left + sourceRect.width  / 2
+    const srcCy = sourceRect.top  + sourceRect.height / 2
+    return {
+      '--start-x': `${srcCx - window.innerWidth  / 2}px`,
+      '--start-y': `${srcCy - window.innerHeight / 2}px`,
+    }
+  }, [sourceRect])
+
+  const showCard      = stage === 'terminated-stamp'
+  const showTear      = stage === 'reason-tear' || stage === 'outro'
+  const showParticles = theme === 'dark' && showTear
+  const showGlitch    = theme === 'neon'
 
   return (
     <div
       className={`lost-splash lost-splash--${theme} stage-${stage}`}
+      style={splashStyle}
       onClick={cleanup}
       role="dialog"
       aria-modal="true"
@@ -134,14 +153,16 @@ export default function ClosedLostSplash({
 
       {showGlitch && <GlitchCanvas />}
 
-      {/* Phase 1 — Lost reason card */}
+      {/* Phase 1 — Lost reason card at sourceRect position */}
       {showCard && (
         <div className="lost-card-wrap">
-          <CardContent lostReason={lostReason} theme={theme} />
+          <div className="lost-card-wrap__inner">
+            <CardContent lostReason={lostReason} theme={theme} />
+          </div>
         </div>
       )}
 
-      {/* Phase 2 — Tear halves + DEAL TERMINATED */}
+      {/* Phase 2 — Tear halves scatter from sourceRect position */}
       {showTear && (
         <>
           <div className="lost-card-half-wrap lost-card-half-wrap--top">
@@ -158,20 +179,21 @@ export default function ClosedLostSplash({
               ))}
             </div>
           )}
-
-          <div className="lost-terminated-content">
-            <div className="lost-terminated-frame">
-              <h1 className="lost-terminated-title">DEAL TERMINATED</h1>
-              <div className="lost-terminated-divider" />
-              <p className="lost-terminated-deal-name">{dealName}</p>
-              <p className="lost-terminated-value">- {formatCurrencyCompact(dealValue)} Dropped</p>
-              {companyName && (
-                <p className="lost-terminated-account">Account: {companyName}</p>
-              )}
-            </div>
-          </div>
         </>
       )}
+
+      {/* DEAL TERMINATED stamp — visible from mount through all stages */}
+      <div className="lost-terminated-content">
+        <div className="lost-terminated-frame">
+          <h1 className="lost-terminated-title">DEAL TERMINATED</h1>
+          <div className="lost-terminated-divider" />
+          <p className="lost-terminated-deal-name">{dealName}</p>
+          <p className="lost-terminated-value">- {formatCurrencyCompact(dealValue)} Dropped</p>
+          {companyName && (
+            <p className="lost-terminated-account">Account: {companyName}</p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

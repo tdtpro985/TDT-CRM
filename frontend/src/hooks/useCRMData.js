@@ -182,6 +182,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           dealValue:   snapshot.value,
           companyName: resolvedCompany?.name ?? null,
           lostReason:  snapshot.lostReason ?? '',
+          sourceRect:  snapshot.sourceRect ?? null,
         },
         () => { /* audio cleanup handled inside component */ }
       )
@@ -775,7 +776,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         if (animationRef.current.lost === 'jojo') {
           playCelebrationAnimation('lost')
         } else if (animationRef.current.lost === 'lost-splash') {
-          playCelebrationAnimation('lost', { ...snapshot, lostReason: extra.lostReason ?? snapshot.lostReason })
+          playCelebrationAnimation('lost', { ...snapshot, lostReason: extra.lostReason ?? snapshot.lostReason, sourceRect: extra.sourceRect ?? null })
         }
       }
       showToast(`Deal stage updated to ${nextStage}`)

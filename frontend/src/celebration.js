@@ -503,6 +503,7 @@ export function triggerClosedLostSplash(dealMeta, onDismiss = null) {
       dealValue:   dealMeta.dealValue,
       companyName: dealMeta.companyName ?? null,
       lostReason:  dealMeta.lostReason  ?? '',
+      sourceRect:  dealMeta.sourceRect  ?? null,
       theme,
       onDismiss: remove,
     })

@@ -113,6 +113,7 @@ export default function PipelineView({
   const [changeHistoryExpanded, setChangeHistoryExpanded] = useState(false)
 
   const isUpdatingRef = useRef(false)
+  const lostPromptRef = useRef(null)
 
   const fetchDealSubData = (dealId) => {
     if (!dealId) return
@@ -290,15 +291,18 @@ export default function PipelineView({
 
   function confirmLostReason() {
     if (isUpdatingRef.current) return
+    const sourceRect = lostPromptRef.current
+      ? { ...lostPromptRef.current.getBoundingClientRect() }
+      : null
     const reason = lostNotes.trim() ? `${lostReason}: ${lostNotes.trim()}` : lostReason
-    
+
     isUpdatingRef.current = true
     const prevStage = selectedDeal.stage
     const prevReason = selectedDeal.lostReason
     setSelectedDeal((d) => ({ ...d, stage: 'Closed Lost', lostReason: reason }))
     setShowLostPrompt(false)
 
-    handleDealStageChange(selectedDeal.id, 'Closed Lost', { lostReason: reason })
+    handleDealStageChange(selectedDeal.id, 'Closed Lost', { lostReason: reason, sourceRect })
       .then(() => {
         fetchDealSubData(selectedDeal.id)
       })
@@ -875,7 +879,7 @@ export default function PipelineView({
                   <button type="button" className="secondary-button" onClick={() => setIsEditing(false)}>Cancel</button>
                 </div>
               ) : showLostPrompt ? (
-                <div className="u-width-full">
+                <div className="u-width-full" ref={lostPromptRef}>
                   <p className="deal-modal__footer-label u-margin-b-10">Why was this deal lost?</p>
                   <div className="u-flex-column-gap-sm">
                     <select
