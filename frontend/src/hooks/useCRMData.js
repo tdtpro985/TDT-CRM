@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiFetch, API_BASE, getUser, updatePassword, uploadProfilePhoto, removeProfilePhoto, adjustProfilePhoto } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
-import { celebrateWon, triggerJoJo, dismissActiveJoJo, dismissActiveConfetti, triggerVictorySplash, dismissActiveVictorySplash, triggerClosedLostSplash, dismissActiveClosedLostSplash } from '../celebration'
+import { celebrateWon, triggerJoJo, dismissActiveJoJo, dismissActiveConfetti, triggerVictorySplash, dismissActiveVictorySplash, dismissActiveClosedLostSplash } from '../celebration'
 import jojoSound from '../assets/sounds/jojo.mp3'
 import confettiSound from '../assets/sounds/yeah-boiii-i-i-i.mp3'
 
@@ -31,6 +31,10 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   // animationRef stores the per-outcome animation style: 'confetti' | 'jojo' | 'none'
   const animationRef = useRef({ won: 'confetti', lost: 'confetti' })
   const pollingRef = useRef({ timers: [] })
+
+  function getLostAnimationStyle() {
+    return animationRef.current.lost ?? 'none'
+  }
 
   const getSignal = useCallback(() => {
     if (abortControllerRef.current) {
@@ -174,18 +178,9 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           audioRef.current = null
         }
       })
-    } else if (style === 'lost-splash' && snapshot) {
-      const resolvedCompany = companies.find(c => c.id === snapshot.companyId)
-      triggerClosedLostSplash(
-        {
-          dealName:    snapshot.name,
-          dealValue:   snapshot.value,
-          companyName: resolvedCompany?.name ?? null,
-          lostReason:  snapshot.lostReason ?? '',
-          sourceRect:  snapshot.sourceRect ?? null,
-        },
-        () => { /* audio cleanup handled inside component */ }
-      )
+    } else if (style === 'lost-splash') {
+      // PipelineView handles this animation directly — skip the full-screen overlay
+      return
     } else if (outcome === 'won') {
       celebrateWon()
     }
@@ -965,6 +960,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   return {
     data: { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion },
     stopAllCelebration,
+    getLostAnimationStyle,
     actions: {
       createLead,
       createContact,
