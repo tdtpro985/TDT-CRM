@@ -46,7 +46,9 @@
 }
 
 [data-theme="light"] .search-field {
-  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  background: #ffffff;
+  border-color: #D1D5DB;
+  box-shadow: none;
 }
 
 .search-field:focus-within {
@@ -55,8 +57,8 @@
 }
 
 [data-theme="light"] .search-field:focus-within {
-   border-color: var(--accent);
-   box-shadow: 0 0 0 2px var(--accent-soft);
+   border-color: #FF8A00;
+   box-shadow: 0 0 0 3px rgba(255, 138, 0, 0.12);
 }
 
 .search-field:focus-within input {
@@ -64,7 +66,7 @@
 }
 
 [data-theme="light"] .search-field:focus-within input {
-  color: var(--accent-strong);
+  color: #EA6C00;
 }
 
 [data-theme="neon"] .search-field:focus-within {
@@ -387,6 +389,18 @@
   border-color: rgba(255,152,0,0.4);
 }
 
+[data-theme="light"] .filter-wrap select {
+  background: #ffffff;
+  border-color: #D1D5DB;
+  color: #0F172A;
+}
+
+[data-theme="light"] .filter-wrap select:focus {
+  border-color: #FF8A00;
+  box-shadow: 0 0 0 3px rgba(255, 138, 0, 0.12);
+  outline: none;
+}
+
 .panel-stack {
   display: grid;
   /**flex-direction: column;**/
@@ -429,9 +443,13 @@
 }
 
 [data-theme="light"] .metric-card {
-  background: var(--bg-card);
+  background: #ffffff;
   box-shadow: var(--shadow-soft);
-  border-color: rgba(0,0,0,0.06);
+  border-color: var(--border);
+}
+[data-theme="light"] .metric-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08), 0 2px 4px -2px rgba(0,0,0,0.04);
+  border-color: var(--border-strong);
 }
 
 .metric-card--interactive {
@@ -489,10 +507,16 @@
 }
 
 [data-theme="light"] .metric-card--accent {
-   background:
-     radial-gradient(circle at top right, rgba(255,152,0,0.1), transparent 60%),
-     #fff;
-   border-color: rgba(255,152,0,0.3);
+  background: #FFFBEB;
+  background-image: none;
+  border-color: #FF8A00;
+}
+[data-theme="light"] .metric-card--accent strong {
+  color: #EA6C00;
+}
+[data-theme="light"] .metric-card--accent:hover {
+  border-color: #F59E0B;
+  box-shadow: 0 4px 12px rgba(255, 138, 0, 0.15);
 }
 
 [data-theme="neon"] .metric-card--accent {
@@ -501,14 +525,6 @@
      radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.3), transparent 60%),
      linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
    border-color: rgba(var(--accent-rgb), 0.35);
-}
-
-[data-theme="light"] .metric-card--accent {
-  background-color: #fdfcf9;
-  background-image:
-    radial-gradient(circle at top right, rgba(255,152,0,0.18), transparent 60%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.15));
-  border-color: rgba(255,152,0,0.3);
 }
 
 [data-theme="neon"] .metric-card--accent {
@@ -530,10 +546,9 @@
 }
 
 [data-theme="light"] .metric-card--alt {
-  background:
-    radial-gradient(circle at bottom left, rgba(15, 52, 96, 0.05), transparent 60%),
-    #fff;
-  border-color: rgba(15, 52, 96, 0.2);
+  background: #F0F9FF;
+  background-image: none;
+  border-color: #BAE6FD;
 }
 
 [data-theme="neon"] .metric-card--alt {
@@ -551,9 +566,10 @@
 }
 
 [data-theme="light"] .metric-card--surface {
-  background-color: #fdfcf9;
-  background-image: linear-gradient(135deg, rgba(var(--accent-strong-rgb), 0.12), rgba(255, 152, 0, 0.04));
-  border-color: rgba(var(--accent-strong-rgb), 0.25);
+  background: #ffffff;
+  background-image: none;
+  border-color: var(--border);
+  box-shadow: var(--shadow-soft);
 }
 
 [data-theme="neon"] .metric-card--surface {
@@ -562,12 +578,6 @@
     radial-gradient(circle at top right, rgba(var(--accent-rgb), 0.15), transparent 60%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
   border-color: rgba(var(--accent-rgb), 0.2);
-}
-
-[data-theme="light"] .metric-card--surface {
-  background: var(--bg-card);
-  border-color: rgba(0,0,0,0.1);
-  box-shadow: var(--shadow-soft);
 }
 
 /* ── 5. Layout Helpers & Grids ──────────────────────────────── */
@@ -1007,7 +1017,8 @@ section.content-grid--primary {
 }
 
 [data-theme="light"] .deal-modal__header {
-  background: var(--bg-card);
+  background: #F8FAFC;
+  border-bottom: 1px solid var(--border);
 }
 
 .deal-modal__footer {
@@ -1238,7 +1249,8 @@ section.content-grid--primary {
 }
 
 [data-theme="light"] .deal-modal__field {
-  background: var(--bg-card);
+  background: #ffffff;
+  border-color: var(--border);
 }
 
 .deal-modal__label {
@@ -1333,13 +1345,21 @@ section.content-grid--primary {
 }
 
 [data-theme="light"] .deal-modal__stage-btn {
-  border-color: rgba(0,0,0,0.12);
-  background: var(--bg-card);
+  border-color: var(--border);
+  background: #ffffff;
+  color: #475569;
 }
 
 [data-theme="light"] .deal-modal__stage-btn:hover {
-  background: var(--bg-card-alt);
-  border-color: var(--accent);
+  background: #F8FAFC;
+  border-color: #FF8A00;
+  color: #0F172A;
+}
+
+[data-theme="light"] .deal-modal__stage-btn.is-active {
+  background: #FFFBEB;
+  border-color: #FF8A00;
+  color: #EA6C00;
 }
 
 [data-theme="neon"] .deal-modal__stage-btn:hover {

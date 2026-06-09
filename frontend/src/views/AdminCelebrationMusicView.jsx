@@ -15,7 +15,6 @@ const WON_ANIMATION_OPTIONS = [
 
 const LOST_ANIMATION_OPTIONS = [
   { value: 'jojo', label: 'To Be Continued' },
-  { value: 'confetti', label: 'Confetti' },
   { value: 'none', label: 'None' },
 ]
 
@@ -27,7 +26,7 @@ export default function AdminCelebrationMusicView({ showToast }) {
   const [playing, setPlaying] = useState(null)
 
   // Animation settings
-  const [animation, setAnimation] = useState({ won: 'confetti', lost: 'confetti' })
+  const [animation, setAnimation] = useState({ won: 'confetti', lost: 'none' })
   const [animLoading, setAnimLoading] = useState(true)
   const [animSaving, setAnimSaving] = useState(false)
 

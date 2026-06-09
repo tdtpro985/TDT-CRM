@@ -241,9 +241,9 @@
 
 [data-theme="light"] .kanban-column,
 [data-theme="light"] .pipeline-lane {
-  background: var(--bg-card);
-  border-color: rgba(0,0,0,0.08);
-  box-shadow: var(--shadow-soft);
+  background: #ffffff;
+  border-color: var(--border);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 @media (max-width: 1100px) {
@@ -318,7 +318,7 @@
 }
 
 [data-theme="light"] .pipeline-lane:hover {
-  border-color: rgba(0,0,0,0.15);
+  border-color: var(--border-strong);
 }
 
 .pipeline-lane:hover {
@@ -360,7 +360,7 @@
 }
 
 [data-theme="light"] .pipeline-lane__header {
-  border-bottom-color: rgba(0,0,0,0.1);
+  border-bottom-color: var(--border);
 }
 
 .pipeline-lane__header div {
@@ -424,9 +424,13 @@
 }
 
 [data-theme="light"] .pipeline-card {
-  background: var(--bg-card);
-  border-color: rgba(0,0,0,0.12);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  background: #ffffff;
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+[data-theme="light"] .pipeline-card:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.08);
 }
 
 [data-theme="neon"] .pipeline-card:hover {
@@ -450,8 +454,8 @@
 [data-theme="light"] .pipeline-card.is-stage-negotiation,
 [data-theme="light"] .pipeline-card.is-stage-closed-won,
 [data-theme="light"] .pipeline-card.is-stage-closed-lost {
-  background: var(--bg-card);
-  border-color: rgba(0,0,0,0.12);
+  background: #ffffff;
+  border-color: var(--border);
 }
 
 .pipeline-card.is-health-critical::before,
@@ -509,7 +513,7 @@
 }
 
 [data-theme="light"] .pipeline-card.is-stage-qualified:hover {
-  background: rgba(var(--accent-strong-rgb), 0.05);
+  background: linear-gradient(135deg, rgba(255,138,0,0.06), #ffffff);
   border-color: var(--accent);
 }
 
@@ -519,7 +523,7 @@
 }
 
 [data-theme="light"] .pipeline-card.is-stage-new-opportunity:hover {
-  background: rgba(59, 130, 246, 0.05);
+  background: linear-gradient(135deg, rgba(59,130,246,0.06), #ffffff);
   border-color: #3b82f6;
 }
 
@@ -529,7 +533,7 @@
 }
 
 [data-theme="light"] .pipeline-card.is-stage-proposal:hover {
-  background: rgba(85, 247, 96, 0.05);
+  background: linear-gradient(135deg, rgba(52,211,153,0.06), #ffffff);
   border-color: #22c55e;
 }
 
@@ -539,7 +543,7 @@
 }
 
 [data-theme="light"] .pipeline-card.is-stage-negotiation:hover {
-  background: rgba(251, 113, 133, 0.05);
+  background: linear-gradient(135deg, rgba(251,113,133,0.06), #ffffff);
   border-color: #fb7185;
 }
 
@@ -549,8 +553,8 @@
 }
 
 [data-theme="light"] .pipeline-card.is-stage-closed-won:hover {
-  background: rgba(var(--accent-strong-rgb), 0.05);
-  border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(52,211,153,0.06), #ffffff);
+  border-color: #10b981;
 }
 
 .pipeline-card.is-stage-closed-lost:hover {
@@ -559,8 +563,8 @@
 }
 
 [data-theme="light"] .pipeline-card.is-stage-closed-lost:hover {
-   background: rgba(var(--accent-strong-rgb), 0.05);
-   border-color: var(--accent);
+  background: linear-gradient(135deg, rgba(100,116,139,0.06), #ffffff);
+  border-color: #94a3b8;
 }
 
 /* Neon Theme Pipeline Card Overrides — all purple */
@@ -841,9 +845,15 @@
 }
 
 [data-theme="light"] .stage-total-card {
-  background: var(--bg-card);
-  border-color: rgba(0,0,0,0.08);
-  box-shadow: var(--shadow-soft);
+  background: #ffffff;
+  background-image: none;
+  border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+[data-theme="light"] .stage-total-card:hover {
+  background: linear-gradient(135deg, rgba(255,138,0,0.05), #ffffff);
+  border-color: rgba(255,138,0,0.3);
 }
 
 .stage-total-card:hover {
@@ -2689,6 +2699,16 @@
   color: var(--text-strong);
   padding: 6px 10px;
   width: 100%;
+}
+
+[data-theme="light"] .modal-edit-input {
+  border-color: #D1D5DB;
+}
+
+[data-theme="light"] .modal-edit-input:focus {
+  border-color: #FF8A00;
+  box-shadow: 0 0 0 3px rgba(255, 138, 0, 0.1);
+  outline: none;
 }
 
 .modal-section-divider {
