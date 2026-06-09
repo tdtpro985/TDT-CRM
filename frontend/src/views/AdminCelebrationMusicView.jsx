@@ -14,6 +14,7 @@ const WON_ANIMATION_OPTIONS = [
 ]
 
 const LOST_ANIMATION_OPTIONS = [
+  { value: 'lost-splash', label: 'Wag Ka Na Magpaliwanag' },
   { value: 'jojo', label: 'To Be Continued' },
   { value: 'none', label: 'None' },
 ]
