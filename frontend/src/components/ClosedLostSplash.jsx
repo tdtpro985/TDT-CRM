@@ -39,7 +39,7 @@ function GlitchCanvas() {
 
 // ─── Card content (shared between reason-lock and tear halves) ────────────
 
-function CardContent({ lostReason, theme }) {
+function CardContent({ lostReason = '', theme }) {
   const colonIdx = lostReason.indexOf(': ')
   const category = colonIdx !== -1 ? lostReason.slice(0, colonIdx) : lostReason
   const notes    = colonIdx !== -1 ? lostReason.slice(colonIdx + 2) : null
