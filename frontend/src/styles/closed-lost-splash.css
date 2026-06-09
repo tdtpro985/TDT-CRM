@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Closed Lost Splash — "Wag Ka Na Magpaliwanag" animation overlay
-   Stage machine: reason-lock → reason-tear → outro
+   Stage machine: terminated-stamp → reason-tear → outro
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Root container ─────────────────────────────────────────────────────── */
@@ -16,7 +16,7 @@
   animation: lost-backdrop-in 0.3s ease both;
 }
 
-/* Hardcoded to match design tokens: dark=#0f172a (--bg-app), light=#f8fafc (--bg), neon=#050208 (intentionally darker than any token — overlay mounted outside React tree so CSS class variants are used instead of var(--bg)) */
+/* Hardcoded to match design tokens: dark=#0f172a (--bg-app), light=#f8fafc (--bg), neon=#050208 */
 .lost-splash--dark  { background: #0f172a; }
 .lost-splash--light { background: #f8fafc; }
 .lost-splash--neon  { background: #050208; }
@@ -52,18 +52,29 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   REASON-LOCK PHASE — Lost reason card floats to center
+   TERMINATED-STAMP PHASE — Lost reason card at sourceRect position
+   --start-x / --start-y are CSS vars set as inline style on .lost-splash
+   (inherited by all children). They represent the offset from viewport center
+   to the center of the "why was this deal lost?" section in the modal.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Outer: translates from flex-center to sourceRect.
+   Defaults to (0,0) = viewport center when no sourceRect is captured. */
 .lost-card-wrap {
   position: relative;
   z-index: 2;
-  animation: lost-card-rise 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform: translate(var(--start-x, 0px), var(--start-y, 0px));
 }
 
-@keyframes lost-card-rise {
-  from { opacity: 0; transform: translateY(32px) scale(0.92); }
-  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+/* Inner: handles the appear animation. Separate element to avoid conflicting
+   with the outer transform (CSS animation transform would override it). */
+.lost-card-wrap__inner {
+  animation: lost-card-appear 0.25s ease both;
+}
+
+@keyframes lost-card-appear {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1);   }
 }
 
 /* Base card layout */
@@ -130,16 +141,19 @@
 .lost-card--neon  .lost-card__notes { color: var(--text-secondary); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   REASON-TEAR PHASE — Zig-zag split + DEAL TERMINATED slam
-   Both halves are absolutely positioned over the same center point as
-   the card-wrap was, then animated away.
+   REASON-TEAR PHASE — Zig-zag split at sourceRect position
+   Half-wraps use the same CSS vars so pieces scatter FROM the modal section.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .lost-card-half-wrap {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
+  /* Offset from flex-center to sourceRect, matching lost-card-wrap */
+  transform: translate(
+    calc(-50% + var(--start-x, 0px)),
+    calc(-50% + var(--start-y, 0px))
+  );
 }
 
 /* Top half: shows above the zig-zag cut line */
@@ -172,6 +186,8 @@
   animation: tear-bottom 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Tear keyframes are relative to half-wrap position (= sourceRect).
+   Pieces scatter outward from where the modal section was. */
 @keyframes tear-top {
   to { transform: translate(-18%, -130%) rotate(-9deg); opacity: 0; }
 }
@@ -196,13 +212,15 @@
   filter: drop-shadow(0 1px 3px rgba(255, 138, 0, 0.45));
 }
 
-/* ── DEAL TERMINATED frame ──────────────────────────────────────────────── */
+/* ── DEAL TERMINATED stamp — visible from mount, centered in viewport ───── */
 .lost-terminated-content {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
+  z-index: 3;
 }
 
 .lost-terminated-frame {
@@ -210,12 +228,19 @@
   padding: 2.25rem 3rem;
   border: 2px solid currentColor;
   clip-path: polygon(14px 0%, 100% 0%, calc(100% - 14px) 100%, 0% 100%);
-  animation: lost-frame-drop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: lost-stamp-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .lost-splash--dark  .lost-terminated-frame { color: #ef4444; background: #0f172a; }
 .lost-splash--light .lost-terminated-frame { color: #0f172a; background: #f8fafc; border-color: #ff8a00; }
 .lost-splash--neon  .lost-terminated-frame { color: var(--accent); background: #050208; border-color: var(--accent); box-shadow: 0 0 24px rgba(var(--accent-rgb), 0.3); }
+
+@keyframes lost-stamp-in {
+  0%   { opacity: 0; transform: translateY(-28px) rotate(-1.5deg) scale(1.08); }
+  65%  { opacity: 1; transform: translateY(3px) rotate(0.4deg) scale(0.97); }
+  82%  { transform: translateY(-1px) rotate(-0.2deg) scale(1.01); }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
 
 .lost-terminated-title {
   font-family: 'Manrope', 'Segoe UI', sans-serif;
@@ -293,11 +318,6 @@
   to   { opacity: 1; transform: translateY(0);    }
 }
 
-@keyframes lost-frame-drop {
-  from { opacity: 0; transform: scaleY(0.5); }
-  to   { opacity: 1; transform: scaleY(1);   }
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    DARK THEME — Falling gray geometric particles
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -337,7 +357,6 @@
 
 /* ═══════════════════════════════════════════════════════════════════════════
    NEON THEME — Glitch canvas (rendered via <canvas> in component)
-   The canvas element itself just needs to fill the overlay behind content.
    ═══════════════════════════════════════════════════════════════════════════ */
 .lost-glitch-canvas {
   position: absolute;
@@ -348,10 +367,9 @@
   z-index: 0;
 }
 
-/* Ensure card and terminated content are above canvas */
+/* Ensure card elements are above canvas, terminated content above both */
 .lost-card-wrap,
-.lost-card-half-wrap,
-.lost-terminated-content {
+.lost-card-half-wrap {
   position: relative;
   z-index: 2;
 }
