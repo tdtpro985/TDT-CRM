@@ -264,8 +264,13 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   // Reset activeBranch/activeRegion whenever the logged-in user changes (login/logout)
   useEffect(() => {
-    setActiveBranch(currentUser?.role === 'Head of Sales' ? '' : (currentUser?.branch ?? ''))
-    setActiveRegion('')
+    if (currentUser?.role === 'Regional Sales Manager') {
+      setActiveBranch('')
+      setActiveRegion(currentUser?.region ?? '')
+    } else {
+      setActiveBranch(currentUser?.role === 'Head of Sales' ? '' : (currentUser?.branch ?? ''))
+      setActiveRegion('')
+    }
   }, [currentUser])
 
   useEffect(() => {
