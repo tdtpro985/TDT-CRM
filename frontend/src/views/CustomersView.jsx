@@ -41,7 +41,8 @@ export default function CustomersView({
   fetchContacts,
   setNotice,
   currentUser,
-  searchQuery
+  searchQuery,
+  onReassignLead
 }) {
   const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState('all')
@@ -57,6 +58,8 @@ export default function CustomersView({
   const [logTypeFilter, setLogTypeFilter] = useState('all')
   const [logDateFrom, setLogDateFrom] = useState('')
   const [logDateTo, setLogDateTo] = useState('')
+  const [dealFilterMonth, setDealFilterMonth] = useState('')
+  const [dealFilterYear, setDealFilterYear] = useState('')
   const activityLogBodyRef = useRef(null)
   const savedActivityScrollRef = useRef(0)
   const handleToggleActivityLog = useCallback(() => {
@@ -76,6 +79,10 @@ export default function CustomersView({
   }, [activityLogExpanded])
   const isSr = isSrRole(currentUser?.role)
   const [dealSummary, setDealSummary] = useState(null)
+  const [assigningCustomerId, setAssigningCustomerId] = useState(null)
+  const [assignOwnerId, setAssignOwnerId] = useState('')
+  const [assignProcessing, setAssignProcessing] = useState(false)
+  const isManager = !isSr && currentUser?.role !== 'Branch Account'
 
   // Reset page on search change (adjusting state during render)
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
@@ -95,6 +102,12 @@ export default function CustomersView({
       // Newly-assigned (handover) filter — independent of deal-based status
       if (statusFilter === 'Newly Assigned') {
         if (!c.reassignedAt) return false
+        return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
+      }
+
+      // Unassigned filter — customers with no owner/SR
+      if (statusFilter === 'Unassigned') {
+        if (c.ownerId) return false
         return matchesSearch(searchQuery, [c.name, c.contactNum, c.address, c.region, c.sr, c.branch, c.customerStatus])
       }
 
@@ -259,16 +272,25 @@ export default function CustomersView({
       })
   , [deals, selectedCustomer?.id])
 
+  const filteredDeals = useMemo(() => {
+    return customerDeals.filter(d => {
+      const date = new Date(d.closeDate || d.createdAt)
+      if (dealFilterMonth && date.getMonth() + 1 !== Number(dealFilterMonth)) return false
+      if (dealFilterYear && date.getFullYear() !== Number(dealFilterYear)) return false
+      return true
+    })
+  }, [customerDeals, dealFilterMonth, dealFilterYear])
+
   const wonCount = useMemo(() =>
-    customerDeals.filter(d => d.stage === 'Closed Won').length, [customerDeals])
+    filteredDeals.filter(d => d.stage === 'Closed Won').length, [filteredDeals])
   const lostCount = useMemo(() =>
-    customerDeals.filter(d => d.stage === 'Closed Lost').length, [customerDeals])
+    filteredDeals.filter(d => d.stage === 'Closed Lost').length, [filteredDeals])
   const closedWonValue = useMemo(() =>
-    customerDeals.filter(d => d.stage === 'Closed Won')
-      .reduce((sum, d) => sum + Number(d.value || 0), 0), [customerDeals])
+    filteredDeals.filter(d => d.stage === 'Closed Won')
+      .reduce((sum, d) => sum + Number(d.value || 0), 0), [filteredDeals])
   const closedLostValue = useMemo(() =>
-    customerDeals.filter(d => d.stage === 'Closed Lost')
-      .reduce((sum, d) => sum + Number(d.value || 0), 0), [customerDeals])
+    filteredDeals.filter(d => d.stage === 'Closed Lost')
+      .reduce((sum, d) => sum + Number(d.value || 0), 0), [filteredDeals])
   const winLossRatio = useMemo(() => {
     if (wonCount === 0 && lostCount === 0) return '—'
     if (lostCount === 0) return wonCount
@@ -308,6 +330,7 @@ export default function CustomersView({
                   <option value="all">All</option>
                   {!isSr && <option value="mine">{currentUser?.name} ({roleAbbr(currentUser?.role)})</option>}
                   <option value="Newly Assigned">🆕 Newly Assigned</option>
+                  {isManager && <option value="Unassigned">Unassigned</option>}
                   {customerStatuses.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </label>
@@ -352,6 +375,72 @@ export default function CustomersView({
                             )}
                           </div>
                         </div>
+                        {isManager && !customer.ownerId && (
+                          <div className="u-margin-t-8">
+                            {assigningCustomerId === customer.id ? (
+                              <div className="u-flex-center-gap-8" style={{ padding: '4px 0' }}>
+                                <select
+                                  value={assignOwnerId}
+                                  onChange={e => setAssignOwnerId(e.target.value)}
+                                  className="admin-select"
+                                  style={{ flex: 1, fontSize: 'var(--fs-sm)' }}
+                                  disabled={assignProcessing}
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  <option value="">Select SR…</option>
+                                  {(teamMembers ?? []).filter(m =>
+                                    isSrRole(m.role) && String(m.branch).toLowerCase() === String(customer.branch || '').toLowerCase()
+                                  ).map(m => (
+                                    <option key={m.id} value={String(m.id)}>{m.name}</option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="primary-button"
+                                  style={{ fontSize: 'var(--fs-sm)', padding: '4px 12px' }}
+                                  disabled={assignProcessing || !assignOwnerId}
+                                  onClick={async (e) => {
+                                    e.stopPropagation()
+                                    setAssignProcessing(true)
+                                    try {
+                                      await onReassignLead?.(customer.id, assignOwnerId)
+                                      setAssigningCustomerId(null)
+                                      setAssignOwnerId('')
+                                    } finally {
+                                      setAssignProcessing(false)
+                                    }
+                                  }}
+                                >
+                                  {assignProcessing ? (<><span className="spinner-small" /> Saving…</>) : 'Confirm'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="ghost-button"
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    setAssigningCustomerId(null)
+                                    setAssignOwnerId('')
+                                  }}
+                                  disabled={assignProcessing}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="ghost-button u-fs-10"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setAssigningCustomerId(customer.id)
+                                  setAssignOwnerId('')
+                                }}
+                              >
+                                Assign SR
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -390,11 +479,52 @@ export default function CustomersView({
                   <div className="customer-detail-view--sections">
                     <div className="detail-section">
                       {(() => {
-                        const displayDeals = customerDeals
+                        const displayDeals = filteredDeals
                         return (
                           <>
                             <div className="section-header u-margin-b-12 u-flex-between u-flex-center" style={{ flexShrink: 0 }}>
                               <h4 className="u-margin-0 u-text-strong">Deal History</h4>
+                              <div className="log-filters u-flex-center-gap-8">
+                                <select
+                                  value={dealFilterMonth}
+                                  onChange={e => setDealFilterMonth(e.target.value)}
+                                  className="admin-select u-fs-11"
+                                  style={{ padding: '4px 8px', height: 'auto', width: 'auto' }}
+                                >
+                                  <option value="">Month</option>
+                                  <option value="1">January</option>
+                                  <option value="2">February</option>
+                                  <option value="3">March</option>
+                                  <option value="4">April</option>
+                                  <option value="5">May</option>
+                                  <option value="6">June</option>
+                                  <option value="7">July</option>
+                                  <option value="8">August</option>
+                                  <option value="9">September</option>
+                                  <option value="10">October</option>
+                                  <option value="11">November</option>
+                                  <option value="12">December</option>
+                                </select>
+                                <select
+                                  value={dealFilterYear}
+                                  onChange={e => setDealFilterYear(e.target.value)}
+                                  className="admin-select u-fs-11"
+                                  style={{ padding: '4px 8px', height: 'auto', width: 'auto' }}
+                                >
+                                  <option value="">Year</option>
+                                  {Array.from({ length: new Date().getFullYear() - 2019 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                    <option key={y} value={y}>{y}</option>
+                                  ))}
+                                </select>
+                                {(dealFilterMonth || dealFilterYear) && (
+                                  <button
+                                    className="admin-action-btn u-pad-2-6 u-fs-10"
+                                    onClick={() => { setDealFilterMonth(''); setDealFilterYear('') }}
+                                  >
+                                    Clear
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
                             <div className="metrics-grid metrics-grid--compact u-grid-3 u-flex-gap-sm u-margin-b-24" style={{ flexShrink: 0 }}>
@@ -449,15 +579,15 @@ export default function CustomersView({
                                 </table>
                               </div>
                             </div>
-                            {customerDeals.length > 6 && (
+                            {filteredDeals.length > 6 && (
                               <div className="collapse-bar" onClick={() => setDealHistoryExpanded(!dealHistoryExpanded)}>
-                                <svg 
+                                <svg
                                   width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
                                   style={{ transform: `rotate(${dealHistoryExpanded ? 180 : 0}deg)`, transition: 'transform 0.2s' }}
                                 >
                                   <polyline points="6 9 12 15 18 9"></polyline>
                                 </svg>
-                                <span>{dealHistoryExpanded ? 'Show less' : `Show all ${customerDeals.length} deals`}</span>
+                                <span>{dealHistoryExpanded ? 'Show less' : `Show all ${filteredDeals.length} deals`}</span>
                               </div>
                             )}
                           </>

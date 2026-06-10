@@ -282,8 +282,13 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   // Reset activeBranch/activeRegion whenever the logged-in user changes (login/logout)
   useEffect(() => {
-    setActiveBranch(currentUser?.role === 'Head of Sales' ? '' : (currentUser?.branch ?? ''))
-    setActiveRegion('')
+    if (currentUser?.role === 'Regional Sales Manager') {
+      setActiveBranch('')
+      setActiveRegion(currentUser?.region ?? '')
+    } else {
+      setActiveBranch(currentUser?.role === 'Head of Sales' ? '' : (currentUser?.branch ?? ''))
+      setActiveRegion('')
+    }
   }, [currentUser])
 
   useEffect(() => {
@@ -879,12 +884,16 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     setLeads(current => current.map(l =>
       l.id === leadId ? { ...l, ownerId: newOwnerId, sr: newOwner?.name ?? '' } : l
     ))
+    setCustomers(current => current.map(c =>
+      c.id === leadId ? { ...c, ownerId: newOwnerId, sr: newOwner?.name ?? '' } : c
+    ))
     try {
       const res = await apiFetch(`/api/leads/${leadId}/reassign`, {
         method: 'PATCH',
         body: JSON.stringify({ newOwnerId }),
       })
       if (!res.ok) throw new Error('Reassign failed')
+      fetchCustomers()
       fetchLeads()
       setNotice('Lead reassigned successfully.')
       showToast('Lead reassigned!')

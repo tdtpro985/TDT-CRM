@@ -1,28 +1,33 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, isSrRole } from '../utils'
-import { ITEMS_PER_PAGE } from '../constants'
+import { ITEMS_PER_PAGE, REGION_BRANCHES } from '../constants'
+import Pagination from '../components/Pagination'
 
-function WonOverTimeChart({ data, type }) {
+function WonOverTimeChart({ data, type, mode }) {
+  const label = mode === 'won' ? 'won' : 'lost'
   if (data.length === 0) {
-    return <div className="dashboard-chart-empty">No deals won in this period.</div>
+    return <div className="dashboard-chart-empty">No deals {label} in this period.</div>
   }
 
   const maxValue = Math.max(...data.map(d => type === 'revenue' ? d.value : d.count), 1)
 
   return (
-    <div className="dashboard-chart">
+    <div className={`dashboard-chart ${mode === 'lost' ? 'dashboard-chart--lost' : ''}`}>
       {data.map(d => {
         const val = type === 'revenue' ? d.value : d.count
         const height = (val / maxValue) * 100
         return (
           <div key={d.month} className="chart-bar-container">
             <div 
-              className="chart-bar" 
+              className={`chart-bar ${mode === 'lost' ? 'chart-bar--lost' : ''}`}
               style={{ height: `${height}%` }}
-              title={`${d.month}: ${type === 'revenue' ? formatCurrencyCompact(d.value) : d.count + ' deals'}`}
+              title={`${d.month}: ${type === 'revenue' ? formatCurrencyCompact(d.value) : d.count + ' deals'} (${label})`}
             >
               <span className="chart-bar__value">
                 {type === 'revenue' ? formatCurrencyCompact(val) : val}
@@ -39,6 +44,7 @@ function WonOverTimeChart({ data, type }) {
 function LostReasonBreakdown({ countData, valueData }) {
   const r = 65, cx = 85, cy = 85, sw = 22
   const circumference = 2 * Math.PI * r
+  const [hoveredReason, setHoveredReason] = useState(null)
   const total = countData.reduce((sum, d) => sum + d.count, 0)
   const { slices } = countData.reduce(
     ({ slices: acc, cum }, s) => {
@@ -71,7 +77,7 @@ function LostReasonBreakdown({ countData, valueData }) {
         <svg viewBox="0 0 170 170" className="donut-svg">
           <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
           {slices.map((s) => s.pct > 0 && (
-            <circle
+              <circle
               key={s.reason}
               cx={cx} cy={cy} r={r}
               fill="none"
@@ -79,7 +85,10 @@ function LostReasonBreakdown({ countData, valueData }) {
               strokeWidth={sw}
               strokeDasharray={`${s.pct * circumference} ${circumference}`}
               transform={`rotate(${s.startPct * 360 - 90}, ${cx}, ${cy})`}
-              style={{ transition: 'stroke-dasharray 0.5s ease' }}
+              style={{
+                transition: 'stroke-dasharray 0.5s ease, opacity 0.25s ease',
+                opacity: hoveredReason === null || hoveredReason === s.reason ? 1 : 0.12
+              }}
             />
           ))}
           <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--text-strong)" fontSize="22" fontWeight="800" fontFamily="inherit">
@@ -91,7 +100,9 @@ function LostReasonBreakdown({ countData, valueData }) {
         </svg>
         <div className="donut-legend">
           {slices.map((s) => (
-            <div key={s.reason} className="legend-item">
+            <div key={s.reason} className="legend-item"
+              onMouseEnter={() => setHoveredReason(s.reason)}
+              onMouseLeave={() => setHoveredReason(null)}>
               <span className="legend-dot" style={{ background: COLORS[s.reason] || '#64748b' }} />
               <span className="legend-label">{s.reason}</span>
               <span className="legend-count">{s.count.toLocaleString()}</span>
@@ -114,7 +125,9 @@ function LostReasonBreakdown({ countData, valueData }) {
           {valueData.map(d => {
             const pct = maxValue > 0 ? (d.value / maxValue) * 100 : 0
             return (
-              <div key={d.reason} className="lrb-bar-row">
+              <div key={d.reason} className="lrb-bar-row"
+                onMouseEnter={() => setHoveredReason(d.reason)}
+                onMouseLeave={() => setHoveredReason(null)}>
                 <span className="lrb-bar-dot" style={{ background: COLORS[d.reason] || '#64748b' }} />
                 <span className="lrb-bar-label">{d.reason}</span>
                 <div className="lrb-bar-track">
@@ -130,6 +143,128 @@ function LostReasonBreakdown({ countData, valueData }) {
   )
 }
 
+function StageDonutChart({ data, hovered, onHover }) {
+  const r = 65, cx = 85, cy = 85, sw = 22
+  const circumference = 2 * Math.PI * r
+
+  const activeStages = data.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost' && s.count > 0)
+  const total = activeStages.reduce((sum, s) => sum + s.count, 0)
+
+  const STAGE_COLORS = {
+    'Qualified':       '#ff9800',
+    'New Opportunity': '#38bdf8',
+    'Proposal':        '#34d399',
+    'Negotiation':     '#fb7185',
+  }
+
+  const slices = activeStages.reduce((acc, s) => {
+    const pct = total ? s.count / total : 0
+    const startPct = acc.length ? acc[acc.length - 1].startPct + acc[acc.length - 1].pct : 0
+    return [...acc, { ...s, pct, startPct }]
+  }, [])
+
+  if (total === 0) {
+    return <div className="u-text-muted u-fs-sm u-margin-t-16">No deals in pipeline.</div>
+  }
+
+  return (
+    <div className="donut-wrapper">
+      <svg viewBox="0 0 170 170" className="donut-svg">
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={sw} />
+        {slices.map((s) => s.pct > 0 && (
+          <circle
+            key={s.stage}
+            cx={cx} cy={cy} r={r}
+            fill="none"
+            stroke={STAGE_COLORS[s.stage] || '#64748b'}
+            strokeWidth={sw}
+            strokeDasharray={`${s.pct * circumference} ${circumference}`}
+            transform={`rotate(${s.startPct * 360 - 90}, ${cx}, ${cy})`}
+            style={{
+              transition: 'stroke-dasharray 0.5s ease, opacity 0.25s ease',
+              opacity: hovered === null || hovered === s.stage ? 1 : 0.12
+            }}
+          />
+        ))}
+        <text x={cx} y={cy + 4} textAnchor="middle" fill="var(--text-strong)" fontSize="24" fontWeight="800" fontFamily="inherit">
+          {total.toLocaleString()}
+        </text>
+      </svg>
+      <div className="donut-legend">
+        {slices.map((s) => (
+          <div key={s.stage} className="legend-item"
+            onMouseEnter={() => onHover(s.stage)}
+            onMouseLeave={() => onHover(null)}>
+            <span className="legend-dot" style={{ background: STAGE_COLORS[s.stage] || '#64748b' }} />
+            <span className="legend-label">{s.stage}</span>
+            <span className="legend-count">{s.count.toLocaleString()}</span>
+            <span className="legend-pct">{Math.round(s.pct * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const DEFAULT_LAYOUT = [
+  { id: 'kpi_metrics',    enabled: true },
+  { id: 'branch_overview', enabled: true },
+  { id: 'top_srs',        enabled: true },
+  { id: 'deals_chart',    enabled: true },
+  { id: 'stage_donut',    enabled: true },
+  { id: 'record_health',  enabled: true },
+  { id: 'priority_tasks', enabled: true },
+  { id: 'totals',         enabled: true },
+  { id: 'recent_wins',    enabled: true },
+  { id: 'recent_losses',  enabled: true },
+  { id: 'loss_analysis',  enabled: true },
+]
+
+const WIDGET_LABELS = {
+  kpi_metrics:     'KPI Metrics',
+  top_srs:         'Top Sales Reps',
+  branch_overview: 'Branch Overview',
+  deals_chart:     'Deals Won/Lost Chart',
+  stage_donut:     'Deals by Stage',
+  record_health:   'Record Health',
+  priority_tasks:  'Priority Follow-ups',
+  totals:          'Won/Lost Totals',
+  recent_wins:     'Recent Wins',
+  recent_losses:   'Recent Losses',
+  loss_analysis:   'Loss Analysis',
+}
+
+const HALF_WIDTH = new Set(['deals_chart','stage_donut','record_health','priority_tasks','recent_wins','recent_losses','top_srs','branch_overview'])
+
+function loadLayout(key) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(key))
+    if (!raw) return DEFAULT_LAYOUT
+    if (Array.isArray(raw)) {
+      const knownIds = new Set(raw.map(w => w.id))
+      const missing = DEFAULT_LAYOUT.filter(w => !knownIds.has(w.id))
+      return [...raw, ...missing]
+    }
+    // Migrate old object format
+    return DEFAULT_LAYOUT.map(w => ({ ...w, enabled: raw[w.id] ?? true }))
+  } catch { return DEFAULT_LAYOUT }
+}
+
+function SortableWidgetRow({ widget, onToggle }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
+  return (
+    <div ref={setNodeRef} style={style} className="customize-widget-row">
+      <span className="drag-handle" {...attributes} {...listeners}>⠿</span>
+      <span className="customize-widget-label">{WIDGET_LABELS[widget.id]}</span>
+      <label className="toggle-switch">
+        <input type="checkbox" checked={widget.enabled} onChange={onToggle} />
+        <span className="toggle-track" />
+      </label>
+    </div>
+  )
+}
+
 export default function DashboardView({
   topKpis,
   stageSummary,
@@ -140,13 +275,42 @@ export default function DashboardView({
   openTasks,
   linkHealth,
   currentUser,
+  teamMembers,
+  showCustomize,
+  setShowCustomize,
 }) {
   const navigate = useNavigate()
   const isSr = isSrRole(currentUser?.role)
   const stageListRef = useRef(null)
   const healthRef = useRef(null)
-  const [visible, setVisible] = useState(false)
   const [healthVisible, setHealthVisible] = useState(false)
+
+  // Layout customization
+  const layoutKey = `dashboard_layout_${currentUser?.id}`
+  const [layout, setLayout] = useState(() => loadLayout(`dashboard_layout_${currentUser?.id}`))
+  const [draftLayout, setDraftLayout] = useState(layout)
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  function handleDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return
+    setDraftLayout(prev => {
+      const from = prev.findIndex(w => w.id === active.id)
+      const to = prev.findIndex(w => w.id === over.id)
+      return arrayMove(prev, from, to)
+    })
+  }
+
+  function cancelCustomize() {
+    setDraftLayout(layout)
+    setShowCustomize(false)
+  }
+
+  function saveLayout() {
+    setLayout(draftLayout)
+    try { localStorage.setItem(layoutKey, JSON.stringify(draftLayout)) } catch { /* ignore */ }
+    setShowCustomize(false)
+  }
 
   // Chart state
   const [startDate, setStartDate] = useState(() => {
@@ -156,19 +320,99 @@ export default function DashboardView({
   })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 7))
   const [chartType, setChartType] = useState('revenue')
+  const [chartMode, setChartMode] = useState('won')
+  const [hoveredStage, setHoveredStage] = useState(null)
+  const [srSort, setSrSort] = useState('dealsWon')
+  const [srPage, setSrPage] = useState(1)
+  const SR_PAGE_SIZE = 5
+
+  function handleSrSort(key) {
+    setSrSort(key)
+    setSrPage(1)
+  }
+
+  const isHosOrAdmin = currentUser?.role === 'Head of Sales' || currentUser?.role === 'Admin'
+  const isRsm = currentUser?.role === 'Regional Sales Manager'
+
+  const topSRs = useMemo(() => {
+    if (!isHosOrAdmin && !isRsm) return []
+
+    const stats = {}
+
+    deals.forEach(d => {
+      const owner = d.owner || 'Unassigned'
+      if (!stats[owner]) {
+        stats[owner] = { name: owner, dealsWon: 0, dealsLost: 0, pipelineValue: 0, branch: d.branch || '' }
+      }
+      if (d.stage === 'Closed Won') stats[owner].dealsWon++
+      if (d.stage === 'Closed Lost') stats[owner].dealsLost++
+      if (d.stage !== 'Closed Won' && d.stage !== 'Closed Lost') {
+        stats[owner].pipelineValue += Number(d.value || 0)
+      }
+    })
+
+    leads.forEach(l => {
+      const owner = l.sr || l.ownerName || 'Unassigned'
+      if (!stats[owner]) {
+        stats[owner] = { name: owner, dealsWon: 0, dealsLost: 0, pipelineValue: 0, branch: l.branch || '', leadsCount: 0, converted: 0 }
+      }
+      stats[owner].leadsCount = (stats[owner].leadsCount || 0) + 1
+      if (l.status === 'Converted') stats[owner].converted = (stats[owner].converted || 0) + 1
+    })
+
+    teamMembers.forEach(m => {
+      if (isSrRole(m.role) && !stats[m.name]) {
+        stats[m.name] = { name: m.name, dealsWon: 0, dealsLost: 0, pipelineValue: 0, branch: m.branch || '', leadsCount: 0, converted: 0 }
+      }
+    })
+
+    return Object.values(stats)
+      .filter(s => s.name !== 'Unassigned')
+      .sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0))
+  }, [deals, leads, srSort, isHosOrAdmin, isRsm, teamMembers])
+
+  const srTotalPages = Math.ceil(topSRs.length / SR_PAGE_SIZE) || 1
+  const paginatedSRs = topSRs.slice((srPage - 1) * SR_PAGE_SIZE, srPage * SR_PAGE_SIZE)
+
+  const branchStats = useMemo(() => {
+    const stats = {}
+    teamMembers.forEach(m => {
+      if (!isSrRole(m.role)) return
+      const b = m.branch || 'Unknown'
+      if (!stats[b]) stats[b] = { branch: b, srs: 0, activeDeals: 0, pipelineValue: 0, won: 0 }
+      stats[b].srs++
+    })
+    deals.forEach(d => {
+      const b = d.branch || 'Unknown'
+      if (!stats[b]) stats[b] = { branch: b, srs: 0, activeDeals: 0, pipelineValue: 0, won: 0 }
+      if (d.stage !== 'Closed Won' && d.stage !== 'Closed Lost') {
+        stats[b].activeDeals++
+        stats[b].pipelineValue += Number(d.value || 0)
+      }
+      if (d.stage === 'Closed Won') stats[b].won++
+    })
+    return Object.values(stats).sort((a, b) => a.branch.localeCompare(b.branch))
+  }, [deals, teamMembers])
+
+  const PIPELINE_STAGE_COLORS = {
+    'Qualified':       '#ff9800',
+    'New Opportunity': '#38bdf8',
+    'Proposal':        '#34d399',
+    'Negotiation':     '#fb7185',
+  }
 
   const chartData = useMemo(() => {
-    const wonDeals = deals.filter(d => {
-      if (d.stage !== 'Closed Won') return false
-      const date = d.closeDate || d.createdAt
+    const targetStage = chartMode === 'won' ? 'Closed Won' : 'Closed Lost'
+    const filteredDeals = deals.filter(d => {
+      if (d.stage !== targetStage) return false
+      const date = d.closeDate || d.created_at
       if (!date) return false
       const month = date.slice(0, 7)
       return (!startDate || month >= startDate) && (!endDate || month <= endDate)
     })
 
     const groups = {}
-    
-    // Fill in all months in range
+
     if (startDate && endDate) {
       let [y, m] = startDate.split('-').map(Number)
       let curr = `${y}-${String(m).padStart(2, '0')}`
@@ -183,17 +427,16 @@ export default function DashboardView({
       }
     }
 
-    wonDeals.forEach(d => {
-      const month = (d.closeDate || d.createdAt).slice(0, 7)
+    filteredDeals.forEach(d => {
+      const month = (d.closeDate || d.created_at).slice(0, 7)
       if (!groups[month]) groups[month] = { month, count: 0, value: 0 }
       groups[month].count++
       groups[month].value += Number(d.value || 0)
     })
 
     return Object.values(groups).sort((a, b) => a.month.localeCompare(b.month))
-  }, [deals, startDate, endDate])
+  }, [deals, startDate, endDate, chartMode])
 
-  // Won/Lost Metrics
   const wonStats = useMemo(() => {
     const won = deals.filter(d => d.stage === 'Closed Won')
     return {
@@ -213,14 +456,14 @@ export default function DashboardView({
   const recentWins = useMemo(() => {
     return deals
       .filter(d => d.stage === 'Closed Won')
-      .sort((a, b) => new Date(b.closeDate || b.createdAt) - new Date(a.closeDate || a.createdAt))
+      .sort((a, b) => new Date(b.closeDate || b.created_at) - new Date(a.closeDate || a.created_at))
       .slice(0, 5)
   }, [deals])
 
   const recentLosses = useMemo(() => {
     return deals
       .filter(d => d.stage === 'Closed Lost')
-      .sort((a, b) => new Date(b.closeDate || b.createdAt) - new Date(a.closeDate || a.createdAt))
+      .sort((a, b) => new Date(b.closeDate || b.created_at) - new Date(a.closeDate || a.created_at))
       .slice(0, 5)
   }, [deals])
 
@@ -255,22 +498,6 @@ export default function DashboardView({
   }
 
   useEffect(() => {
-    const el = stageListRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true)
-          observer.disconnect()
-        }
-      },
-      { threshold: 0.2 },
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
     const el = healthRef.current
     if (!el) return
     const observer = new IntersectionObserver(
@@ -299,6 +526,340 @@ export default function DashboardView({
       .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
     return low.slice(0, 5)
   })()
+
+  // Build ordered render rows from layout array (smart 2-col pairing)
+  const renderRows = useMemo(() => {
+    const enabled = layout.filter(w => w.enabled).map(w => w.id)
+    const rows = []
+    let i = 0
+    while (i < enabled.length) {
+      const cur = enabled[i]
+      const nxt = enabled[i + 1]
+      const curHalf = HALF_WIDTH.has(cur) && !(isHosOrAdmin && cur === 'branch_overview')
+      const nxtHalf = nxt && HALF_WIDTH.has(nxt) && !(isHosOrAdmin && nxt === 'branch_overview')
+      if (curHalf && nxt && nxtHalf) {
+        rows.push({ type: 'pair', a: cur, b: nxt })
+        i += 2
+      } else {
+        rows.push({ type: 'single', id: cur })
+        i++
+      }
+    }
+    return rows
+  }, [layout, isHosOrAdmin])
+
+  function renderWidget(id) {
+    switch (id) {
+      case 'kpi_metrics': return (
+        <section key="kpi_metrics" className="metrics-grid metrics-grid--five" aria-label="Core KPIs">
+          {topKpis.map((kpi) => (
+            <MetricCard key={kpi.label} label={kpi.label} value={kpi.value} meta={kpi.meta} accent={kpi.accent} route={kpi.route} />
+          ))}
+        </section>
+      )
+      case 'top_srs': {
+        if (isSr) return null
+        return (
+          <Panel key="top_srs" kicker="Rankings" title="Top Sales Reps"
+            action={
+              <div className="dashboard-sr-sort">
+                {[['Won', 'dealsWon'], ['Leads', 'leadsCount'], ['Value', 'pipelineValue']].map(([label, key]) => (
+                  <button key={key} type="button" className={`dashboard-sr-sort-btn${srSort === key ? ' is-active' : ''}`}
+                    onClick={() => handleSrSort(key)}>{label}</button>
+                ))}
+              </div>
+            }
+          >
+            <div className="dashboard-sr-panel-content">
+              <div className="dashboard-sr-list-wrap">
+                {paginatedSRs.length === 0 ? (
+                  <p className="u-pad-16 u-text-muted u-fs-sm">No SR data available for the current scope.</p>
+                ) : (
+                  <div className="sr-rank-list">
+                    {paginatedSRs.map((sr, i) => {
+                      const rank = (srPage - 1) * SR_PAGE_SIZE + i + 1
+                      return (
+                        <div key={sr.name} className="sr-rank-item">
+                          <div className="sr-rank-badge">{rank}</div>
+                          <div className="sr-rank-info">
+                            <div className="sr-rank-name">{sr.name}</div>
+                            <div className="sr-rank-branch">{sr.branch}</div>
+                          </div>
+                          <div className="sr-rank-stats">
+                            {srSort === 'dealsWon' && (
+                              <span className="admin-role-pill admin-role-pill--accent">{sr.dealsWon} won</span>
+                            )}
+                            {srSort === 'leadsCount' && (
+                              <span className="admin-role-pill admin-role-pill--alt">{sr.leadsCount} leads</span>
+                            )}
+                            {srSort === 'pipelineValue' && (
+                              <span className="admin-role-pill admin-role-pill--surface">{formatCurrencyCompact(sr.pipelineValue)}</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              {topSRs.length > 0 && (
+                <Pagination currentPage={srPage} totalPages={srTotalPages} onPageChange={setSrPage} />
+              )}
+            </div>
+          </Panel>
+        )
+      }
+      case 'branch_overview': {
+        if (isSr) return null
+
+        const branchToRegion = {}
+        Object.entries(REGION_BRANCHES).forEach(([region, branches]) => {
+          branches.forEach(b => { branchToRegion[b.toLowerCase()] = region })
+        })
+
+        const regionGroups = {}
+        branchStats.forEach(s => {
+          const region = branchToRegion[s.branch.toLowerCase()] || 'Other'
+          if (!regionGroups[region]) regionGroups[region] = { region, branches: [], srs: 0, activeDeals: 0, pipelineValue: 0, won: 0 }
+          regionGroups[region].branches.push(s)
+          regionGroups[region].srs += s.srs
+          regionGroups[region].activeDeals += s.activeDeals
+          regionGroups[region].pipelineValue += s.pipelineValue
+          regionGroups[region].won += s.won
+        })
+
+        const regionOrder = Object.keys(REGION_BRANCHES)
+        const sortedRegions = Object.values(regionGroups).sort((a, b) => {
+          const ai = regionOrder.indexOf(a.region)
+          const bi = regionOrder.indexOf(b.region)
+          if (ai === -1 && bi === -1) return 0
+          if (ai === -1) return 1
+          if (bi === -1) return -1
+          return ai - bi
+        })
+
+        const hasData = branchStats.length > 0
+
+        if (isHosOrAdmin) {
+          const filteredRegions = sortedRegions.filter(g => g.region !== 'Other')
+          return (
+            <section key="branch_overview" className="content-grid">
+              <Panel kicker="Regional Summary"
+                title="Branch Overview by Region"
+                detail="Active deals, pipeline value, and SR coverage per branch."
+              >
+                {!hasData ? (
+                  <div className="admin-table__muted u-text-center u-pad-16">No data for the selected scope.</div>
+                ) : (
+                  <div className="region-columns">
+                    {filteredRegions.map(grp => (
+                      <div key={grp.region} className="region-column">
+                        <div className="region-column__header">{grp.region}</div>
+                        <div className="region-column__body">
+                          {grp.branches.map(s => (
+                            <div key={s.branch} className="region-column__row">
+                              <span className="region-column__name">{s.branch}</span>
+                              <span className="region-column__num">{s.srs}</span>
+                              <span className="region-column__num">{s.activeDeals}</span>
+                              <span className="region-column__num-mono">{formatCurrencyCompact(s.pipelineValue)}</span>
+                              <span className="region-column__num">{s.won}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="region-column__divider" />
+                        <div className="region-column__row region-column__row--total">
+                          <span className="region-column__name">Total</span>
+                          <span className="region-column__num">{grp.srs}</span>
+                          <span className="region-column__num">{grp.activeDeals}</span>
+                          <span className="region-column__num-mono">{formatCurrencyCompact(grp.pipelineValue)}</span>
+                          <span className="region-column__num">{grp.won}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Panel>
+            </section>
+          )
+        }
+
+        return (
+          <Panel kicker="Regional Summary"
+            title="Branch Overview"
+            detail="Active deals, pipeline value, and SR coverage per branch."
+          >
+            {!hasData ? (
+              <div className="admin-table__muted u-text-center u-pad-16">No data for the selected scope.</div>
+            ) : (
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Branch</th>
+                      <th className="num">SRs</th>
+                      <th className="num">Active Deals</th>
+                      <th className="num">Pipeline Value</th>
+                      <th className="num">Won</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {branchStats.map(s => (
+                      <tr key={s.branch}>
+                        <td className="admin-table__name">{s.branch}</td>
+                        <td className="num">{s.srs}</td>
+                        <td className="num">{s.activeDeals}</td>
+                        <td className="num-mono">{formatCurrencyCompact(s.pipelineValue)}</td>
+                        <td className="num">{s.won}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </Panel>
+        )
+      }
+      case 'deals_chart': return (
+        <Panel key="deals_chart"
+          kicker="Performance"
+          title={`Deals ${chartMode === 'won' ? 'Won' : 'Lost'} Over Time`}
+          detail={chartMode === 'won' ? 'Growth tracking for successfully closed opportunities.' : 'Analysis of lost deals and missed opportunities.'}
+          action={
+            <div className="chart-filters">
+              <div className="chart-type-toggle">
+                <button className={`chart-mode-btn ${chartMode === 'won' ? 'is-active' : ''}`} onClick={() => setChartMode('won')}>Won</button>
+                <button className={`chart-mode-btn ${chartMode === 'lost' ? 'is-active' : ''}`} onClick={() => setChartMode('lost')}>Lost</button>
+              </div>
+              <div className="chart-type-toggle">
+                <button className={`chart-type-btn ${chartType === 'revenue' ? 'is-active' : ''}`} onClick={() => setChartType('revenue')}>Value</button>
+                <button className={`chart-type-btn ${chartType === 'count' ? 'is-active' : ''}`} onClick={() => setChartType('count')}>Count</button>
+              </div>
+              <input type="month" value={startDate} onChange={e => setStartDate(e.target.value)} className="chart-filter-input" />
+              <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>to</span>
+              <input type="month" value={endDate} onChange={e => setEndDate(e.target.value)} className="chart-filter-input" />
+            </div>
+          }
+        >
+          <div className="dashboard-chart-container">
+            <WonOverTimeChart data={chartData} type={chartType} mode={chartMode} />
+          </div>
+        </Panel>
+      )
+      case 'stage_donut': return (
+        <Panel key="stage_donut" kicker="Pipeline snapshot" title="Deals by stage with expected revenue" detail>
+          <div className="pipeline-snapshot-layout">
+            <div className="pipeline-snapshot-donut">
+              <StageDonutChart data={stageSummary.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost')} hovered={hoveredStage} onHover={setHoveredStage} />
+            </div>
+            <div className="pipeline-snapshot-list">
+              <div ref={stageListRef} className="stage-list">
+                {stageSummary.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost' && s.count > 0).map((stage) => (
+                  <div key={stage.stage} className={`stage-row${hoveredStage === stage.stage ? ' stage-row--hovered' : ''}`}
+                    style={{ borderLeftColor: hoveredStage === stage.stage ? (PIPELINE_STAGE_COLORS[stage.stage] || '#ffb547') : 'transparent' }}
+                    onMouseEnter={() => setHoveredStage(stage.stage)} onMouseLeave={() => setHoveredStage(null)}>
+                    <div className="stage-meta">
+                      <div><strong>{stage.stage}</strong></div>
+                      <span>{formatCurrencyCompact(stage.value)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Panel>
+      )
+      case 'record_health': return (
+        <Panel key="record_health" kicker="Customer database" title="Linked record health" detail="Clean links make follow-ups, ownership, and reporting much more reliable.">
+          <div ref={healthRef} className="stage-list">
+            <div className="stage-row">
+              <div className="stage-meta"><div><strong>{leads.length} leads</strong><span> - Lead records ready for qualification tracking</span></div><span className="status-text is-warning">{linkHealth}% linked</span></div>
+              <div className="stage-track"><div className={`stage-fill${healthVisible ? ' visible' : ''}`} style={{ width: `${linkHealth}%`, animationDelay: healthVisible ? '0s' : undefined }} /></div>
+            </div>
+            <div className="stage-row">
+              <div className="stage-meta"><div><strong>{contacts.length} contacts</strong><span> - Decision makers and buying contacts tied to companies</span></div><span className="status-text is-neutral">Directory</span></div>
+              <div className="stage-track"><div className={`stage-fill${healthVisible ? ' visible' : ''}`} style={{ width: `${Math.min(Math.round((contacts.length / ITEMS_PER_PAGE) * 100), 100)}%`, animationDelay: healthVisible ? '0.1s' : undefined }} /></div>
+            </div>
+            <div className="stage-row">
+              <div className="stage-meta"><div><strong>{companies.length} companies</strong><span> - Accounts organized with owners and status</span></div><span className="status-text is-positive">Clean structure</span></div>
+              <div className="stage-track"><div className={`stage-fill${healthVisible ? ' visible' : ''}`} style={{ width: `${Math.min(Math.round((companies.length / ITEMS_PER_PAGE) * 100), 100)}%`, animationDelay: healthVisible ? '0.2s' : undefined }} /></div>
+            </div>
+          </div>
+        </Panel>
+      )
+      case 'priority_tasks': return (
+        <Panel key="priority_tasks" kicker="Task focus" title="Priority follow-ups" detail="Open work is visible from the dashboard so reps always know what is next."
+          action={
+            <div className="priority-indicators">
+              <span className="priority-indicator"><span className="priority-dot is-high" /><span>{priorityCounts.High}</span></span>
+              <span className="priority-indicator"><span className="priority-dot is-medium" /><span>{priorityCounts.Medium}</span></span>
+              <span className="priority-indicator"><span className="priority-dot is-low" /><span>{priorityCounts.Low}</span></span>
+            </div>
+          }
+        >
+          <div className="simple-list">
+            {focusTasks.map((task) => (
+              <article key={task.id} className={`simple-list__item is-priority-${task.priority.toLowerCase()} u-border-l-3-transparent u-cursor-pointer`}
+                onClick={() => navigate('/tasks', { state: { highlightTaskId: task.id } })}>
+                <div className="u-flex-1 u-min-w-0">
+                  <strong className="u-truncate u-block">{task.title}</strong>
+                  <p className="u-margin-t-4 u-fs-11 u-text-muted">{!isSr ? `${task.owner} | ` : ''}due {formatDateLabel(task.dueDate)}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </Panel>
+      )
+      case 'totals': return (
+        <section key="totals" className="content-grid content-grid--2">
+          <MetricCard label="Deals Won (Total)" value={wonStats.count} meta={formatCurrencyCompact(wonStats.value)} accent="accent" />
+          <MetricCard label="Deals Lost (Total)" value={lostStats.count} meta={formatCurrencyCompact(lostStats.value)} accent="alt" />
+        </section>
+      )
+      case 'recent_wins': return (
+        <Panel key="recent_wins" kicker="History" title="Recent Wins" detail="Latest closed won opportunities.">
+          <div className="history-table-container">
+            <div className="history-list wins-list">
+              <div className="history-list-header"><span>Deal Title</span><span>Won Date</span><span>Owner</span><span style={{ textAlign: 'right' }}>Value</span></div>
+              {recentWins.length === 0 ? <p className="u-pad-16 u-text-muted u-fs-sm">No recent wins.</p> : recentWins.map(d => (
+                <div key={d.id} className="history-list-row is-won">
+                  <strong>{d.name}</strong>
+                  <span className="u-text-muted">{formatDateLabel(d.closeDate || d.created_at)}</span>
+                  <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
+                  <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Panel>
+      )
+      case 'recent_losses': return (
+        <Panel key="recent_losses" kicker="History" title="Recent Losses" detail="Latest closed lost opportunities.">
+          <div className="history-table-container">
+            <div className="history-list losses-list">
+              <div className="history-list-header lost-header"><span>Deal Title</span><span>Lost Date</span><span>Owner</span><span>Reason</span><span style={{ textAlign: 'right' }}>Value</span></div>
+              {recentLosses.length === 0 ? <p className="u-pad-16 u-text-muted u-fs-sm">No recent losses.</p> : recentLosses.map(d => (
+                <div key={d.id} className="history-list-row is-lost">
+                  <strong>{d.name}</strong>
+                  <span className="u-text-muted">{formatDateLabel(d.closeDate || d.created_at)}</span>
+                  <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
+                  <span className="status-text is-warning" style={{ width: 'fit-content' }}>{d.lostReason || 'Unspecified'}</span>
+                  <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Panel>
+      )
+      case 'loss_analysis': return (
+        <section key="loss_analysis" className="content-grid">
+          <Panel kicker="Loss Analysis" title="Why we lost" detail="Distribution of reasons for closed lost deals. Captured from pipeline data.">
+            <LostReasonBreakdown countData={lostReasonData} valueData={lostValueData} />
+          </Panel>
+        </section>
+      )
+      default: return null
+    }
+  }
 
   return (
     <>
@@ -407,6 +968,32 @@ export default function DashboardView({
         .chart-type-btn.is-active {
           background: var(--accent);
           color: #10131f;
+        }
+        .chart-mode-btn {
+          padding: 2px 8px;
+          border-radius: 3px;
+          border: none;
+          background: transparent;
+          color: var(--text-muted);
+          font-size: 10px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .chart-mode-btn.is-active {
+          color: #10131f;
+        }
+        .chart-mode-btn.is-active:first-child {
+          background: var(--positive);
+        }
+        .chart-mode-btn.is-active:last-child {
+          background: var(--alert);
+        }
+        .chart-bar--lost {
+          background: var(--alert) !important;
+        }
+        .dashboard-chart--lost .chart-bar:hover {
+          filter: brightness(1.2);
+          box-shadow: 0 0 12px var(--alert);
         }
         .lost-reason-breakdown {
           display: grid;
@@ -538,6 +1125,30 @@ export default function DashboardView({
           text-align: right;
           font-weight: 600;
         }
+        .pipeline-snapshot-layout {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 24px;
+          align-items: start;
+        }
+        .pipeline-snapshot-donut {
+          display: flex;
+          align-items: center;
+          min-height: 160px;
+        }
+        .pipeline-snapshot-donut .donut-legend {
+          min-width: 140px;
+        }
+        .pipeline-snapshot-donut .donut-svg {
+          width: 150px;
+          height: 150px;
+        }
+        .stage-row--hovered {
+          border-left: 3px solid;
+          padding-left: 13px;
+          background: rgba(255,255,255,0.03);
+          border-radius: 0 4px 4px 0;
+        }
         .history-table-container {
           width: 100%;
           overflow-x: auto;
@@ -611,285 +1222,210 @@ export default function DashboardView({
         .history-list-row.is-lost {
           border-left: 3px solid #fb7185;
         }
+        .customize-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.55);
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .customize-modal {
+          background: var(--bg-card);
+          border: 1px solid var(--border-strong);
+          border-radius: 14px;
+          width: 100%;
+          max-width: 420px;
+          padding: 24px;
+          box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+        }
+        .customize-modal__header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 20px;
+        }
+        .customize-modal__title {
+          font-size: 15px;
+          font-weight: 700;
+          color: var(--text);
+        }
+        .customize-modal__close {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--text-muted);
+          font-size: 20px;
+          line-height: 1;
+          padding: 2px 6px;
+          border-radius: 6px;
+        }
+        .customize-modal__close:hover { color: var(--text); }
+        .customize-widget-list {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          margin-bottom: 24px;
+        }
+        .customize-widget-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 12px;
+          border-radius: 8px;
+          transition: background 0.15s;
+        }
+        .customize-widget-row:hover { background: var(--bg-card-alt); }
+        .drag-handle {
+          cursor: grab;
+          color: var(--text-muted);
+          font-size: 16px;
+          flex-shrink: 0;
+          user-select: none;
+          line-height: 1;
+        }
+        .drag-handle:active { cursor: grabbing; }
+        .customize-widget-label {
+          font-size: 13px;
+          color: var(--text);
+          flex: 1;
+        }
+        .toggle-switch {
+          position: relative;
+          width: 38px;
+          height: 22px;
+          flex-shrink: 0;
+        }
+        .toggle-switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+          position: absolute;
+        }
+        .toggle-track {
+          position: absolute;
+          inset: 0;
+          background: var(--border-strong);
+          border-radius: 99px;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .toggle-track::after {
+          content: '';
+          position: absolute;
+          top: 3px;
+          left: 3px;
+          width: 16px;
+          height: 16px;
+          background: #fff;
+          border-radius: 50%;
+          transition: transform 0.2s;
+        }
+        .toggle-switch input:checked + .toggle-track {
+          background: var(--accent);
+        }
+        .toggle-switch input:checked + .toggle-track::after {
+          transform: translateX(16px);
+        }
+        .customize-modal__footer {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+        }
+        .dashboard-sr-sort {
+          display: flex;
+          gap: 2px;
+          background: rgba(255,255,255,0.04);
+          border-radius: 4px;
+          padding: 2px;
+        }
+        .dashboard-sr-sort-btn {
+          padding: 2px 8px;
+          border-radius: 3px;
+          border: none;
+          background: transparent;
+          color: var(--text-muted);
+          font-size: 10px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .dashboard-sr-sort-btn.is-active {
+          background: var(--accent);
+          color: #10131f;
+        }
+        .dashboard-sr-sort-btn:hover:not(.is-active) {
+          background: rgba(255,255,255,0.06);
+        }
+        .sr-rank-item:hover {
+          background: rgba(255,255,255,0.06);
+          border-color: var(--border-strong);
+        }
+        .dashboard-sr-panel-content {
+          display: flex;
+          flex-direction: column;
+          min-height: 380px;
+        }
+        .dashboard-sr-list-wrap {
+          flex: 1;
+        }
       `}</style>
 
-      <section className="metrics-grid metrics-grid--five" aria-label="Core KPIs">
-        {topKpis.map((kpi) => (
-          <MetricCard
-            key={kpi.label}
-            label={kpi.label}
-            value={kpi.value}
-            meta={kpi.meta}
-            accent={kpi.accent}
-            route={kpi.route}
-          />
-        ))}
-      </section>
-
-      <section className="content-grid content-grid--2">
-        <Panel
-          kicker="Performance"
-          title="Deals Won Over Time"
-          detail="Growth tracking for successfully closed opportunities."
-          action={
-            <div className="chart-filters">
-              <div className="chart-type-toggle">
-                <button 
-                  className={`chart-type-btn ${chartType === 'revenue' ? 'is-active' : ''}`}
-                  onClick={() => setChartType('revenue')}
-                >
-                  Value
-                </button>
-                <button 
-                  className={`chart-type-btn ${chartType === 'count' ? 'is-active' : ''}`}
-                  onClick={() => setChartType('count')}
-                >
-                  Count
-                </button>
-              </div>
-              <input 
-                type="month" 
-                value={startDate} 
-                onChange={e => setStartDate(e.target.value)}
-                className="chart-filter-input"
-              />
-              <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>to</span>
-              <input 
-                type="month" 
-                value={endDate} 
-                onChange={e => setEndDate(e.target.value)}
-                className="chart-filter-input"
-              />
+      {showCustomize && (
+        <div className="customize-overlay" onClick={(e) => { if (e.target === e.currentTarget) cancelCustomize() }}>
+          <div className="customize-modal">
+            <div className="customize-modal__header">
+              <span className="customize-modal__title">Customize Layout</span>
+              <button className="customize-modal__close" onClick={cancelCustomize}>×</button>
             </div>
-          }
-        >
-          <div className="dashboard-chart-container">
-            <WonOverTimeChart data={chartData} type={chartType} />
-          </div>
-        </Panel>
-
-        <Panel
-          kicker="Pipeline snapshot"
-          title="Deals by stage with expected revenue"
-          detail="This keeps opportunity movement visible without leaving the dashboard."
-        >
-          <div ref={stageListRef} className="stage-list">
-            {stageSummary.map((stage, i) => (
-              <div key={stage.stage} className="stage-row">
-                <div className="stage-meta">
-                  <div>
-                    <strong>{stage.stage}</strong>
-                    <span> - {stage.count} deals tracked</span>
-                  </div>
-                  <span>{formatCurrencyCompact(stage.value)}</span>
-                </div>
-                {stage.stage !== 'Closed Won' && stage.stage !== 'Closed Lost' && (
-                  <div className="stage-track">
-                    <div
-                      className={`stage-fill${visible ? ' visible' : ''}`}
-                      style={{
-                        width: `${stage.count > 0
-                          ? Math.min(Math.round((stage.count / ITEMS_PER_PAGE) * 100), 100)
-                          : 0}%`,
-                        animationDelay: visible ? `${i * 0.1}s` : undefined,
-                      }}
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={draftLayout.map(w => w.id)} strategy={verticalListSortingStrategy}>
+                <div className="customize-widget-list">
+                  {draftLayout.map((widget) => (
+                    <SortableWidgetRow
+                      key={widget.id}
+                      widget={widget}
+                      onToggle={(e) => setDraftLayout(prev =>
+                        prev.map(w => w.id === widget.id ? { ...w, enabled: e.target.checked } : w)
+                      )}
                     />
-                  </div>
-                )}
-
-              </div>
-            ))}
-          </div>
-        </Panel>
-      </section>
-
-      <section className="content-grid content-grid--2">
-        <Panel
-          kicker="Customer database"
-          title="Linked record health"
-          detail="Clean links make follow-ups, ownership, and reporting much more reliable."
-        >
-          <div ref={healthRef} className="stage-list">
-            <div className="stage-row">
-              <div className="stage-meta">
-                <div>
-                  <strong>{leads.length} leads</strong>
-                  <span> - Lead records ready for qualification tracking</span>
+                  ))}
                 </div>
-                <span className="status-text is-warning">{linkHealth}% linked</span>
-              </div>
-              <div className="stage-track">
-                <div
-                  className={`stage-fill${healthVisible ? ' visible' : ''}`}
-                  style={{
-                    width: `${linkHealth}%`,
-                    animationDelay: healthVisible ? '0s' : undefined,
-                  }}
-                />
-              </div>
-            </div>
-            <div className="stage-row">
-              <div className="stage-meta">
-                <div>
-                  <strong>{contacts.length} contacts</strong>
-                  <span> - Decision makers and buying contacts tied to companies</span>
-                </div>
-                <span className="status-text is-neutral">Directory</span>
-              </div>
-              <div className="stage-track">
-                <div
-                  className={`stage-fill${healthVisible ? ' visible' : ''}`}
-                  style={{
-                    width: `${Math.min(Math.round((contacts.length / ITEMS_PER_PAGE) * 100), 100)}%`,
-                    animationDelay: healthVisible ? '0.1s' : undefined,
-                  }}
-                />
-              </div>
-            </div>
-            <div className="stage-row">
-              <div className="stage-meta">
-                <div>
-                  <strong>{companies.length} companies</strong>
-                  <span> - Accounts organized with owners and status</span>
-                </div>
-                <span className="status-text is-positive">Clean structure</span>
-              </div>
-              <div className="stage-track">
-                <div
-                  className={`stage-fill${healthVisible ? ' visible' : ''}`}
-                  style={{
-                    width: `${Math.min(Math.round((companies.length / ITEMS_PER_PAGE) * 100), 100)}%`,
-                    animationDelay: healthVisible ? '0.2s' : undefined,
-                  }}
-                />
-              </div>
+              </SortableContext>
+            </DndContext>
+            <div className="customize-modal__footer">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setDraftLayout([...DEFAULT_LAYOUT])}
+              >
+                Reset to Default
+              </button>
+              <button type="button" className="primary-button" onClick={saveLayout}>Save</button>
             </div>
           </div>
-        </Panel>
+        </div>
+      )}
 
-        <Panel
-          kicker="Task focus"
-          title="Priority follow-ups"
-          detail="Open work is visible from the dashboard so reps always know what is next."
-          action={
-            <div className="priority-indicators">
-              <span className="priority-indicator">
-                <span className="priority-dot is-high" />
-                <span>{priorityCounts.High}</span>
-              </span>
-              <span className="priority-indicator">
-                <span className="priority-dot is-medium" />
-                <span>{priorityCounts.Medium}</span>
-              </span>
-              <span className="priority-indicator">
-                <span className="priority-dot is-low" />
-                <span>{priorityCounts.Low}</span>
-              </span>
-            </div>
-          }
-        >
-          <div className="simple-list">
-            {focusTasks.map((task) => {
-              const priorityClass = `is-priority-${task.priority.toLowerCase()}`
-              return (
-                <article
-                  key={task.id}
-                  className={`simple-list__item ${priorityClass} u-border-l-3-transparent u-cursor-pointer`}
-                  onClick={() => navigate('/tasks', { state: { highlightTaskId: task.id } })}
-                >
-                  <div className="u-flex-1 u-min-w-0">
-                    <strong className="u-truncate u-block">
-                      {task.title}
-                    </strong>
-                    <p className="u-margin-t-4 u-fs-11 u-text-muted">
-                      {!isSr ? `${task.owner} | ` : ''}due {formatDateLabel(task.dueDate)}
-                    </p>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
-        </Panel>
-      </section>
-
-      <section className="content-grid content-grid--2">
-        <MetricCard 
-          label="Deals Won (Total)" 
-          value={wonStats.count} 
-          meta={formatCurrencyCompact(wonStats.value)} 
-          accent="accent" 
-        />
-        <MetricCard 
-          label="Deals Lost (Total)" 
-          value={lostStats.count} 
-          meta={formatCurrencyCompact(lostStats.value)} 
-          accent="alt" 
-        />
-      </section>
-
-      <section className="content-grid content-grid--2">
-        <Panel kicker="History" title="Recent Wins" detail="Latest closed won opportunities.">
-          <div className="history-table-container">
-            <div className="history-list wins-list">
-              <div className="history-list-header">
-                <span>Deal Title</span>
-                <span>Won Date</span>
-                <span>Owner</span>
-                <span style={{ textAlign: 'right' }}>Value</span>
-              </div>
-              {recentWins.length === 0 ? (
-                <p className="u-pad-16 u-text-muted u-fs-sm">No recent wins.</p>
-              ) : (
-                recentWins.map(d => (
-                  <div key={d.id} className="history-list-row is-won">
-                    <strong>{d.name}</strong>
-                    <span className="u-text-muted">{formatDateLabel(d.closeDate || d.createdAt)}</span>
-                    <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
-                    <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </Panel>
-
-        <Panel kicker="History" title="Recent Losses" detail="Latest closed lost opportunities.">
-          <div className="history-table-container">
-            <div className="history-list losses-list">
-              <div className="history-list-header lost-header">
-                <span>Deal Title</span>
-                <span>Lost Date</span>
-                <span>Owner</span>
-                <span>Reason</span>
-                <span style={{ textAlign: 'right' }}>Value</span>
-              </div>
-              {recentLosses.length === 0 ? (
-                <p className="u-pad-16 u-text-muted u-fs-sm">No recent losses.</p>
-              ) : (
-                recentLosses.map(d => (
-                  <div key={d.id} className="history-list-row is-lost">
-                    <strong>{d.name}</strong>
-                    <span className="u-text-muted">{formatDateLabel(d.closeDate || d.createdAt)}</span>
-                    <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
-                    <span className="status-text is-warning" style={{ width: 'fit-content' }}>{d.lostReason || 'Unspecified'}</span>
-                    <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </Panel>
-      </section>
-
-      <section className="content-grid">
-        <Panel
-          kicker="Loss Analysis"
-          title="Why we lost"
-          detail="Distribution of reasons for closed lost deals. Captured from pipeline data."
-        >
-          <LostReasonBreakdown countData={lostReasonData} valueData={lostValueData} />
-        </Panel>
-      </section>
+      {renderRows.map((row, i) => {
+        if (row.type === 'pair') {
+          return (
+            <section key={i} className="content-grid content-grid--2">
+              {renderWidget(row.a)}
+              {renderWidget(row.b)}
+            </section>
+          )
+        }
+        // 'totals', 'kpi_metrics', 'loss_analysis' return their own section wrapper
+        const widget = renderWidget(row.id)
+        if (['totals', 'kpi_metrics', 'loss_analysis', 'branch_overview'].includes(row.id)) return widget
+        // half-width widgets rendered solo get a full-width single-column section
+        return (
+          <section key={i} className="content-grid content-grid--2">
+            {widget}
+          </section>
+        )
+      })}
     </>
   )
 }

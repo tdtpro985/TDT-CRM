@@ -13,6 +13,7 @@ frontend/dist
 dist-ssr
 *.local
 
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -52,3 +53,5 @@ backend/backups/*.json
 tests/__snapshots__/
 
 ucc-progress/   
+AGENTS.md
+CLAUDE.md   
