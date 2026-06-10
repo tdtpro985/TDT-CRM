@@ -53,7 +53,7 @@ export default function PipelineView({
   onViewTasks,
   currentUser,
   activeBranch,
-  searchQuery
+  searchQuery,
 }) {
   const [stageFilter, setStageFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
@@ -291,29 +291,9 @@ export default function PipelineView({
 
   function confirmLostReason() {
     if (isUpdatingRef.current) return
-    const sourceRect = lostPromptRef.current
-      ? { ...lostPromptRef.current.getBoundingClientRect() }
-      : null
     const reason = lostNotes.trim() ? `${lostReason}: ${lostNotes.trim()}` : lostReason
-
-    isUpdatingRef.current = true
-    const prevStage = selectedDeal.stage
-    const prevReason = selectedDeal.lostReason
-    setSelectedDeal((d) => ({ ...d, stage: 'Closed Lost', lostReason: reason }))
+    handleDealStageChange(selectedDeal.id, 'Closed Lost', { lostReason: reason })
     setShowLostPrompt(false)
-
-    handleDealStageChange(selectedDeal.id, 'Closed Lost', { lostReason: reason, sourceRect })
-      .then(() => {
-        fetchDealSubData(selectedDeal.id)
-      })
-      .catch(() => {
-        setSelectedDeal((d) => ({ ...d, stage: prevStage, lostReason: prevReason }))
-      })
-      .finally(() => {
-        isUpdatingRef.current = false
-        setLostReason(LOST_REASONS[0])
-        setLostNotes('')
-      })
   }
 
   async function handleFileUpload(e) {
@@ -515,8 +495,14 @@ export default function PipelineView({
       </section>
 
       {selectedDeal && createPortal(
-        <div className="deal-modal-overlay" onClick={closeDeal}>
-          <div className={`deal-modal ${getStageTone(selectedDeal.stage)}`} onClick={(e) => e.stopPropagation()}>
+        <div
+          className="deal-modal-overlay"
+          onClick={closeDeal}
+        >
+          <div
+            className={`deal-modal ${getStageTone(selectedDeal.stage)}`}
+            onClick={(e) => e.stopPropagation()}
+          >
 
             {/* ── Header ── */}
             <div className="deal-modal__header">
@@ -525,7 +511,12 @@ export default function PipelineView({
                 <h2>{selectedDeal.name}</h2>
               </div>
               <div className="deal-modal__header-actions">
-                <button type="button" className="deal-modal__close" aria-label="Close" onClick={closeDeal}>✕</button>
+                <button
+                  type="button"
+                  className="deal-modal__close"
+                  aria-label="Close"
+                  onClick={closeDeal}
+                >✕</button>
                 {canEdit && !isEditing && (
                   <button type="button" className="secondary-button" onClick={() => {
                     setEditValue(selectedDeal.value)
@@ -537,7 +528,7 @@ export default function PipelineView({
               </div>
             </div>
 
-            {/* Body */}
+            <div className="deal-modal__lower">
             <div className="modal-body-scroll">
               {/* Company & Meta Info */}
               <div className="u-flex-between u-flex-center" style={{ marginBottom: '16px' }}>
@@ -929,6 +920,7 @@ export default function PipelineView({
                 </p>
               )}
             </div>
+            </div>{/* end .deal-modal__lower */}
 
           </div>
         </div>,

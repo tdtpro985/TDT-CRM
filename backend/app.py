@@ -1754,20 +1754,8 @@ def update_deal_stage(deal_id):
             log_audit(conn, 'deal', deal_id, 'probability_change', str(old_probability), str(probability), get_jwt_identity())
         
         if new_stage and new_stage != old_stage:
-            if probability is not None:
-                # Both probability and stage sent — stage updated, probability already set above
-                updates.append('stage = %s')
-                params.append(new_stage)
-            elif old_probability_manual:
-                # SR manually set probability before — preserve it
-                updates.append('stage = %s')
-                params.append(new_stage)
-            else:
-                # Auto-assign probability from stage
-                new_probability = STAGE_PROBABILITY.get(new_stage, 20)
-                updates.append('stage = %s, probability = %s')
-                params.extend([new_stage, new_probability])
-                updates.append('probability_manual = FALSE')
+            updates.append('stage = %s')
+            params.append(new_stage)
             log_audit(conn, 'deal', deal_id, 'stage_change', old_stage, new_stage, get_jwt_identity())
         
         if new_value is not None and float(new_value) != float(old_value):

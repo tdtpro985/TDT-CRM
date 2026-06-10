@@ -9,12 +9,11 @@ const OUTCOMES = [
 
 const WON_ANIMATION_OPTIONS = [
   { value: 'confetti', label: 'Confetti' },
-  { value: 'victory', label: 'Pipeline Secured' },
+  { value: 'victory', label: 'Deal Secured' },
   { value: 'none', label: 'None' },
 ]
 
 const LOST_ANIMATION_OPTIONS = [
-  { value: 'lost-splash', label: 'Wag Ka Na Magpaliwanag' },
   { value: 'jojo', label: 'To Be Continued' },
   { value: 'none', label: 'None' },
 ]

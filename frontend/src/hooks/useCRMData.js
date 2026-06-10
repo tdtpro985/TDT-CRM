@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { apiFetch, API_BASE, getUser, updatePassword, uploadProfilePhoto, removeProfilePhoto, adjustProfilePhoto } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
-import { celebrateWon, triggerJoJo, dismissActiveJoJo, dismissActiveConfetti, triggerVictorySplash, dismissActiveVictorySplash, dismissActiveClosedLostSplash } from '../celebration'
+import { triggerJoJo, dismissActiveJoJo, triggerVictorySplash, dismissActiveVictorySplash, triggerClosedWonCelebration, dismissActiveClosedWonCelebration } from '../celebration'
 import jojoSound from '../assets/sounds/jojo.mp3'
 import confettiSound from '../assets/sounds/yeah-boiii-i-i-i.mp3'
 
@@ -178,11 +178,6 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           audioRef.current = null
         }
       })
-    } else if (style === 'lost-splash') {
-      // PipelineView handles this animation directly — skip the full-screen overlay
-      return
-    } else if (outcome === 'won') {
-      celebrateWon()
     }
   }
 
@@ -194,9 +189,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       audioRef.current = null
     }
     dismissActiveJoJo()
-    dismissActiveConfetti()
     dismissActiveVictorySplash()
-    dismissActiveClosedLostSplash()
+    dismissActiveClosedWonCelebration()
   }
 
   async function loadAll() {
@@ -696,12 +690,11 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   async function updateDealStage(dealId, nextStage, extra = {}) {
 
-    const probability = STAGE_WORKFLOW[nextStage]?.probability ?? 20
     const snapshot = deals.find(d => d.id === dealId)
 
     setDeals((current) =>
       current.map((d) => (d.id === dealId
-        ? { ...d, stage: nextStage, probability, lostReason: extra.lostReason ?? d.lostReason }
+        ? { ...d, stage: nextStage, lostReason: extra.lostReason ?? d.lostReason }
         : d)),
     )
 
@@ -728,7 +721,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     try {
       const res = await apiFetch(`/api/deals/${dealId}/stage`, {
         method: 'PATCH',
-        body: JSON.stringify({ stage: nextStage, ...extra })
+        body: JSON.stringify({ stage: nextStage, probability: snapshot.probability, ...extra })
       })
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
@@ -736,42 +729,27 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       }
       if (nextStage === 'Closed Won') {
         if (animationRef.current.won === 'victory') {
-          // Victory Splash handles its own audio — no admin-configured audio used
           playCelebrationAnimation('won', snapshot)
         } else if (preloadedAudio) {
           audioRef.current = preloadedAudio
           preloadedAudio.play().catch(() => {})
-
-          const audioDuration = (preloadedAudio.duration && isFinite(preloadedAudio.duration) && preloadedAudio.duration > 0)
-            ? Math.round(preloadedAudio.duration * 1000)
-            : 2000
-
-          celebrateWon(audioDuration, () => {
-            if (audioRef.current) {
-              audioRef.current.pause()
-              audioRef.current = null
-            }
-          })
-
-          preloadedAudio.addEventListener('ended', () => {
-            if (audioRef.current === preloadedAudio) audioRef.current = null
-          })
+          triggerClosedWonCelebration(
+            preloadedAudio,
+            () => { if (audioRef.current === preloadedAudio) audioRef.current = null }
+          )
         } else {
-          celebrateWon(2000)
+          triggerClosedWonCelebration(null, null)
         }
       } else if (nextStage === 'Closed Lost') {
-        // 'lost-splash' manages its own audio internally; preloadedAudio is null for that style
-        if (preloadedAudio) {
-          audioRef.current = preloadedAudio
-          preloadedAudio.play().catch(() => {})
-          preloadedAudio.addEventListener('ended', () => {
-            if (audioRef.current === preloadedAudio) audioRef.current = null
-          })
-        }
         if (animationRef.current.lost === 'jojo') {
+          if (preloadedAudio) {
+            audioRef.current = preloadedAudio
+            preloadedAudio.play().catch(() => {})
+            preloadedAudio.addEventListener('ended', () => {
+              if (audioRef.current === preloadedAudio) audioRef.current = null
+            })
+          }
           playCelebrationAnimation('lost')
-        } else if (animationRef.current.lost === 'lost-splash') {
-          playCelebrationAnimation('lost', { ...snapshot, lostReason: extra.lostReason ?? snapshot.lostReason, sourceRect: extra.sourceRect ?? null })
         }
       }
       showToast(`Deal stage updated to ${nextStage}`)

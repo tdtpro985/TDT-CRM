@@ -167,7 +167,7 @@ export default function VictorySplash({ dealName, dealValue, companyName, profil
       onClick={cleanup}
       role="dialog"
       aria-modal="true"
-      aria-label="Pipeline Secured celebration"
+      aria-label="Deal Secured celebration"
     >
       <div className="victory-splash__esc">[ Esc to skip ]</div>
 
@@ -193,7 +193,7 @@ export default function VictorySplash({ dealName, dealValue, companyName, profil
           </div>
           <div className="money-splash-content">
             <div className="money-splash__frame">
-              <h1 className="victory-title">PIPELINE SECURED</h1>
+              <h1 className="victory-title">DEAL SECURED</h1>
               <div className="victory-divider" />
               <p className="money-splash__value">+ {formatCurrencyCompact(dealValue)} Added</p>
               <p className="money-splash__account">Account: {accountLabel}</p>

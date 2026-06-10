@@ -1,0 +1,52 @@
+.cwc-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.80);
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.cwc-outro {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cwc-skip-hint {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+  user-select: none;
+}
+
+.cwc-content {
+  text-align: center;
+  z-index: 1;
+}
+
+.cwc-title {
+  font-size: clamp(2rem, 6vw, 4rem);
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: #ffffff;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+}
+
+.cwc-backdrop--light .cwc-title {
+  color: #0f172a;
+  text-shadow: none;
+}
+
+.cwc-backdrop--neon .cwc-title {
+  color: var(--accent);
+  text-shadow: 0 0 20px var(--accent);
+}
