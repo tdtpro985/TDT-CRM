@@ -22,6 +22,7 @@ echo Backend will be available at: http://localhost:5001
 echo Press Ctrl+C to stop
 echo.
 
+set FLASK_PORT=5001
 %PYTHON_PATH% app.py
 
 pause
