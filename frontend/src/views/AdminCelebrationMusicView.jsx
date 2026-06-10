@@ -19,7 +19,7 @@ const LOST_ANIMATION_OPTIONS = [
   { value: 'none', label: 'None' },
 ]
 
-export default function AdminCelebrationMusicView({ showToast }) {
+export default function AdminCelebrationMusicView({ showToast, onLoadingChange }) {
   const [entries, setEntries] = useState({ won: [], lost: [] })
   const [loading, setLoading] = useState(true)
   const [urlInput, setUrlInput] = useState({ won: '', lost: '' })
@@ -32,9 +32,11 @@ export default function AdminCelebrationMusicView({ showToast }) {
   const [animSaving, setAnimSaving] = useState(false)
 
   useEffect(() => {
-    fetchMusic()
-    fetchAnimation()
-  }, [])
+    onLoadingChange?.(true)
+    Promise.all([fetchMusic(), fetchAnimation()])
+      .catch(() => {})
+      .finally(() => onLoadingChange?.(false))
+  }, [onLoadingChange])
 
   async function fetchMusic() {
     setLoading(true)

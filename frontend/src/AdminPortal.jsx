@@ -4,6 +4,7 @@ import './App.css'
 import { clearToken, getUser, saveUser, apiFetch } from './api'
 import { resetThemeToDefaults } from './hooks/useTheme'
 import AdminLoginPage from './components/AdminLoginPage'
+import PageSkeleton from './components/SkeletonLoader'
 import AdminView from './views/AdminView'
 import AdminAnalyticsView from './views/AdminAnalyticsView'
 import AdminProfileView from './views/AdminProfileView'
@@ -189,16 +190,20 @@ export default function AdminPortal() {
             <span className="context-sep">/</span>
             {activeBranch || 'All Branches'}
           </div>
-          {adminLoading && <div className="top-bar-loader" aria-hidden="true" />}
         </header>
 
-        <div className="view-content">
+        {adminLoading && (
+          <div className="view-content">
+            <PageSkeleton view={`admin-${activeView}`} />
+          </div>
+        )}
+        <div className="view-content" style={adminLoading ? { display: 'none' } : undefined}>
           <Routes>
             <Route path="/" element={<Navigate to="/admin/analytics" replace />} />
             <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} onLoadingChange={setAdminLoading} />} />
             <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} onLoadingChange={setAdminLoading} />} />
-            <Route path="/celebration-music" element={<AdminCelebrationMusicView showToast={showToast} />} />
-            <Route path="/profile" element={<AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} />} />
+            <Route path="/celebration-music" element={<AdminCelebrationMusicView showToast={showToast} onLoadingChange={setAdminLoading} />} />
+            <Route path="/profile" element={<AdminProfileView currentUser={adminUser} onUserUpdate={handleAdminLogin} showToast={showToast} onLoadingChange={setAdminLoading} />} />
             <Route path="*" element={<Navigate to="/admin/analytics" replace />} />
           </Routes>
         </div>

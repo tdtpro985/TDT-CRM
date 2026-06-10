@@ -430,7 +430,6 @@
 }
 
 [data-theme="neon"] .pipeline-card:hover {
-   box-shadow: var(--glow-md);
    border-color: var(--accent);
 }
 
@@ -567,37 +566,31 @@
 [data-theme="neon"] .pipeline-card.is-stage-qualified:hover {
    border-color: var(--accent);
    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.2), rgba(15, 10, 26, 0.05));
-   box-shadow: var(--glow-xs);
 }
 
 [data-theme="neon"] .pipeline-card.is-stage-new-opportunity:hover {
    border-color: rgba(var(--accent-rgb), 0.5);
    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.2), rgba(15, 10, 26, 0.05));
-   box-shadow: var(--glow-sm);
 }
 
 [data-theme="neon"] .pipeline-card.is-stage-proposal:hover {
    border-color: rgba(var(--accent-rgb), 0.5);
    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.2), rgba(15, 10, 26, 0.05));
-   box-shadow: var(--glow-sm);
 }
 
 [data-theme="neon"] .pipeline-card.is-stage-negotiation:hover {
    border-color: rgba(var(--accent-rgb), 0.5);
    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.2), rgba(15, 10, 26, 0.05));
-   box-shadow: var(--glow-sm);
 }
 
 [data-theme="neon"] .pipeline-card.is-stage-closed-won:hover {
    border-color: rgba(var(--accent-rgb), 0.5);
    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.2), rgba(15, 10, 26, 0.05));
-   box-shadow: var(--glow-sm);
 }
 
 [data-theme="neon"] .pipeline-card.is-stage-closed-lost:hover {
    border-color: rgba(var(--accent-rgb), 0.5);
    background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.2), rgba(15, 10, 26, 0.05));
-   box-shadow: var(--glow-xs);
 }
 
 .pipeline-card__top {

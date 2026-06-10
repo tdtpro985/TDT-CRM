@@ -746,7 +746,7 @@ export default function DashboardView({
         </Panel>
       )
       case 'stage_donut': return (
-        <Panel key="stage_donut" kicker="Pipeline snapshot" title="Deals by stage with expected revenue" detail="This keeps opportunity movement visible without leaving the dashboard.">
+        <Panel key="stage_donut" kicker="Pipeline snapshot" title="Deals by stage with expected revenue" detail>
           <div className="pipeline-snapshot-layout">
             <div className="pipeline-snapshot-donut">
               <StageDonutChart data={stageSummary.filter(s => s.stage !== 'Closed Won' && s.stage !== 'Closed Lost')} hovered={hoveredStage} onHover={setHoveredStage} />
