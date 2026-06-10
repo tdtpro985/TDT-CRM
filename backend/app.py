@@ -20,7 +20,9 @@ from zoneinfo import ZoneInfo
 import json
 from dotenv import load_dotenv
 
-load_dotenv()
+# Ensure .env is loaded from the backend directory regardless of where the script is run from
+basedir = os.path.abspath(os.path.dirname(__file__))
+load_dotenv(os.path.join(basedir, '.env'))
 
 from database.database import get_db_connection, close_connection
 from database.sync_pipeline import fill_pipeline
@@ -186,10 +188,12 @@ def ensure_schema():
 ensure_schema()
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {
-    "origins": [os.getenv("FRONTEND_URL", "http://localhost:5173")],
-    "allow_headers": ["Content-Type", "Authorization"]
-}})
+CORS(app)
+
+@app.before_request
+def log_request_info():
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {request.method} {request.path} | Origin: {request.headers.get('Origin')}")
+
 
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-key')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=8)  # 8-hour sessions
@@ -693,8 +697,8 @@ def get_customer_detail(customer_id):
             where_parts.append('l.owner_id = %s')
             params.append(user_id)
         
-        where_sql = 'WHERE ' + ' AND '.join(where_parts)
-        
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+
         cursor.execute(f"""
             SELECT 
                 c.id, c.name, c.industry, c.website, c.city, t.name AS owner, c.owner_id AS ownerId, 
@@ -1531,12 +1535,12 @@ def get_deals():
         claims = get_jwt()
         user_id = get_jwt_identity()
         scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
-        where_parts = list(scope_parts) + ['l.branch IS NOT NULL']
+        where_parts = list(scope_parts)
         params = list(scope_params)
         if restrict_owner:
             where_parts.append('d.owner_id = %s')
             params.append(user_id)
-        where_sql = 'WHERE ' + ' AND '.join(where_parts)
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
         cursor.execute(f'''
             SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
                    d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
@@ -2153,12 +2157,12 @@ def get_dashboard():
         direct_parts, _, direct_params = build_scope(claims, branch, col='LOWER(TRIM(branch))', requested_region=region)
 
         # Build WHERE fragments for joined (deals+leads) and direct (leads) queries
-        deal_where = list(scope_parts) + ['l.branch IS NOT NULL']
+        deal_where = list(scope_parts)
         deal_params = list(scope_params)
         if restrict_owner:
             deal_where.append('d.owner_id = %s')
             deal_params.append(user_id)
-        deal_where_sql = 'WHERE ' + ' AND '.join(deal_where)
+        deal_where_sql = 'WHERE ' + ' AND '.join(deal_where) if deal_where else ''
 
         lead_where = ["DATE_FORMAT(created_at, '%Y-%m') = DATE_FORMAT(CURDATE(), '%Y-%m')"] + list(direct_parts)
         lead_params = list(direct_params)
@@ -3079,16 +3083,15 @@ def import_customers():
                     )
                     existing_contact = cursor.fetchone()
                     if not existing_contact:
-                        if contact_person or contact_num:
-                            cursor.execute('''
-                                INSERT INTO contacts (id, name, company_id, phone, role, status)
-                                VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
-                            ''', (str(uuid.uuid4()), contact_person or '—', existing_lead_id, contact_num))
+                        cursor.execute('''
+                            INSERT INTO contacts (id, name, company_id, phone, role, status)
+                            VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
+                        ''', (str(uuid.uuid4()), contact_person or customer_name, existing_lead_id, contact_num))
                     elif existing_contact[1] in ('', customer_name):
                         # Auto-created with company-name fallback or blank — correct it
                         cursor.execute(
                             'UPDATE contacts SET name=%s, phone=%s WHERE id=%s',
-                            (contact_person or '—', contact_num, existing_contact[0])
+                            (contact_person or customer_name, contact_num, existing_contact[0])
                         )
                     cursor.execute('RELEASE SAVEPOINT import_row')
                     skipped += 1
@@ -3110,11 +3113,10 @@ def import_customers():
 
                 # column 24 = Primary Contact person name; col 25 = phone
                 contact_person = _parse_contact_name(row[24])
-                if contact_person or contact_num:
-                    cursor.execute('''
-                        INSERT INTO contacts (id, name, company_id, phone, role, status)
-                        VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
-                    ''', (str(uuid.uuid4()), contact_person or '—', lead_id, contact_num))
+                cursor.execute('''
+                    INSERT INTO contacts (id, name, company_id, phone, role, status)
+                    VALUES (%s, %s, %s, %s, 'Primary Contact', 'Active')
+                ''', (str(uuid.uuid4()), contact_person or customer_name, lead_id, contact_num))
 
                 cursor.execute('RELEASE SAVEPOINT import_row')
                 inserted += 1
@@ -3560,5 +3562,6 @@ def get_celebration_animation():
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
-    port = int(os.getenv('FLASK_PORT', '5000'))
-    app.run(debug=debug_mode, port=port)
+    port = int(os.getenv('FLASK_PORT', '5001'))
+    print(f" * Starting backend on 0.0.0.0:{port}")
+    app.run(debug=debug_mode, port=port, host='0.0.0.0')
