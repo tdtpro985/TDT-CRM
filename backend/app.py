@@ -20,7 +20,9 @@ from zoneinfo import ZoneInfo
 import json
 from dotenv import load_dotenv
 
-load_dotenv()
+# Ensure .env is loaded from the backend directory regardless of where the script is run from
+basedir = os.path.abspath(os.path.dirname(__file__))
+load_dotenv(os.path.join(basedir, '.env'))
 
 from database.database import get_db_connection, close_connection
 from database.sync_pipeline import fill_pipeline
@@ -186,10 +188,12 @@ def ensure_schema():
 ensure_schema()
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {
-    "origins": [os.getenv("FRONTEND_URL", "http://localhost:5173")],
-    "allow_headers": ["Content-Type", "Authorization"]
-}})
+CORS(app)
+
+@app.before_request
+def log_request_info():
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {request.method} {request.path} | Origin: {request.headers.get('Origin')}")
+
 
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-key')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=8)  # 8-hour sessions
@@ -3518,5 +3522,6 @@ def get_celebration_animation():
 
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
-    port = int(os.getenv('FLASK_PORT', '5000'))
-    app.run(debug=debug_mode, port=port)
+    port = int(os.getenv('FLASK_PORT', '5001'))
+    print(f" * Starting backend on 0.0.0.0:{port}")
+    app.run(debug=debug_mode, port=port, host='0.0.0.0')
