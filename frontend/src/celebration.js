@@ -3,7 +3,7 @@ import tbcArrow from './assets/tbc.png'
 import { createRoot } from 'react-dom/client'
 import { createElement } from 'react'
 import VictorySplash from './components/VictorySplash'
-import ClosedLostSplash from './components/ClosedLostSplash'
+import ClosedWonCelebration from './components/ClosedWonCelebration'
 
 // ─── Confetti ─────────────────────────────────────────────────────────────────
 
@@ -384,7 +384,7 @@ export function dismissActiveJoJo() {
   }
 }
 
-// ─── Victory Splash "Pipeline Secured" Overlay ────────────────────────────────
+// ─── Victory Splash "Deal Secured" Overlay ─────────────────────────────────────
 
 let _activeVictorySplash = null
 
@@ -454,23 +454,18 @@ export function dismissActiveVictorySplash() {
   }
 }
 
-// ─── Closed Lost Splash "Wag Ka Na Magpaliwanag" Overlay ─────────────────
+// ─── Closed Won Celebration Overlay ──────────────────────────────────────────
 
-let _activeClosedLostSplash = null
+let _activeClosedWonCelebration = null
 
-/**
- * Mount the Closed Lost Splash overlay.
- * @param {{ dealName: string, dealValue: number, companyName: string|null, lostReason: string }} dealMeta
- * @param {(() => void)|null} onDismiss
- */
-export function triggerClosedLostSplash(dealMeta, onDismiss = null) {
-  if (_activeClosedLostSplash) {
-    _activeClosedLostSplash.forceRemove()
-    _activeClosedLostSplash = null
+export function triggerClosedWonCelebration(audio, onDismiss = null) {
+  if (_activeClosedWonCelebration) {
+    _activeClosedWonCelebration.forceRemove()
+    _activeClosedWonCelebration = null
   }
 
   const container = document.createElement('div')
-  container.id = 'closed-lost-splash-root'
+  container.id = 'closed-won-celebration-root'
   document.body.appendChild(container)
   const root = createRoot(container)
 
@@ -479,7 +474,7 @@ export function triggerClosedLostSplash(dealMeta, onDismiss = null) {
   function remove() {
     if (removed) return
     removed = true
-    _activeClosedLostSplash = null
+    _activeClosedWonCelebration = null
     try { root.unmount() } catch { /* noop */ }
     container.remove()
     onDismiss?.()
@@ -488,22 +483,18 @@ export function triggerClosedLostSplash(dealMeta, onDismiss = null) {
   function forceRemove() {
     if (removed) return
     removed = true
-    _activeClosedLostSplash = null
+    _activeClosedWonCelebration = null
     try { root.unmount() } catch { /* noop */ }
     container.remove()
   }
 
-  _activeClosedLostSplash = { dismiss: remove, forceRemove }
+  _activeClosedWonCelebration = { dismiss: remove, forceRemove }
 
   const theme = document.documentElement.getAttribute('data-theme') || 'dark'
 
   root.render(
-    createElement(ClosedLostSplash, {
-      dealName:    dealMeta.dealName,
-      dealValue:   dealMeta.dealValue,
-      companyName: dealMeta.companyName ?? null,
-      lostReason:  dealMeta.lostReason  ?? '',
-      sourceRect:  dealMeta.sourceRect  ?? null,
+    createElement(ClosedWonCelebration, {
+      audio,
       theme,
       onDismiss: remove,
     })
@@ -512,12 +503,11 @@ export function triggerClosedLostSplash(dealMeta, onDismiss = null) {
   return { dismiss: remove, forceRemove }
 }
 
-/**
- * Dismiss any active Closed Lost Splash — safe to call even if none is active.
- */
-export function dismissActiveClosedLostSplash() {
-  if (_activeClosedLostSplash) {
-    _activeClosedLostSplash.dismiss()
-    _activeClosedLostSplash = null
+export function dismissActiveClosedWonCelebration() {
+  if (_activeClosedWonCelebration) {
+    _activeClosedWonCelebration.dismiss()
+    _activeClosedWonCelebration = null
   }
 }
+
+

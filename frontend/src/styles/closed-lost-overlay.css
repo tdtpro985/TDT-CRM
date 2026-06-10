@@ -1,0 +1,81 @@
+.clo-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.90);
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.clo-outro {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.clo-skip-hint {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Dark (default) */
+.clo-panel {
+  background: #1e293b;
+  border: 1px solid #334155;
+  padding: 3rem 4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  min-width: 360px;
+}
+
+.clo-hairline {
+  width: 100%;
+  height: 1px;
+  background: #ff8a00;
+}
+
+.clo-title {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  color: #ffffff;
+}
+
+/* Light */
+.clo-backdrop--light .clo-panel {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+.clo-backdrop--light .clo-title {
+  color: #0f172a;
+}
+
+/* Neon */
+.clo-backdrop--neon .clo-panel {
+  background: rgba(15, 23, 42, 0.95);
+  border-color: var(--accent);
+  box-shadow: 0 0 24px var(--accent);
+}
+
+.clo-backdrop--neon .clo-title {
+  color: var(--accent);
+  text-shadow: 0 0 14px var(--accent);
+}
+
+.clo-backdrop--neon .clo-hairline {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}

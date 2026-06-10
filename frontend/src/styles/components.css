@@ -1003,6 +1003,13 @@ section.content-grid--primary {
   flex-direction: column;
 }
 
+.deal-modal__lower {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 [data-theme="neon"] .deal-modal {
    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), var(--glow-lg);
 }
