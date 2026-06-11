@@ -319,6 +319,7 @@
   min-height: 240px;
   height: 100%;
   box-shadow: var(--shadow-soft);
+  overflow: hidden;
 }
 
 [data-theme="light"] .panel {

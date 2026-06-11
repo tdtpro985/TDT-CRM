@@ -471,7 +471,7 @@ export default function DashboardView({
     const lost = deals.filter(d => d.stage === 'Closed Lost')
     const counts = {}
     lost.forEach(d => {
-      const reason = d.lostReason || 'Unspecified'
+      const reason = (d.lostReason || 'Unspecified').split(':')[0].trim()
       counts[reason] = (counts[reason] || 0) + 1
     })
     return Object.entries(counts)
@@ -483,7 +483,7 @@ export default function DashboardView({
     const lost = deals.filter(d => d.stage === 'Closed Lost')
     const sums = {}
     lost.forEach(d => {
-      const reason = d.lostReason || 'Unspecified'
+      const reason = (d.lostReason || 'Unspecified').split(':')[0].trim()
       sums[reason] = (sums[reason] || 0) + (parseFloat(d.value) || 0)
     })
     return Object.entries(sums)
