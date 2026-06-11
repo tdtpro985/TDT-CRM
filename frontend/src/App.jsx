@@ -561,10 +561,16 @@ export default function App() {
             onThemeChange={setTheme}
             neonColor={neonColor}
             onNeonColorChange={setNeonColor}
-            onSaveDefault={(t, nc) => apiFetch('/api/team/profile/preferences', {
-              method: 'PUT',
-              body: JSON.stringify({ theme: t, neonColor: nc }),
-            })}
+            defaultTheme={currentUser?.theme}
+            defaultNeonColor={currentUser?.neonColor}
+            onSaveDefault={(t, nc) => {
+              apiFetch('/api/team/profile/preferences', {
+                method: 'PUT',
+                body: JSON.stringify({ theme: t, neonColor: nc }),
+              })
+              const stored = getUser()
+              if (stored) saveUser({ ...stored, theme: t, neonColor: nc })
+            }}
           />
           
           <div className="sidebar-user">
