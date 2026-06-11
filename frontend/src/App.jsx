@@ -713,8 +713,8 @@ export default function App() {
       >
         <LeadForm
           teamMembers={teamMembers}
-          branch={currentUser?.branch}
           currentUser={currentUser}
+          contacts={contacts}
           onCancel={() => setShowLeadForm(false)}
           onSubmit={(form) => {
             handleCreateLead(form)
