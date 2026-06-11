@@ -150,10 +150,16 @@ export default function AdminPortal() {
             onThemeChange={setTheme}
             neonColor={neonColor}
             onNeonColorChange={setNeonColor}
-            onSaveDefault={(t, nc) => apiFetch('/api/team/profile/preferences', {
-              method: 'PUT',
-              body: JSON.stringify({ theme: t, neonColor: nc }),
-            })}
+            defaultTheme={adminUser?.theme}
+            defaultNeonColor={adminUser?.neonColor}
+            onSaveDefault={(t, nc) => {
+              apiFetch('/api/team/profile/preferences', {
+                method: 'PUT',
+                body: JSON.stringify({ theme: t, neonColor: nc }),
+              })
+              const stored = getUser()
+              if (stored) saveUser({ ...stored, theme: t, neonColor: nc })
+            }}
           />
           <p className="sidebar-label">Signed in as</p>
           <div className="sidebar-user">
