@@ -62,22 +62,22 @@ export function resetThemeToDefaults() {
 
 export function useTheme() {
   const [theme, setThemeState] = useState(() => {
-    const saved = sessionStorage.getItem(STORAGE_KEY)
-    if (saved && THEMES.includes(saved)) return saved
     try {
       const user = JSON.parse(sessionStorage.getItem('crm_user') || 'null')
       if (user?.theme && THEMES.includes(user.theme)) return user.theme
     } catch { /* ignore */ }
+    const saved = sessionStorage.getItem(STORAGE_KEY)
+    if (saved && THEMES.includes(saved)) return saved
     return DEFAULT_THEME
   })
 
   const [neonColor, setNeonColorState] = useState(() => {
-    const saved = sessionStorage.getItem(NEON_COLOR_KEY)
-    if (saved && NEON_COLORS.includes(saved)) return saved
     try {
       const user = JSON.parse(sessionStorage.getItem('crm_user') || 'null')
       if (user?.neonColor && NEON_COLORS.includes(user.neonColor)) return user.neonColor
     } catch { /* ignore */ }
+    const saved = sessionStorage.getItem(NEON_COLOR_KEY)
+    if (saved && NEON_COLORS.includes(saved)) return saved
     return DEFAULT_NEON_COLOR
   })
 
