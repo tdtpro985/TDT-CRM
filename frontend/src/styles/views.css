@@ -1864,6 +1864,7 @@
   font-variant-numeric: tabular-nums;
 }
 
+.admin-table th.num-mono,
 .admin-table td.num-mono {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -1884,7 +1885,7 @@
   background: rgba(var(--accent-strong-rgb), 0.03);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
-  padding: var(--pad-lg);
+  padding: var(--pad-md);
   display: flex;
   flex-direction: column;
 }
@@ -1895,19 +1896,33 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--accent-strong);
-  padding-bottom: var(--pad-sm);
-  margin-bottom: var(--pad-sm);
+  padding-bottom: var(--pad-xs);
   border-bottom: 2px solid var(--accent-strong);
+  margin-bottom: var(--pad-xs);
 }
 
 .region-column__body {
   flex: 1;
 }
 
+.region-column__header-row {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding-bottom: var(--pad-xs);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+
+.region-column__header-row + .region-column__row {
+  border-top: none;
+}
+
 .region-column__row {
   display: grid;
-  grid-template-columns: 1fr repeat(4, auto);
-  gap: 8px;
+  grid-template-columns: 1fr 40px 70px 90px 40px;
+  gap: 12px;
   padding: 6px 0;
   align-items: center;
   font-size: var(--fs-sm);
@@ -1945,7 +1960,7 @@
 .region-column__divider {
   height: 1px;
   background: var(--border-strong);
-  margin: var(--pad-sm) 0;
+  margin: var(--pad-xs) 0;
 }
 
 @media (max-width: 768px) {
@@ -2710,6 +2725,52 @@
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+}
+
+/* ── Infinite-scroll SR rank list ─────────────────────────── */
+
+.sr-rank-list-infinite {
+  overflow: hidden;
+  max-height: 350px;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+}
+
+.sr-rank-list-track {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0 16px;
+  animation: scroll-rank var(--rank-scroll-duration, 30s) linear infinite;
+}
+
+.sr-rank-list-infinite:hover .sr-rank-list-track {
+  animation-play-state: paused;
+}
+
+/* ── SR rank avatar (profile pic) ─────────────────────────── */
+
+.sr-rank-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  flex-shrink: 0;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.sr-rank-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 /* ── Admin Analytics — Audit log action accents ──────────────── */
