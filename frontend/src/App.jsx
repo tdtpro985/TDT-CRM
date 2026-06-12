@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import './App.css'
-import { formatCurrencyCompact, displayRole, shortStageLabel, getTodayISO } from './utils'
+import { formatCurrencyCompact, displayRole, shortStageLabel, getTodayISO, formatRelativeDays } from './utils'
 import { clearToken, getUser, saveUser, apiFetch, API_BASE } from './api'
 import { resetThemeToDefaults } from './hooks/useTheme'
 import {
@@ -56,6 +56,8 @@ export default function App() {
   const [sidebarClosing, setSidebarClosing] = useState(false)
   const [showCustomize, setShowCustomize] = useState(false)
   const sidebarCloseTimer = useRef(null)
+  const [showDueDateAlert, setShowDueDateAlert] = useState(false)
+  const dueAlertShown = useRef(false)
   
   // Theme management
   const { theme, setTheme, neonColor, setNeonColor } = useTheme()
@@ -80,6 +82,8 @@ export default function App() {
     resetThemeToDefaults()   // synchronous: clears sessionStorage + style tag before re-render
     clearToken()
     setCurrentUser(null)
+    setShowDueDateAlert(false)
+    dueAlertShown.current = false
     setTheme('dark')
     setNeonColor('pink')
     setNotice('You have been logged out.')
@@ -120,6 +124,40 @@ export default function App() {
   const dueToday = useMemo(() => 
     openTasks.filter((t) => t.dueDate === getTodayISO()),
   [openTasks])
+
+  // ─── Compute tasks due within ±3 days ──────────────────────────────────
+  const dueSoonTasks = useMemo(() => {
+    if (!currentUser) return []
+    const todayStr = getTodayISO()
+    const todayDate = new Date(todayStr)
+    const threeDaysAgo = new Date(todayDate)
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+    const threeAgoStr = threeDaysAgo.toISOString().split('T')[0]
+    const threeDaysLater = new Date(todayDate)
+    threeDaysLater.setDate(threeDaysLater.getDate() + 3)
+    const threeLaterStr = threeDaysLater.toISOString().split('T')[0]
+
+    return openTasks.filter(t => {
+      if (t.status === 'Completed') return false
+      if (!t.dueDate) return false
+      if (String(t.ownerId) !== String(currentUser.id)) return false
+      return t.dueDate >= threeAgoStr && t.dueDate <= threeLaterStr
+    }).sort((a, b) => {
+      if (a.dueDate < b.dueDate) return -1
+      if (a.dueDate > b.dueDate) return 1
+      return 0
+    })
+  }, [openTasks, currentUser])
+
+  // ─── Show due date modal once per session ──────────────────────────────
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (dueSoonTasks.length > 0 && !dueAlertShown.current) {
+      dueAlertShown.current = true
+      setShowDueDateAlert(true)
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [dueSoonTasks])
 
   const currentMonth = useMemo(() => getTodayISO().slice(0, 7), [])
 
@@ -771,6 +809,49 @@ export default function App() {
           showToast('Profile photo updated!')
         }}
       />
+
+      <Modal
+        isOpen={showDueDateAlert}
+        onClose={() => setShowDueDateAlert(false)}
+        title="Upcoming Due Dates"
+        kicker="Alert"
+      >
+        <div style={{ padding: '0 24px 24px' }}>
+          {dueSoonTasks.length === 0 ? (
+            <p className="u-text-muted">No tasks with upcoming due dates.</p>
+          ) : (
+            dueSoonTasks.map(t => (
+              <div
+                key={t.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 0',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: 'var(--fs-sm)' }}>{t.title}</strong>
+                  <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {t.companyName || t.contact || '—'}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    fontSize: 'var(--fs-sm)',
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    color: t.dueDate < getTodayISO() ? 'var(--alert)' : 'var(--warning)',
+                  }}
+                >
+                  {formatRelativeDays(t.dueDate)}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -869,7 +869,7 @@ def get_team():
         if purpose == 'filter':
             if role in ('Branch Account', 'Sales Representative', 'Sales Rep'):
                 cursor.execute(
-                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
+                    'SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE branch = %s ORDER BY name',
                     (user_branch,),
                 )
             elif role == 'Regional Sales Manager':
@@ -878,25 +878,25 @@ def get_team():
                 allowed_normalized = [normalize_branch(b) for b in region_branches]
                 if req and req in allowed_normalized:
                     match = next((b for b in region_branches if normalize_branch(b) == req), None)
-                    cursor.execute('SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name', (match,))
+                    cursor.execute('SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE branch = %s ORDER BY name', (match,))
                 elif region_branches:
                     ph_branches = ', '.join(['%s'] * len(region_branches))
                     cursor.execute(
-                        f'SELECT id, name, role, branch, region FROM team WHERE branch IN ({ph_branches}) ORDER BY name',
+                        f'SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE branch IN ({ph_branches}) ORDER BY name',
                         tuple(region_branches),
                     )
                 else:
-                    cursor.execute('SELECT id, name, role, branch, region FROM team WHERE 1=0')
+                    cursor.execute('SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE 1=0')
             else:  # Head of Sales / Admin
                 if branch and branch != 'Headquarters':
-                    cursor.execute('SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name', (branch,))
+                    cursor.execute('SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE branch = %s ORDER BY name', (branch,))
                 else:
-                    cursor.execute('SELECT id, name, role, branch, region FROM team ORDER BY name')
+                    cursor.execute('SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team ORDER BY name')
             return jsonify(rows_to_list(cursor))
 
         if role in ('Branch Account', 'Sales Representative', 'Sales Rep'):
             cursor.execute(
-                'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ("Sales Representative", "Branch Account", "Sales Rep") ORDER BY name',
+                'SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE branch = %s AND role IN ("Sales Representative", "Branch Account", "Sales Rep") ORDER BY name',
                 (user_branch,),
             )
         elif role == 'Regional Sales Manager':
@@ -909,36 +909,36 @@ def get_team():
             if req and req in allowed_normalized:
                 match = next((b for b in region_branches if normalize_branch(b) == req), None)
                 cursor.execute(
-                    f'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ({ph_roles}) ORDER BY name',
+                    f'SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE branch = %s AND role IN ({ph_roles}) ORDER BY name',
                     (match, *target_roles),
                 )
             elif region_branches:
                 ph_branches = ', '.join(['%s'] * len(region_branches))
                 cursor.execute(
-                    f'SELECT id, name, role, branch, region FROM team WHERE branch IN ({ph_branches}) AND role IN ({ph_roles}) ORDER BY name',
+                    f'SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE branch IN ({ph_branches}) AND role IN ({ph_roles}) ORDER BY name',
                     tuple(region_branches + list(target_roles)),
                 )
             else:
-                cursor.execute('SELECT id, name, role, branch, region FROM team WHERE 1=0')
+                cursor.execute('SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE 1=0')
         elif role == 'Head of Sales':
             # HoS can assign to RSM and SR
             target_roles = ('Regional Sales Manager', 'Sales Representative', 'Branch Account', 'Sales Rep')
             ph_roles = ', '.join(['%s'] * len(target_roles))
             if branch and branch != 'Headquarters':
                 cursor.execute(
-                    f'SELECT id, name, role, branch, region FROM team WHERE branch = %s AND role IN ({ph_roles}) ORDER BY name',
+                    f'SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE branch = %s AND role IN ({ph_roles}) ORDER BY name',
                     (branch, *target_roles),
                 )
             else:
-                cursor.execute(f'SELECT id, name, role, branch, region FROM team WHERE role IN ({ph_roles}) ORDER BY name', target_roles)
+                cursor.execute(f'SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE role IN ({ph_roles}) ORDER BY name', target_roles)
         else:
             if branch and branch != 'Headquarters':
                 cursor.execute(
-                    'SELECT id, name, role, branch, region FROM team WHERE branch = %s ORDER BY name',
+                    'SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team WHERE branch = %s ORDER BY name',
                     (branch,),
                 )
             else:
-                cursor.execute('SELECT id, name, role, branch, region FROM team ORDER BY name')
+                cursor.execute('SELECT id, name, role, branch, region, profile_pic AS profilePic FROM team ORDER BY name')
 
         return jsonify(rows_to_list(cursor))
     finally:
@@ -2533,6 +2533,7 @@ def admin_analytics():
             cursor.execute('''
                 SELECT COALESCE(t.name, l.owner_name)   AS name,
                        COALESCE(t.branch, l.branch)     AS branch,
+                       t.profile_pic                  AS profilePic,
                        COUNT(DISTINCT l.id)                                            AS leads_count,
                        COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
                        COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
@@ -2542,7 +2543,7 @@ def admin_analytics():
                 WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
                   AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
                   AND LOWER(TRIM(l.branch)) = LOWER(TRIM(%s))
-                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
+                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch), t.profile_pic
                 ORDER BY leads_count DESC
                 LIMIT 20
             ''', (branch_filter,))
@@ -2551,6 +2552,7 @@ def admin_analytics():
             cursor.execute(f'''
                 SELECT COALESCE(t.name, l.owner_name)   AS name,
                        COALESCE(t.branch, l.branch)     AS branch,
+                       t.profile_pic                  AS profilePic,
                        COUNT(DISTINCT l.id)                                            AS leads_count,
                        COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
                        COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
@@ -2560,7 +2562,7 @@ def admin_analytics():
                 WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
                   AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
                   AND LOWER(TRIM(l.branch)) IN ({in_ph})
-                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
+                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch), t.profile_pic
                 ORDER BY leads_count DESC
                 LIMIT 20
             ''', region_branches)
@@ -2568,6 +2570,7 @@ def admin_analytics():
             cursor.execute('''
                 SELECT COALESCE(t.name, l.owner_name)   AS name,
                        COALESCE(t.branch, l.branch)     AS branch,
+                       t.profile_pic                  AS profilePic,
                        COUNT(DISTINCT l.id)                                            AS leads_count,
                        COUNT(DISTINCT CASE WHEN l.status = 'Converted' THEN l.id END) AS converted,
                        COUNT(DISTINCT CASE WHEN d.stage = 'Closed Won' THEN d.id END) AS deals_won
@@ -2576,7 +2579,7 @@ def admin_analytics():
                 LEFT JOIN deals d ON (d.lead_id = l.id OR d.company_id = l.id)
                 WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
                   AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
-                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch)
+                GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch), t.profile_pic
                 ORDER BY leads_count DESC
                 LIMIT 20
             ''')

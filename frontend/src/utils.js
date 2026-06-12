@@ -255,3 +255,12 @@ export function isValidPhone(val) {
 export function isValidEmail(val) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val || '')
 }
+
+export function getInitials(name) {
+  if (!name) return '?'
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+}

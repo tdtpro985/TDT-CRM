@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import MetricCard from '../components/MetricCard'
 import Panel from '../components/Panel'
-import { apiFetch } from '../api'
-import { formatCurrencyCompact, formatDateTimePHT } from '../utils'
+import { apiFetch, API_BASE } from '../api'
+import { formatCurrencyCompact, formatDateTimePHT, getInitials } from '../utils'
 import Pagination from '../components/Pagination'
 import { REGION_BRANCHES } from '../constants'
 
@@ -181,7 +181,7 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
 
   const branchRows      = Object.values(branchMap).sort((a, b) => a.branch?.localeCompare(b.branch))
   const auditTotalPages = Math.ceil(auditTotal / AUDIT_PAGE_SIZE)
-  const sortedSRs = topSRs ? [...topSRs].sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0)).slice(0, 10) : []
+  const sortedSRs = topSRs ? [...topSRs].sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0)) : []
 
   const ratesWithData = branchRows.filter((r) => r.win_rate != null)
   const overallWinRate = ratesWithData.length
@@ -433,25 +433,41 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
                 </div>
               }
             >
-              <div className="sr-rank-list">
-                {sortedSRs.map((sr, i) => (
-                  <div key={sr.name} className={`sr-rank-item${i === 0 ? ' sr-rank-item--top' : ''}`}>
-                    <div className="sr-rank-badge">{i + 1}</div>
-                    <div className="sr-rank-info">
-                      <div className="sr-rank-name">{sr.name}</div>
-                      <div className="sr-rank-branch">{sr.branch}</div>
-                    </div>
-                    <div className="sr-rank-stats">
-                      {srSort !== 'leads_count' && (
-                        <span className="admin-role-pill admin-role-pill--surface">{sr.leads_count} leads</span>
-                      )}
-                      {srSort === 'deals_won'   && <span className="admin-role-pill admin-role-pill--accent">{sr.deals_won} won</span>}
-                      {srSort === 'converted'   && <span className="admin-role-pill admin-role-pill--accent">{sr.converted} conv.</span>}
-                      {srSort === 'leads_count' && <span className="admin-role-pill admin-role-pill--accent">{sr.leads_count} leads</span>}
+              {(() => {
+                const showScroll = sortedSRs.length >= 3
+                const duration = Math.max(15, Math.min(60, sortedSRs.length * 2))
+                return (
+                  <div className={showScroll ? 'sr-rank-list-infinite' : ''}>
+                    <div className={showScroll ? 'sr-rank-list-track' : 'sr-rank-list'}
+                      style={showScroll ? { '--rank-scroll-duration': `${duration}s` } : undefined}>
+                      {(showScroll ? [...sortedSRs, ...sortedSRs] : sortedSRs).map((sr, i) => (
+                        <div key={`${sr.name}-${i}`} className={`sr-rank-item${i % sortedSRs.length === 0 ? ' sr-rank-item--top' : ''}`}>
+                          <div className="sr-rank-badge">{(i % sortedSRs.length) + 1}</div>
+                          <div className="sr-rank-avatar">
+                            {sr.profilePic ? (
+                              <img className="sr-rank-avatar-img" src={`${API_BASE}${sr.profilePic}`} alt="" />
+                            ) : (
+                              <span>{getInitials(sr.name)}</span>
+                            )}
+                          </div>
+                          <div className="sr-rank-info">
+                            <div className="sr-rank-name">{sr.name}</div>
+                            <div className="sr-rank-branch">{sr.branch}</div>
+                          </div>
+                          <div className="sr-rank-stats">
+                            {srSort !== 'leads_count' && (
+                              <span className="admin-role-pill admin-role-pill--surface">{sr.leads_count} leads</span>
+                            )}
+                            {srSort === 'deals_won'   && <span className="admin-role-pill admin-role-pill--accent">{sr.deals_won} won</span>}
+                            {srSort === 'converted'   && <span className="admin-role-pill admin-role-pill--accent">{sr.converted} conv.</span>}
+                            {srSort === 'leads_count' && <span className="admin-role-pill admin-role-pill--accent">{sr.leads_count} leads</span>}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                )
+              })()}
             </Panel>
           )}
 

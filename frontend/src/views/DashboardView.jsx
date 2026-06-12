@@ -5,9 +5,9 @@ import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } 
 import { CSS } from '@dnd-kit/utilities'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import { formatCurrencyCompact, formatDateLabel, isSrRole } from '../utils'
+import { formatCurrencyCompact, formatDateLabel, isSrRole, getInitials } from '../utils'
+import { API_BASE } from '../api'
 import { ITEMS_PER_PAGE, REGION_BRANCHES } from '../constants'
-import Pagination from '../components/Pagination'
 
 function WonOverTimeChart({ data, type, mode }) {
   const label = mode === 'won' ? 'won' : 'lost'
@@ -235,6 +235,10 @@ const WIDGET_LABELS = {
 }
 
 const HALF_WIDTH = new Set(['deals_chart','stage_donut','record_health','priority_tasks','recent_wins','recent_losses','top_srs','branch_overview'])
+const HISTORY_PAGE_SIZE = 5
+// Approximate per-row height (px). This reserves space for HISTORY_PAGE_SIZE rows
+// so the Prev/Next controls remain at a consistent position below the 5th item.
+const HISTORY_ROW_PX = 56
 
 function loadLayout(key) {
   try {
@@ -323,12 +327,11 @@ export default function DashboardView({
   const [chartMode, setChartMode] = useState('won')
   const [hoveredStage, setHoveredStage] = useState(null)
   const [srSort, setSrSort] = useState('dealsWon')
-  const [srPage, setSrPage] = useState(1)
-  const SR_PAGE_SIZE = 5
+  const [winsPage, setWinsPage] = useState(1)
+  const [lossesPage, setLossesPage] = useState(1)
 
   function handleSrSort(key) {
     setSrSort(key)
-    setSrPage(1)
   }
 
   const isHosOrAdmin = currentUser?.role === 'Head of Sales' || currentUser?.role === 'Admin'
@@ -366,13 +369,16 @@ export default function DashboardView({
       }
     })
 
+    const memberPic = {}
+    teamMembers.forEach(m => {
+      if (isSrRole(m.role)) memberPic[m.name] = m.profilePic || ''
+    })
+
     return Object.values(stats)
       .filter(s => s.name !== 'Unassigned')
+      .map(s => ({ ...s, profilePic: memberPic[s.name] || '' }))
       .sort((a, b) => (b[srSort] || 0) - (a[srSort] || 0))
   }, [deals, leads, srSort, isHosOrAdmin, isRsm, teamMembers])
-
-  const srTotalPages = Math.ceil(topSRs.length / SR_PAGE_SIZE) || 1
-  const paginatedSRs = topSRs.slice((srPage - 1) * SR_PAGE_SIZE, srPage * SR_PAGE_SIZE)
 
   const branchStats = useMemo(() => {
     const stats = {}
@@ -453,19 +459,29 @@ export default function DashboardView({
     }
   }, [deals])
 
-  const recentWins = useMemo(() => {
+  // full sorted lists (pagination applied later)
+  const recentWinsAll = useMemo(() => {
     return deals
       .filter(d => d.stage === 'Closed Won')
       .sort((a, b) => new Date(b.closeDate || b.created_at) - new Date(a.closeDate || a.created_at))
-      .slice(0, 5)
   }, [deals])
 
-  const recentLosses = useMemo(() => {
+  const recentLossesAll = useMemo(() => {
     return deals
       .filter(d => d.stage === 'Closed Lost')
       .sort((a, b) => new Date(b.closeDate || b.created_at) - new Date(a.closeDate || a.created_at))
-      .slice(0, 5)
   }, [deals])
+
+  const winsTotalPages = Math.max(1, Math.ceil(recentWinsAll.length / HISTORY_PAGE_SIZE))
+  const lossesTotalPages = Math.max(1, Math.ceil(recentLossesAll.length / HISTORY_PAGE_SIZE))
+
+  // Display page values should be clamped to available totals to avoid forcing state updates inside effects
+  const displayedWinsPage = Math.min(winsPage, winsTotalPages)
+  const displayedLossesPage = Math.min(lossesPage, lossesTotalPages)
+
+  // Visible slices for current pages (use clamped display pages)
+  const recentWins = recentWinsAll.slice((displayedWinsPage - 1) * HISTORY_PAGE_SIZE, displayedWinsPage * HISTORY_PAGE_SIZE)
+  const recentLosses = recentLossesAll.slice((displayedLossesPage - 1) * HISTORY_PAGE_SIZE, displayedLossesPage * HISTORY_PAGE_SIZE)
 
   const lostReasonData = useMemo(() => {
     const lost = deals.filter(d => d.stage === 'Closed Lost')
@@ -513,6 +529,8 @@ export default function DashboardView({
     return () => observer.disconnect()
   }, [])
 
+  // Note: we avoid calling setState inside effects. Rendering clamps page numbers to available totals
+
   const focusTasks = (() => {
     const high = openTasks.filter(t => t.priority === 'High')
       .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
@@ -559,6 +577,8 @@ export default function DashboardView({
       )
       case 'top_srs': {
         if (isSr) return null
+        const showScroll = topSRs.length >= 3
+        const duration = Math.max(15, Math.min(60, topSRs.length * 2))
         return (
           <Panel key="top_srs" kicker="Rankings" title="Top Sales Reps"
             action={
@@ -571,39 +591,41 @@ export default function DashboardView({
             }
           >
             <div className="dashboard-sr-panel-content">
-              <div className="dashboard-sr-list-wrap">
-                {paginatedSRs.length === 0 ? (
-                  <p className="u-pad-16 u-text-muted u-fs-sm">No SR data available for the current scope.</p>
-                ) : (
-                  <div className="sr-rank-list">
-                    {paginatedSRs.map((sr, i) => {
-                      const rank = (srPage - 1) * SR_PAGE_SIZE + i + 1
-                      return (
-                        <div key={sr.name} className="sr-rank-item">
-                          <div className="sr-rank-badge">{rank}</div>
-                          <div className="sr-rank-info">
-                            <div className="sr-rank-name">{sr.name}</div>
-                            <div className="sr-rank-branch">{sr.branch}</div>
-                          </div>
-                          <div className="sr-rank-stats">
-                            {srSort === 'dealsWon' && (
-                              <span className="admin-role-pill admin-role-pill--accent">{sr.dealsWon} won</span>
-                            )}
-                            {srSort === 'leadsCount' && (
-                              <span className="admin-role-pill admin-role-pill--alt">{sr.leadsCount} leads</span>
-                            )}
-                            {srSort === 'pipelineValue' && (
-                              <span className="admin-role-pill admin-role-pill--surface">{formatCurrencyCompact(sr.pipelineValue)}</span>
-                            )}
-                          </div>
+              {topSRs.length === 0 ? (
+                <p className="u-pad-16 u-text-muted u-fs-sm">No SR data available for the current scope.</p>
+              ) : (
+                <div className={showScroll ? 'sr-rank-list-infinite' : ''}>
+                  <div className={showScroll ? 'sr-rank-list-track' : 'sr-rank-list'}
+                    style={showScroll ? { '--rank-scroll-duration': `${duration}s` } : undefined}>
+                    {(showScroll ? [...topSRs, ...topSRs] : topSRs).map((sr, i) => (
+                      <div key={`${sr.name}-${i}`} className="sr-rank-item">
+                        <div className="sr-rank-badge">{(i % topSRs.length) + 1}</div>
+                        <div className="sr-rank-avatar">
+                          {sr.profilePic ? (
+                            <img className="sr-rank-avatar-img" src={`${API_BASE}${sr.profilePic}`} alt="" />
+                          ) : (
+                            <span>{getInitials(sr.name)}</span>
+                          )}
                         </div>
-                      )
-                    })}
+                        <div className="sr-rank-info">
+                          <div className="sr-rank-name">{sr.name}</div>
+                          <div className="sr-rank-branch">{sr.branch}</div>
+                        </div>
+                        <div className="sr-rank-stats">
+                          {srSort === 'dealsWon' && (
+                            <span className="admin-role-pill admin-role-pill--accent">{sr.dealsWon} won</span>
+                          )}
+                          {srSort === 'leadsCount' && (
+                            <span className="admin-role-pill admin-role-pill--alt">{sr.leadsCount} leads</span>
+                          )}
+                          {srSort === 'pipelineValue' && (
+                            <span className="admin-role-pill admin-role-pill--surface">{formatCurrencyCompact(sr.pipelineValue)}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </div>
-              {topSRs.length > 0 && (
-                <Pagination currentPage={srPage} totalPages={srTotalPages} onPageChange={setSrPage} />
+                </div>
               )}
             </div>
           </Panel>
@@ -656,6 +678,13 @@ export default function DashboardView({
                       <div key={grp.region} className="region-column">
                         <div className="region-column__header">{grp.region}</div>
                         <div className="region-column__body">
+                          <div className="region-column__row region-column__header-row">
+                            <span className="region-column__name">Branch</span>
+                            <span className="region-column__num">SRs</span>
+                            <span className="region-column__num">Active</span>
+                            <span className="region-column__num-mono">Pipeline</span>
+                            <span className="region-column__num">Won</span>
+                          </div>
                           {grp.branches.map(s => (
                             <div key={s.branch} className="region-column__row">
                               <span className="region-column__name">{s.branch}</span>
@@ -698,7 +727,7 @@ export default function DashboardView({
                       <th>Branch</th>
                       <th className="num">SRs</th>
                       <th className="num">Active Deals</th>
-                      <th className="num">Pipeline Value</th>
+                      <th className="num-mono">Pipeline Value</th>
                       <th className="num">Won</th>
                     </tr>
                   </thead>
@@ -818,16 +847,46 @@ export default function DashboardView({
       case 'recent_wins': return (
         <Panel key="recent_wins" kicker="History" title="Recent Wins" detail="Latest closed won opportunities.">
           <div className="history-table-container">
-            <div className="history-list wins-list">
+            <div className="history-list wins-list" style={{ minHeight: `${HISTORY_PAGE_SIZE * HISTORY_ROW_PX}px`, maxHeight: `${HISTORY_PAGE_SIZE * HISTORY_ROW_PX}px`, overflowY: 'auto' }}>
               <div className="history-list-header"><span>Deal Title</span><span>Won Date</span><span>Owner</span><span style={{ textAlign: 'right' }}>Value</span></div>
-              {recentWins.length === 0 ? <p className="u-pad-16 u-text-muted u-fs-sm">No recent wins.</p> : recentWins.map(d => (
-                <div key={d.id} className="history-list-row is-won">
-                  <strong>{d.name}</strong>
-                  <span className="u-text-muted">{formatDateLabel(d.closeDate || d.created_at)}</span>
-                  <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
-                  <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
-                </div>
-              ))}
+              {recentWins.length === 0 ? (
+                <p className="u-pad-16 u-text-muted u-fs-sm">No recent wins.</p>
+              ) : (
+                recentWins.map(d => (
+                  <div key={d.id} className="history-list-row is-won">
+                    <strong>{d.name}</strong>
+                    <span className="u-text-muted">{formatDateLabel(d.closeDate || d.created_at)}</span>
+                    <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
+                    <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="history-pagination" role="navigation" aria-label="Wins pagination">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setWinsPage(p => Math.max(1, p - 1))}
+                disabled={winsPage === 1}
+                aria-label="Previous page"
+              >
+                Prev
+              </button>
+
+              <div className="history-pagination__page-info u-text-muted u-fs-sm" aria-live="polite" style={{ margin: '0 12px' }}>
+                Page {winsPage} of {winsTotalPages}
+              </div>
+
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setWinsPage(p => Math.min(winsTotalPages, p + 1))}
+                disabled={winsPage === winsTotalPages}
+                aria-label="Next page"
+              >
+                Next
+              </button>
             </div>
           </div>
         </Panel>
@@ -835,17 +894,47 @@ export default function DashboardView({
       case 'recent_losses': return (
         <Panel key="recent_losses" kicker="History" title="Recent Losses" detail="Latest closed lost opportunities.">
           <div className="history-table-container">
-            <div className="history-list losses-list">
+            <div className="history-list losses-list" style={{ minHeight: `${HISTORY_PAGE_SIZE * HISTORY_ROW_PX}px`, maxHeight: `${HISTORY_PAGE_SIZE * HISTORY_ROW_PX}px`, overflowY: 'auto' }}>
               <div className="history-list-header lost-header"><span>Deal Title</span><span>Lost Date</span><span>Owner</span><span>Reason</span><span style={{ textAlign: 'right' }}>Value</span></div>
-              {recentLosses.length === 0 ? <p className="u-pad-16 u-text-muted u-fs-sm">No recent losses.</p> : recentLosses.map(d => (
-                <div key={d.id} className="history-list-row is-lost">
-                  <strong>{d.name}</strong>
-                  <span className="u-text-muted">{formatDateLabel(d.closeDate || d.created_at)}</span>
-                  <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
-                  <span className="status-text is-warning" style={{ width: 'fit-content' }}>{d.lostReason || 'Unspecified'}</span>
-                  <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
-                </div>
-              ))}
+              {recentLosses.length === 0 ? (
+                <p className="u-pad-16 u-text-muted u-fs-sm">No recent losses.</p>
+              ) : (
+                recentLosses.map(d => (
+                  <div key={d.id} className="history-list-row is-lost">
+                    <strong>{d.name}</strong>
+                    <span className="u-text-muted">{formatDateLabel(d.closeDate || d.created_at)}</span>
+                    <span className="u-text-muted">{!isSr ? d.owner : 'Me'}</span>
+                    <span className="status-text is-warning" style={{ width: 'fit-content' }}>{d.lostReason || 'Unspecified'}</span>
+                    <strong style={{ textAlign: 'right' }}>{formatCurrencyCompact(d.value)}</strong>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="history-pagination" role="navigation" aria-label="Losses pagination">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setLossesPage(p => Math.max(1, p - 1))}
+                disabled={lossesPage === 1}
+                aria-label="Previous page"
+              >
+                Prev
+              </button>
+
+              <div className="history-pagination__page-info u-text-muted u-fs-sm" aria-live="polite" style={{ margin: '0 12px' }}>
+                Page {lossesPage} of {lossesTotalPages}
+              </div>
+
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setLossesPage(p => Math.min(lossesTotalPages, p + 1))}
+                disabled={lossesPage === lossesTotalPages}
+                aria-label="Next page"
+              >
+                Next
+              </button>
             </div>
           </div>
         </Panel>
@@ -1156,6 +1245,17 @@ export default function DashboardView({
           border: 1px solid var(--border);
           border-radius: 6px;
           padding-bottom: 4px;
+        }
+        .history-pagination {
+          display: flex;
+          align-items: center;
+          justify-content: center; /* center Prev - Page - Next */
+          padding: 8px 12px;
+          gap: 12px;
+        }
+        .history-pagination .secondary-button[disabled] {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
         .history-table-container::-webkit-scrollbar {
           height: 8px;
