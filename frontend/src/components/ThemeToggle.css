@@ -52,6 +52,7 @@
 }
 
 .theme-toggle-btn {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -78,6 +79,18 @@
   background-color: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
+}
+
+.theme-default-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--positive);
+  box-shadow: 0 0 5px var(--positive);
+  pointer-events: none;
 }
 
 .theme-toggle-icon {
@@ -119,6 +132,10 @@
   outline: 2px solid #fff;
   outline-offset: 2px;
   transform: scale(1.1);
+}
+
+.neon-color-dot.is-default {
+  box-shadow: 0 0 0 2px var(--positive);
 }
 
 .neon-color-dot--rainbow {

@@ -1357,6 +1357,8 @@ def create_lead():
         contact_num = data.get('contactNum')
         branch = data.get('branch')
         owner_id = data.get('ownerId')
+        contact_name = data.get('contactName') or customer_name
+        email = data.get('email')
 
         # Validation: Ensure owner_id belongs to the correct branch/region
         if owner_id:
@@ -1402,10 +1404,10 @@ def create_lead():
         # 2. Automatically create a Company record
         # Use lead_id as company_id for direct linking
         cursor.execute(
-            """INSERT INTO companies (id, name, city, owner_id, status)
-               VALUES (%s, %s, %s, %s, %s)
+            """INSERT INTO companies (id, name, industry, website, city, owner_id, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)
                ON DUPLICATE KEY UPDATE name = VALUES(name), owner_id = VALUES(owner_id)""",
-            (lead_id, customer_name, data.get('region'), owner_id, 'Active')
+            (lead_id, customer_name, data.get('industry'), data.get('website'), data.get('region'), owner_id, 'Active')
         )
         
         # 3. Automatically create a Contact record (with duplicate prevention)
@@ -1417,16 +1419,16 @@ def create_lead():
         if contact_num:
             cursor.execute(
                 "SELECT id FROM contacts WHERE LOWER(TRIM(name)) = %s AND TRIM(phone) = %s",
-                (customer_name.lower().strip(), contact_num.strip())
+                (contact_name.lower().strip(), contact_num.strip())
             )
             if cursor.fetchone():
                 contact_exists = True
 
         if not contact_exists:
             cursor.execute(
-                """INSERT INTO contacts (id, name, company_id, owner_id, phone, status)
-                   VALUES (%s, %s, %s, %s, %s, %s)""",
-                (contact_id, customer_name, lead_id, owner_id, contact_num, 'Active')
+                """INSERT INTO contacts (id, name, company_id, owner_id, phone, email, status)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                (contact_id, contact_name, lead_id, owner_id, contact_num, email, 'Active')
             )
         
         # 4. Add the contact to the deal if it's created via pipeline sync (not applicable here, but good for consistency)

@@ -349,7 +349,11 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       address: leadForm.address,
       region: leadForm.region,
       ownerId: rsm?.id || leadForm.ownerId || null,
-      branch: activeBranch,
+      branch: leadForm.branch || activeBranch,
+      contactName: leadForm.contactName || '',
+      email: leadForm.email || '',
+      website: leadForm.website || '',
+      industry: leadForm.industry || '',
       status: 'New',
       createdAt: CURRENT_DATE,
     }

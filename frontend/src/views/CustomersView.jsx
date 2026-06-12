@@ -838,8 +838,8 @@ export default function CustomersView({
       >
         <LeadForm
           teamMembers = {teamMembers}
-          branch = {currentUser?.branch ?? ''}
           currentUser = {currentUser}
+          contacts = {contacts}
           onCancel = {() => setShowCustomerForm(false)}
           onSubmit = {(form) =>{
             onCreateCustomer(form)
