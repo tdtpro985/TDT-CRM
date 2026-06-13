@@ -8,9 +8,19 @@ import confettiSound from '../assets/sounds/yeah-boiii-i-i-i.mp3'
 
 const CURRENT_DATE = getTodayISO()
 
+<<<<<<< Updated upstream
 const POLL_FAST   = 15_000
 const POLL_MEDIUM = 30_000
 const POLL_SLOW   = 60_000
+=======
+// Background polling: silently re-fetch shared data so other users' changes
+// appear without a manual refresh. Single tuning knob.
+const POLL_INTERVAL_MS = 25000
+// A poll tick is skipped if a mutation started within this window, so the poll
+// can't overwrite an in-flight optimistic update before its own refetch lands.
+const MUTATION_GUARD_MS = 5000
+
+>>>>>>> Stashed changes
 
 function getProbabilityForStage(stage) { return STAGE_WORKFLOW[stage]?.probability ?? 20 }
 
@@ -26,6 +36,12 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   const [loading, setLoading] = useState(true)
 
   const abortControllerRef = useRef(null)
+  // Timestamp (ms) of the most recent mutation start. The background poll skips
+  // ticks within MUTATION_GUARD_MS of this so it can't briefly clobber an
+  // optimistic update mid-write. Self-healing: no finally bookkeeping, and a
+  // thrown mutation can never leave polling permanently paused.
+  const lastMutationRef = useRef(0)
+  const markMutating = useCallback(() => { lastMutationRef.current = Date.now() }, [])
   const audioRef = useRef(null)
   const musicRef = useRef({ won: [], lost: [] })
   // animationRef stores the per-outcome animation style: 'confetti' | 'jojo' | 'none'
@@ -301,6 +317,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, activeBranch, activeRegion])
 
+<<<<<<< Updated upstream
   // ─── Real-time polling ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUser) return
@@ -336,6 +353,30 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     return () => {
       stop()
       document.removeEventListener('visibilitychange', onVisibility)
+=======
+  // Background polling: silently refresh shared data so changes made by other
+  // users appear without a manual reload. Reuses the existing fetchX() helpers
+  // (which don't touch `loading`, so no skeleton flash) and the current scope
+  // via buildQuery(). Skips while the tab is hidden or a mutation is in flight.
+  useEffect(() => {
+    if (!currentUser) return undefined
+    const tick = () => {
+      if (document.hidden) return
+      if (Date.now() - lastMutationRef.current < MUTATION_GUARD_MS) return
+      fetchDeals()
+      fetchTasks()
+      fetchCustomers()
+      fetchLeads()
+      fetchContacts()
+    }
+    const id = setInterval(tick, POLL_INTERVAL_MS)
+    // Refresh immediately when the user returns to a previously hidden tab.
+    const onVisible = () => { if (!document.hidden) tick() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+>>>>>>> Stashed changes
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, activeBranch, activeRegion])
@@ -358,6 +399,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       createdAt: CURRENT_DATE,
     }
 
+    markMutating()
     setLeads((current) => [newLead, ...current])
 
     try {
@@ -403,6 +445,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       lastActivity: CURRENT_DATE,
     }
 
+    markMutating()
     setContacts((current) => [newContact, ...current])
 
     try {
@@ -429,6 +472,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       lastTouch: CURRENT_DATE,
     }
 
+    markMutating()
     setCompanies((current) => [newCompany, ...current])
 
     try {
@@ -446,6 +490,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   async function createDeal(dealForm) {
+    markMutating()
     let matchedCompany = companies.find((c) => c.name.toLowerCase() === dealForm.companyName.toLowerCase())
     let matchedContact = contacts.find((c) => c.name.toLowerCase() === dealForm.contactName.toLowerCase())
     let companyIdToUse = matchedCompany ? matchedCompany.id : null
@@ -507,6 +552,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   async function createTask(taskForm, DEAL_STAGES) {
+    markMutating()
     let dealIdToUse = taskForm.dealId
     let companyIdToUse = taskForm.companyId
 
@@ -683,6 +729,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
 
   async function updateLeadStatus(leadId, nextStatus) {
+    markMutating()
     setLeads((current) => current.map((l) => (l.id === leadId ? { ...l, status: nextStatus } : l)))
     try {
       const res = await apiFetch(`/api/leads/${leadId}/status`, {
@@ -699,6 +746,11 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   async function updateDealStage(dealId, nextStage, extra = {}) {
 
+<<<<<<< Updated upstream
+=======
+    markMutating()
+    const probability = STAGE_WORKFLOW[nextStage]?.probability ?? 20
+>>>>>>> Stashed changes
     const snapshot = deals.find(d => d.id === dealId)
 
     setDeals((current) =>
@@ -773,6 +825,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   async function updateContact(contactId, data) {
+    markMutating()
     setContacts(current => current.map(c => c.id === contactId ? { ...c, ...data } : c))
     try {
       const res = await apiFetch(`/api/contacts/${contactId}`, {
@@ -790,6 +843,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   async function updateDeal(dealId, fields) {
 
+    markMutating()
     const snapshot = deals.find(d => d.id === dealId)
     setDeals((current) =>
       current.map((d) => (d.id === dealId ? { ...d, ...fields } : d)),
@@ -822,6 +876,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   async function toggleTaskStatus(taskId, currentStatus) {
     const nextStatus = currentStatus === 'Completed' ? 'Reopened' : 'Completed'
+    markMutating()
     setTasks((current) => current.map((t) => (t.id === taskId ? { ...t, status: nextStatus } : t)))
     try {
       const res = await apiFetch(`/api/activities/${taskId}/status`, {
@@ -837,6 +892,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   async function reassignTask(taskId, newOwnerId) {
+    markMutating()
     try {
       const res = await apiFetch(`/api/activities/${taskId}/reassign`, {
         method: 'PATCH',
@@ -860,6 +916,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   async function acknowledgeCustomer(id) {
+    markMutating()
     apiFetch(`/api/customers/${id}/acknowledge`, { method: 'PATCH' }).catch(() => {})
     setCustomers(cur => cur.map(c => c.id === id ? { ...c, reassignedAt: null } : c))
   }
@@ -884,6 +941,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   }
 
   async function reassignLead(leadId, newOwnerId) {
+    markMutating()
     const newOwner = teamMembers.find(m => m.id === newOwnerId)
     setLeads(current => current.map(l =>
       l.id === leadId ? { ...l, ownerId: newOwnerId, sr: newOwner?.name ?? '' } : l

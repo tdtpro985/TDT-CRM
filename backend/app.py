@@ -233,7 +233,7 @@ def expired_token_response(jwt_header, jwt_payload):
 limiter = Limiter(
     get_remote_address,
     app=app,
-    default_limits=["1000 per day", "200 per hour"]
+    default_limits=["20000 per day", "2000 per hour"]  # widened for background polling; login/sync keep stricter per-route limits
 )
 
 # Admin-only decorator: use on top of @jwt_required()
