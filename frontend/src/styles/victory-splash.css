@@ -1,0 +1,584 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Victory Splash — "Here Comes the Money" celebration overlay
+   Three distinct Phase 1 animations per theme (neon / dark / light).
+   All Phase 1 entrances complete by ~400ms (first audio impact hit).
+   All looping animations run at 500ms cycles to match the intro's ~2 Hz click cadence.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Root container ─────────────────────────────────────────────────────── */
+.victory-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: all;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.victory-splash.stage-outro {
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
+
+/* ── ESC hint ───────────────────────────────────────────────────────────── */
+.victory-splash__esc {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  z-index: 10001;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  animation: victory-esc-fade 0.3s ease 0.2s forwards;
+}
+
+@keyframes victory-esc-fade {
+  to { opacity: 0.4; }
+}
+
+/* ── Phase 1 wrapper ────────────────────────────────────────────────────── */
+.money-hook {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: hook-fade-in 0.25s ease both;
+}
+
+.money-hook.is-exiting {
+  animation: panel-exit 0.18s ease-in forwards;
+}
+
+@keyframes hook-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes panel-exit {
+  from { opacity: 1; transform: scale(1);    }
+  to   { opacity: 0; transform: scale(1.45); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NEON THEME — Diagonal SVG Slashes + HUD Bracket
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* SVG slash panels — full-width, positioned at top and bottom */
+.neon-slash {
+  position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+.neon-slash--top {
+  top: 0;
+  height: 44vh;
+  /* Entrance completes by ~400ms landing on first audio hit */
+  animation: slash-top-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+.neon-slash--bottom {
+  bottom: 0;
+  height: 44vh;
+  animation: slash-bottom-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+@keyframes slash-top-in {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes slash-bottom-in {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.neon-slash__path {
+  fill: rgba(15, 23, 42, 0.97);
+  stroke: var(--accent);
+  stroke-width: 0.3;
+  filter: drop-shadow(0 0 6px var(--accent)) drop-shadow(0 0 18px var(--accent));
+}
+
+/* HUD target bracket — appears after slashes land */
+.hud-target {
+  position: relative;
+  z-index: 2;
+  width: clamp(140px, 20vw, 200px);
+  height: clamp(140px, 20vw, 200px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: hud-appear 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.4s both;
+}
+
+@keyframes hud-appear {
+  from { opacity: 0; transform: scale(0.75); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Four L-shaped corner brackets */
+.hud-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border-color: var(--accent);
+  border-style: solid;
+  box-shadow: 0 0 8px var(--accent);
+}
+
+.hud-corner--tl { top: 0;    left: 0;   border-width: 2px 0 0 2px; }
+.hud-corner--tr { top: 0;    right: 0;  border-width: 2px 2px 0 0; }
+.hud-corner--bl { bottom: 0; left: 0;   border-width: 0 0 2px 2px; }
+.hud-corner--br { bottom: 0; right: 0;  border-width: 0 2px 2px 0; }
+
+/* Crosshair lines */
+.hud-crosshair {
+  position: absolute;
+  background: var(--accent);
+  opacity: 0.35;
+}
+
+.hud-crosshair--h {
+  width: calc(100% + 36px);
+  height: 1px;
+  left: -18px;
+}
+
+.hud-crosshair--v {
+  height: calc(100% + 36px);
+  width: 1px;
+  top: -18px;
+}
+
+/* Scanning ring — 500ms pulse matches intro click cadence */
+.hud-scan-ring {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+  opacity: 0;
+  animation: hud-scan 0.5s ease-in-out 0.45s infinite;
+}
+
+@keyframes hud-scan {
+  0%   { opacity: 0; transform: scale(0.8);  }
+  35%  { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(1.18); }
+}
+
+/* Avatar circle inside HUD */
+.hud-avatar {
+  width: clamp(80px, 12vw, 120px);
+  height: clamp(80px, 12vw, 120px);
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(var(--accent-rgb), 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hud-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hud-avatar__initials {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DARK THEME — Industrial Hydraulic Press Banners
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.press-banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 42vh;
+  background:
+    repeating-linear-gradient(
+      -55deg,
+      transparent 0px, transparent 12px,
+      rgba(255, 181, 71, 0.025) 12px, rgba(255, 181, 71, 0.025) 13px
+    ),
+    linear-gradient(to bottom, #1c2540 0%, #0f172a 100%);
+}
+
+.press-banner--top {
+  top: 0;
+  border-bottom: 3px solid var(--accent);
+  box-shadow: 0 6px 32px rgba(var(--accent-rgb), 0.28);
+  animation: banner-top-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+.press-banner--bottom {
+  bottom: 0;
+  border-top: 3px solid var(--accent);
+  box-shadow: 0 -6px 32px rgba(var(--accent-rgb), 0.28);
+  animation: banner-bottom-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+@keyframes banner-top-in {
+  from { transform: translateY(-100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes banner-bottom-in {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Micro-shudder fires at 400ms — the first cash-register impact */
+.money-hook--dark .press-banner--top {
+  animation-name: banner-top-in, banner-lock-shake;
+  animation-duration: 0.35s, 0.12s;
+  animation-delay: 0.05s, 0.4s;
+  animation-fill-mode: both, both;
+}
+
+.money-hook--dark .press-banner--bottom {
+  animation-name: banner-bottom-in, banner-lock-shake;
+  animation-duration: 0.35s, 0.12s;
+  animation-delay: 0.05s, 0.4s;
+  animation-fill-mode: both, both;
+}
+
+@keyframes banner-lock-shake {
+  0%, 100% { transform: translateY(0);   }
+  33%       { transform: translateY(-3px); }
+  66%       { transform: translateY(2px);  }
+}
+
+/* Avatar in steel rim */
+.press-center {
+  position: relative;
+  z-index: 2;
+  animation: press-center-appear 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both;
+}
+
+@keyframes press-center-appear {
+  from { opacity: 0; transform: scale(0.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.press-rim {
+  width: clamp(110px, 16vw, 160px);
+  height: clamp(110px, 16vw, 160px);
+  border-radius: 50%;
+  border: 5px solid var(--accent);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 500ms pulse matches the intro click cadence */
+  animation: rim-pulse 0.5s ease-in-out 0.45s infinite;
+}
+
+@keyframes rim-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(var(--accent-rgb), 0.15),
+      0 0 16px rgba(var(--accent-rgb), 0.25);
+  }
+  50% {
+    box-shadow:
+      0 0 0 6px rgba(var(--accent-rgb), 0.22),
+      0 0 44px rgba(var(--accent-rgb), 0.65);
+  }
+}
+
+.press-rim__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.press-rim__initials {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT THEME — Architectural Sliding Gate Panels + Drafting Animation
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.gate-panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 38vw;
+  background: #ffffff;
+  border-color: rgba(255, 152, 0, 0.35);
+  border-style: solid;
+}
+
+.gate-panel--left {
+  left: 0;
+  border-right-width: 2px;
+  border-top-width: 0;
+  border-bottom-width: 0;
+  border-left-width: 0;
+  /* Entrance completes at ~400ms */
+  animation: gate-left-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+.gate-panel--right {
+  right: 0;
+  border-left-width: 2px;
+  border-top-width: 0;
+  border-bottom-width: 0;
+  border-right-width: 0;
+  animation: gate-right-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
+}
+
+@keyframes gate-left-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes gate-right-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+/* Center drafting area — fades in after gates arrive */
+.draft-center {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  animation: draft-center-appear 0.3s ease 0.42s both;
+}
+
+@keyframes draft-center-appear {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* SVG structural lattice */
+.draft-lattice {
+  width: clamp(160px, 26vw, 280px);
+  height: auto;
+}
+
+/* Base style for all draft lines — drawn via stroke-dashoffset animation */
+.draft-line {
+  stroke: #64748b;
+  stroke-linecap: round;
+  fill: none;
+  stroke-dasharray: 300;
+  stroke-dashoffset: 300;
+  animation: line-draw ease forwards;
+}
+
+/*
+  Stagger: gates arrive at ~400ms, lines start drawing 50ms later.
+  All 9 lines complete by ~1.75s, leaving the blueprint visible for
+  ~3.5s of the intro (building tension before the 5.5s beat drop).
+*/
+.draft-line--1 { stroke-width: 2;   animation-duration: 0.5s;  animation-delay: 0.45s; }
+.draft-line--2 { stroke-width: 1.5; animation-duration: 0.4s;  animation-delay: 0.70s; }
+.draft-line--3 { stroke-width: 1.5; animation-duration: 0.4s;  animation-delay: 0.70s; }
+.draft-line--4 { stroke-width: 1.5; animation-duration: 0.35s; animation-delay: 0.90s; }
+.draft-line--5 { stroke-width: 1.5; animation-duration: 0.35s; animation-delay: 0.90s; }
+.draft-line--6 { stroke-width: 1;   animation-duration: 0.3s;  animation-delay: 1.10s; }
+.draft-line--7 { stroke-width: 1;   animation-duration: 0.3s;  animation-delay: 1.20s; }
+.draft-line--8 { stroke-width: 1;   animation-duration: 0.3s;  animation-delay: 1.30s; }
+.draft-line--9 { stroke-width: 1;   animation-duration: 0.3s;  animation-delay: 1.40s; }
+
+@keyframes line-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Drafting stamp — avatar in circular frame with tick marks */
+.draft-stamp {
+  position: relative;
+  width: clamp(90px, 13vw, 130px);
+  height: clamp(90px, 13vw, 130px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.draft-stamp__img {
+  width: 80%;
+  height: 80%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2.5px solid #ff9800;
+}
+
+.draft-stamp__initials {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #ff9800;
+}
+
+.draft-stamp__ticks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.draft-tick {
+  stroke: #64748b;
+  stroke-width: 1.5;
+  stroke-linecap: square;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PHASE 2 — ₱ Glyph Rain (all themes)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.money-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.peso-glyph {
+  position: absolute;
+  top: -80px;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-weight: 900;
+  color: var(--accent);
+  animation: glyph-fall linear infinite;
+  user-select: none;
+}
+
+@keyframes glyph-fall {
+  from { transform: translateY(0)     rotate(var(--r, 0deg)); }
+  to   { transform: translateY(115vh) rotate(var(--r, 0deg)); }
+}
+
+/* 20 individually positioned ₱ glyphs */
+.peso-glyph--0  { left:  4%; font-size: 28px; opacity: 0.55; animation-duration: 3.1s; animation-delay: 0.0s;  --r: -8deg;  }
+.peso-glyph--1  { left: 11%; font-size: 18px; opacity: 0.35; animation-duration: 3.8s; animation-delay: 0.4s;  --r:  5deg;  }
+.peso-glyph--2  { left: 19%; font-size: 38px; opacity: 0.65; animation-duration: 2.7s; animation-delay: 0.1s;  --r: -12deg; }
+.peso-glyph--3  { left: 27%; font-size: 22px; opacity: 0.45; animation-duration: 3.4s; animation-delay: 0.7s;  --r:  9deg;  }
+.peso-glyph--4  { left: 35%; font-size: 48px; opacity: 0.3;  animation-duration: 2.4s; animation-delay: 0.2s;  --r: -6deg;  }
+.peso-glyph--5  { left: 43%; font-size: 20px; opacity: 0.5;  animation-duration: 3.6s; animation-delay: 0.5s;  --r:  14deg; }
+.peso-glyph--6  { left: 51%; font-size: 32px; opacity: 0.6;  animation-duration: 2.9s; animation-delay: 0.15s; --r: -4deg;  }
+.peso-glyph--7  { left: 58%; font-size: 16px; opacity: 0.4;  animation-duration: 4.1s; animation-delay: 0.6s;  --r:  7deg;  }
+.peso-glyph--8  { left: 65%; font-size: 42px; opacity: 0.55; animation-duration: 2.6s; animation-delay: 0.3s;  --r: -10deg; }
+.peso-glyph--9  { left: 72%; font-size: 24px; opacity: 0.45; animation-duration: 3.3s; animation-delay: 0.8s;  --r:  6deg;  }
+.peso-glyph--10 { left: 79%; font-size: 36px; opacity: 0.35; animation-duration: 2.8s; animation-delay: 0.0s;  --r: -15deg; }
+.peso-glyph--11 { left: 86%; font-size: 20px; opacity: 0.5;  animation-duration: 3.5s; animation-delay: 0.45s; --r:  11deg; }
+.peso-glyph--12 { left: 92%; font-size: 30px; opacity: 0.6;  animation-duration: 3.0s; animation-delay: 0.25s; --r: -3deg;  }
+.peso-glyph--13 { left:  8%; font-size: 44px; opacity: 0.25; animation-duration: 2.5s; animation-delay: 1.2s;  --r:  8deg;  }
+.peso-glyph--14 { left: 23%; font-size: 16px; opacity: 0.4;  animation-duration: 4.2s; animation-delay: 1.0s;  --r: -9deg;  }
+.peso-glyph--15 { left: 39%; font-size: 26px; opacity: 0.55; animation-duration: 3.2s; animation-delay: 0.9s;  --r:  4deg;  }
+.peso-glyph--16 { left: 54%; font-size: 40px; opacity: 0.3;  animation-duration: 2.3s; animation-delay: 1.4s;  --r: -13deg; }
+.peso-glyph--17 { left: 68%; font-size: 18px; opacity: 0.45; animation-duration: 3.9s; animation-delay: 0.7s;  --r:  10deg; }
+.peso-glyph--18 { left: 82%; font-size: 34px; opacity: 0.6;  animation-duration: 2.8s; animation-delay: 1.1s;  --r: -7deg;  }
+.peso-glyph--19 { left: 95%; font-size: 22px; opacity: 0.35; animation-duration: 3.7s; animation-delay: 0.55s; --r:  12deg; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PHASE 2 — Central Data Splash (all themes)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.money-splash-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.money-splash__frame {
+  /* background: var(--bg) ensures text is readable on light theme's cream canvas */
+  background: var(--bg);
+  text-align: center;
+  padding: 2.5rem 3.5rem;
+  border: 2px solid var(--accent);
+  clip-path: polygon(14px 0%, 100% 0%, calc(100% - 14px) 100%, 0% 100%);
+  animation: frame-drop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.victory-title {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: clamp(2.2rem, 5.5vw, 4rem);
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  text-transform: uppercase;
+  text-align: center;
+  margin: 0;
+  animation: title-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  text-shadow:
+    0 0 20px rgba(var(--accent-rgb), 0.25),
+    0 0 60px rgba(var(--accent-rgb), 0.08);
+}
+
+[data-theme="neon"] .victory-title {
+  text-shadow:
+    0 0 30px rgba(var(--accent-rgb), 0.6),
+    0 0 80px rgba(var(--accent-rgb), 0.3),
+    0 0 120px rgba(var(--accent-rgb), 0.1);
+  animation: title-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both,
+             victory-title-glow 2.5s ease-in-out 0.6s infinite;
+}
+
+.victory-divider {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  margin: 0.75rem 0;
+  animation: title-rise 0.6s 0.05s both cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.money-splash__value {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: clamp(1.3rem, 2.8vw, 2rem);
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0 0 0.4rem 0;
+  animation: title-rise 0.6s 0.1s both cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.money-splash__account {
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin: 0;
+  animation: title-rise 0.6s 0.2s both cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ── Shared keyframes ───────────────────────────────────────────────────── */
+@keyframes title-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes frame-drop {
+  from { opacity: 0; transform: scaleY(0.5); }
+  to   { opacity: 1; transform: scaleY(1);   }
+}
+
+@keyframes victory-title-glow {
+  0%, 100% { filter: brightness(1);    }
+  50%       { filter: brightness(1.35); }
+}

@@ -20,7 +20,7 @@ const IconChevronDown = ({ expanded }) => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`u-transition-transform ${expanded ? 'u-rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
 )
 
-function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatusToggle, isHighlighted }) {
+function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatusToggle, isHighlighted, canReassign, isReassigning, isProcessing, reassignOwnerId, setReassignOwnerId, branchSRs, onStartReassign, onConfirmReassign, onCancelReassign }) {
   const [expanded, setExpanded] = useState(false)
   
   const TypeIcon = useMemo(() => {
@@ -47,7 +47,7 @@ function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatus
           </strong>
         </div>
         {linkedDeal?.stage && (
-          <span className={`tone-pill ${getToneClass(linkedDeal.stage)} u-fs-9 u-pad-1-6`}>
+          <span className={`status-text ${getToneClass(linkedDeal.stage)} u-fs-10`}>
             {linkedDeal.stage}
           </span>
         )}
@@ -117,10 +117,41 @@ function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatus
 
       <div className="activity-card__footer">
         <span>{formatDueDate(task.dueDate)}</span>
-        <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id, task.status)}>
-          {task.status === 'Completed' ? 'Reopen task' : 'Mark complete'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {canReassign && !isReassigning && (
+            <button type="button" className="ghost-button" onClick={onStartReassign}>Re-assign</button>
+          )}
+          <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id, task.status)}>
+            {task.status === 'Completed' ? 'Reopen task' : 'Mark complete'}
+          </button>
+        </div>
       </div>
+      {isReassigning && (
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '8px 12px', borderTop: '1px solid var(--border)' }}>
+          <select
+            value={reassignOwnerId}
+            onChange={e => setReassignOwnerId(e.target.value)}
+            className="admin-select"
+            style={{ flex: 1, fontSize: 'var(--fs-sm)' }}
+            disabled={isProcessing}
+          >
+            <option value="">Select SR…</option>
+            {branchSRs.map(m => (
+              <option key={m.id} value={String(m.id)}>{m.name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="primary-button"
+            style={{ fontSize: 'var(--fs-sm)', padding: '4px 12px' }}
+            disabled={isProcessing || !reassignOwnerId || reassignOwnerId === String(task.ownerId ?? '')}
+            onClick={onConfirmReassign}
+          >
+            {isProcessing ? (<><span className="spinner-small" /> Reassigning…</>) : 'Confirm'}
+          </button>
+          <button type="button" className="ghost-button" onClick={onCancelReassign} disabled={isProcessing}>Cancel</button>
+        </div>
+      )}
     </article>
   )
 }
@@ -132,9 +163,12 @@ export default function TasksView({
   dueToday,
   deals,
   companies,
+  teamMembers,
   dealContactMap,
   handleTaskStatusToggle,
+  reassignTask,
   searchQuery,
+  onClearSearch,
   currentUser
 }) {
   const navigate = useNavigate()
@@ -143,16 +177,26 @@ export default function TasksView({
   const [currentPage, setCurrentPage] = useState(1)
   const [highlightedTaskId, setHighlightedTaskId] = useState(null)
   const [pinnedTaskId, setPinnedTaskId] = useState(null)
+  const [clearingSearch, setClearingSearch] = useState(false)
+  const [focusQueueExpanded, setFocusQueueExpanded] = useState(false)
+  const [reassigningTaskId, setReassigningTaskId] = useState(null)
+  const [reassignOwnerId, setReassignOwnerId] = useState('')
+  const [reassignProcessing, setReassignProcessing] = useState(false)
   const isSr = isSrRole(currentUser?.role)
+
+  const canReassign = !isSr && currentUser?.role !== 'Branch Account'
 
   const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
 
   // Reset page on search change (adjusting state during render)
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
-  if (searchQuery !== prevSearchQuery) {
+  if (searchQuery !== prevSearchQuery && !clearingSearch) {
     setPrevSearchQuery(searchQuery)
     setCurrentPage(1)
     setPinnedTaskId(null)
+  } else if (clearingSearch && searchQuery !== prevSearchQuery) {
+    setPrevSearchQuery(searchQuery)
+    setClearingSearch(false)
   }
 
   const filteredTasks = useMemo(() => {
@@ -166,14 +210,12 @@ export default function TasksView({
 
     return enriched.filter(
       (t) => {
-        const deal = deals.find((d) => d.id === t.dealId)
-        
         return (
           (taskFilter === 'all' || 
            (taskFilter === 'open' && t.status === 'Open') || 
            (taskFilter === 'completed' && t.status === 'Completed') ||
            (taskFilter === 'reopened' && t.status === 'Reopened')) &&
-          matchesSearch(searchQuery, [t.title, t.type, t.owner, deal?.name, t.resolvedCompanyName])
+          matchesSearch(searchQuery, [t.resolvedCompanyName])
         )
       }
     ).sort((a, b) => {
@@ -214,6 +256,8 @@ export default function TasksView({
   const handleFocusTaskClick = useCallback((task) => {
     setHighlightedTaskId(task.id)
     setPinnedTaskId(task.id)
+    setClearingSearch(true)
+    onClearSearch()
 
     // Ensure filter allows the task to be seen
     if (taskFilter !== 'all' && taskFilter !== 'open') {
@@ -222,7 +266,7 @@ export default function TasksView({
 
     // Task will now be at the top of page 1 due to pinning
     setCurrentPage(1)
-  }, [taskFilter])
+  }, [taskFilter, onClearSearch])
 
   // Handle cross-view navigation highlights (e.g. from Dashboard)
   useEffect(() => {
@@ -241,16 +285,13 @@ export default function TasksView({
   }, [location.state, tasks, navigate, location.pathname, handleFocusTaskClick])
 
   const PRIORITY_ORDER = { 'High': 0, 'Medium': 1, 'Low': 2 }
-  const focusQueue = [...openTasks]
-    .sort((a, b) => {
-      // Primary: Due date ascending
-      const dateCompare = (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
-      if (dateCompare !== 0) return dateCompare
-      
-      // Secondary: Priority (High before Medium before Low)
-      return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
-    })
-    .slice(0, 4)
+  const sortedOpenTasks = [...openTasks].sort((a, b) => {
+    const dateCompare = (a.dueDate ?? '').localeCompare(b.dueDate ?? '')
+    if (dateCompare !== 0) return dateCompare
+    return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
+  })
+  const FOCUS_QUEUE_LIMIT = 5
+  const focusQueue = focusQueueExpanded ? sortedOpenTasks : sortedOpenTasks.slice(0, FOCUS_QUEUE_LIMIT)
 
   const completedCount = tasks.filter((t) => t.status === 'Completed').length
   const highPriorityCount = openTasks.filter((t) => t.priority === 'High').length
@@ -315,17 +356,45 @@ export default function TasksView({
                     <div key={task.id}>
                       {showHeader && (
                         <div className={`activity-group-header ${idx > 0 ? 'u-margin-t-24' : ''}`}>
-                          {task.resolvedCompanyName}
+                          <div className="activity-group-header__content">
+                            <span className="activity-group-header__kicker">Company</span>
+                            <strong className="activity-group-header__title">{task.resolvedCompanyName}</strong>
+                          </div>
+                          <div className="activity-group-header__line" />
                         </div>
                       )}
                       
-                      <TaskCard 
+                      <TaskCard
                         task={task}
                         linkedDeal={linkedDeal}
                         contactObjects={contactObjects}
                         metadata={metadata}
                         handleTaskStatusToggle={handleTaskStatusToggle}
                         isHighlighted={highlightedTaskId === task.id}
+                        canReassign={canReassign}
+                        isReassigning={reassigningTaskId === task.id}
+                        isProcessing={reassigningTaskId === task.id && reassignProcessing}
+                        reassignOwnerId={reassigningTaskId === task.id ? reassignOwnerId : ''}
+                        setReassignOwnerId={setReassignOwnerId}
+                        branchSRs={(teamMembers ?? []).filter(m =>
+                          m.branch?.toLowerCase() === linkedDeal?.branch?.toLowerCase() &&
+                          (m.role === 'Sales Representative' || m.role === 'Branch Account' || m.role === 'Sales Rep')
+                        )}
+                        onStartReassign={() => { setReassigningTaskId(task.id); setReassignOwnerId('') }}
+                        onConfirmReassign={async () => {
+                          if (!reassignOwnerId || reassignProcessing) return
+                          setReassignProcessing(true)
+                          try {
+                            await reassignTask(task.id, Number(reassignOwnerId))
+                            setReassigningTaskId(null)
+                            setReassignOwnerId('')
+                          } catch {
+                            // notice shown via useCRMData
+                          } finally {
+                            setReassignProcessing(false)
+                          }
+                        }}
+                        onCancelReassign={() => { setReassigningTaskId(null); setReassignOwnerId('') }}
                       />
                     </div>
                   )
@@ -347,10 +416,10 @@ export default function TasksView({
               {focusQueue.map((task) => {
                 const linkedDeal = deals.find((d) => d.id === task.dealId)
                 const priorityClass = `is-priority-${task.priority.toLowerCase()}`
-                
+
                 return (
-                  <article 
-                    key={task.id} 
+                  <article
+                    key={task.id}
                     className={`simple-list__item ${priorityClass} u-border-l-3-transparent u-cursor-pointer`}
                     onClick={() => handleFocusTaskClick(task)}
                   >
@@ -358,14 +427,19 @@ export default function TasksView({
                       <strong className="u-block u-truncate">
                         {task.title}
                       </strong>
-                      <p className="u-margin-t-4 u-fs-11 u-text-muted">
-                        {!isSr ? `${task.owner} | ` : ''}due {formatDueDate(task.dueDate)}
-                        {linkedDeal?.stage && (
-                          <span className={`tone-pill ${getToneClass(linkedDeal.stage)} u-fs-9 u-pad-1-6 u-ml-6`}>
-                            {linkedDeal.stage}
-                          </span>
-                        )}
-                      </p>
+                      <div className="u-flex-column u-margin-t-4">
+                        <span className="u-fs-10 u-text-muted u-font-700 u-truncate">
+                          {task.companyName || (deals.find(d => d.id === task.dealId)?.companyName) || 'Manual Task'}
+                        </span>
+                        <p className="u-fs-11 u-text-muted u-margin-t-2">
+                          {!isSr ? `${task.owner} | ` : ''}due {formatDueDate(task.dueDate)}
+                          {linkedDeal?.stage && (
+                            <span className={`status-text ${getToneClass(linkedDeal.stage)} u-fs-9 u-ml-8`}>
+                              {linkedDeal.stage}
+                            </span>
+                          )}
+                        </p>
+                      </div>
                     </div>
                     <div className="u-shrink-0 u-ml-12">
                       <button 
@@ -380,6 +454,12 @@ export default function TasksView({
                 )
               })}
             </div>
+            {sortedOpenTasks.length > FOCUS_QUEUE_LIMIT && (
+              <div className="collapse-bar u-margin-t-8" onClick={() => setFocusQueueExpanded(e => !e)}>
+                <IconChevronDown expanded={focusQueueExpanded} />
+                <span>{focusQueueExpanded ? 'Show less' : `Show all ${sortedOpenTasks.length} tasks`}</span>
+              </div>
+            )}
           </Panel>
         </div>
       </section>

@@ -201,7 +201,7 @@ export default function TaskForm({
             dealStage: defaultStage,
             dealValue: '',
             expectedClose: '',
-            dealName: '',
+            dealName: prev.dealName || selectedCompany?.name || taskForm.companyId || '',
             type: defaultType
           }))
           setSection1Expanded(true)
@@ -248,12 +248,17 @@ export default function TaskForm({
             next.dealName = deal.name
           }
         } else {
-          // Reset deal fields for new deal
+          // Reset deal fields for new deal (pre-fill name for leads without deals)
           const defaultStage = dealStages[0] ?? 'New Opportunity'
           next.dealStage = defaultStage
           next.dealValue = ''
           next.expectedClose = ''
-          next.dealName = ''
+          if (activeDeals.length === 0) {
+            const company = companies.find(c => c.id === taskForm.companyId || c.name === taskForm.companyId)
+            next.dealName = company?.name || taskForm.companyId || ''
+          } else {
+            next.dealName = ''
+          }
         }
       }
       return next
@@ -642,12 +647,17 @@ export default function TaskForm({
       {canAssignSR && (
         <label className="field">
           <span>Assign SR</span>
-          <Select 
+          <input
+            name="owner"
             value={taskForm.owner}
-            onChange={v => handleChange({ target: { name: 'owner', value: v } })}
-            options={availableSRs.map(m => ({ value: m.name, label: `${m.name} (${m.branch})` }))}
-            placeholder="Select Representative"
+            onChange={handleChange}
+            placeholder="Type or select a representative..."
+            list="sr-suggestions"
+            autoComplete="off"
           />
+          <datalist id="sr-suggestions">
+            {availableSRs.map(m => <option key={m.id} value={m.name}>{m.name} ({m.branch})</option>)}
+          </datalist>
         </label>
       )}
 

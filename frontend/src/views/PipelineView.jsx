@@ -3,8 +3,8 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
-import { formatCurrencyCompact, formatCurrencyFull, formatDateLabel, formatDateTimePHT, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole } from '../utils'
-import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP } from '../constants'
+import { formatCurrencyCompact, formatDateLabel, formatDateTimePHT, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole, roleAbbr } from '../utils'
+import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP, DEAL_STAGES } from '../constants'
 import { apiFetch } from '../api'
 import Pagination from '../components/Pagination'
 
@@ -52,17 +52,19 @@ export default function PipelineView({
   handleTaskStatusToggle,
   onViewTasks,
   currentUser,
-  teamMembers,
   activeBranch,
-  searchQuery
+  searchQuery,
 }) {
   const [stageFilter, setStageFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
   const isSr = isSrRole(currentUser?.role)
 
-  const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
+  const companyMap = useMemo(() => {
+    const map = Object.fromEntries((companies ?? []).map((c) => [c.id, c]))
+    ;(leads ?? []).forEach(l => { if (!map[l.id]) map[l.id] = { id: l.id, name: l.customerName } })
+    return map
+  }, [companies, leads])
   const contactMap = useMemo(() => Object.fromEntries((contacts  ?? []).map((c) => [c.id, c])), [contacts])
-  const leadMap    = useMemo(() => Object.fromEntries((leads     ?? []).map((l) => [l.id, l])), [leads])
 
   // Reset page on search change (adjusting state during render)
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
@@ -96,6 +98,11 @@ export default function PipelineView({
   const [srFilter, setSrFilter] = useState('')
   useEffect(() => { setSrFilter('') }, [activeBranch])
 
+  // Owners selectable in the SR-Accounts filter — everyone in the manager's
+  // visibility scope (SRs + peer managers + self), fetched separately so it
+  // never feeds the assignment dropdowns. Empty for non-managers.
+  const [filterOwners, setFilterOwners] = useState([])
+
   // PDF attachments
   const [attachments, setAttachments] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -103,8 +110,10 @@ export default function PipelineView({
 
   // Audit logs
   const [auditLogs, setAuditLogs] = useState([])
+  const [changeHistoryExpanded, setChangeHistoryExpanded] = useState(false)
 
   const isUpdatingRef = useRef(false)
+  const lostPromptRef = useRef(null)
 
   const fetchDealSubData = (dealId) => {
     if (!dealId) return
@@ -123,7 +132,13 @@ export default function PipelineView({
   useEffect(() => {
     if (selectedDeal && !isUpdatingRef.current) {
       const fresh = deals.find(d => d.id === selectedDeal.id)
-      if (fresh && (fresh.stage !== selectedDeal.stage || fresh.value !== selectedDeal.value)) {
+      if (fresh && (
+        fresh.stage !== selectedDeal.stage ||
+        fresh.value !== selectedDeal.value ||
+        fresh.probability !== selectedDeal.probability ||
+        fresh.expectedClose !== selectedDeal.expectedClose ||
+        fresh.ownerId !== selectedDeal.ownerId
+      )) {
         setSelectedDeal(fresh)
       }
     }
@@ -132,9 +147,12 @@ export default function PipelineView({
   const location = useLocation()
   const navigate = useNavigate()
 
+  // Managers may edit their own deals or those owned by SRs, but not another manager's.
+  const ownerIsManager = ['Admin', 'Head of Sales', 'Regional Sales Manager'].includes(selectedDeal?.ownerRole)
   const canEdit = selectedDeal && (
     currentUser?.role === 'Admin' ||
-    String(currentUser?.id) === String(selectedDeal.ownerId)
+    String(currentUser?.id) === String(selectedDeal.ownerId) ||
+    ((currentUser?.role === 'Head of Sales' || currentUser?.role === 'Regional Sales Manager') && !ownerIsManager)
   )
 
   const visibleStages = showClosed
@@ -159,10 +177,13 @@ export default function PipelineView({
   useEffect(() => {
     if (selectedDeal) {
       fetchDealSubData(selectedDeal.id)
+      document.body.style.overflow = 'hidden'
     } else {
       setDealContacts([])
       setAuditLogs([])
+      document.body.style.overflow = ''
     }
+    return () => { document.body.style.overflow = '' }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDeal?.id])
 
@@ -185,11 +206,27 @@ export default function PipelineView({
     !!activeBranch
   )
 
+  // Fetch the scope-wide owner list (all roles, incl. self + peer managers) for
+  // the filter dropdown. Kept separate from teamMembers so assignment dropdowns
+  // are unaffected. Empty for non-managers.
+  useEffect(() => {
+    if (!canFilterBySR) { setFilterOwners([]); return }
+    let isCurrent = true
+    const q = activeBranch ? `?purpose=filter&branch=${encodeURIComponent(activeBranch)}` : '?purpose=filter'
+    apiFetch(`/api/team${q}`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => { if (isCurrent) setFilterOwners(Array.isArray(d) ? d : []) })
+      .catch(() => { if (isCurrent) setFilterOwners([]) })
+    return () => { isCurrent = false }
+  }, [canFilterBySR, activeBranch])
+
+  // Filter options: scope-wide owners, current user pinned to the top.
   const srOptions = canFilterBySR
-    ? (teamMembers ?? []).filter(
-        (m) => m.branch === activeBranch &&
-               (m.role === 'Sales Representative' || m.role === 'Branch Account' || m.role === 'Sales Rep')
-      )
+    ? [...filterOwners].sort((a, b) => {
+        if (String(a.id) === String(currentUser?.id)) return -1
+        if (String(b.id) === String(currentUser?.id)) return 1
+        return (a.name || '').localeCompare(b.name || '')
+      })
     : []
 
   const srFilteredDeals = (canFilterBySR && srFilter)
@@ -255,25 +292,8 @@ export default function PipelineView({
   function confirmLostReason() {
     if (isUpdatingRef.current) return
     const reason = lostNotes.trim() ? `${lostReason}: ${lostNotes.trim()}` : lostReason
-    
-    isUpdatingRef.current = true
-    const prevStage = selectedDeal.stage
-    const prevReason = selectedDeal.lostReason
-    setSelectedDeal((d) => ({ ...d, stage: 'Closed Lost', lostReason: reason }))
-    setShowLostPrompt(false)
-
     handleDealStageChange(selectedDeal.id, 'Closed Lost', { lostReason: reason })
-      .then(() => {
-        fetchDealSubData(selectedDeal.id)
-      })
-      .catch(() => {
-        setSelectedDeal((d) => ({ ...d, stage: prevStage, lostReason: prevReason }))
-      })
-      .finally(() => {
-        isUpdatingRef.current = false
-        setLostReason(LOST_REASONS[0])
-        setLostNotes('')
-      })
+    setShowLostPrompt(false)
   }
 
   async function handleFileUpload(e) {
@@ -342,15 +362,16 @@ export default function PipelineView({
               </label>
               {canFilterBySR && (
                 <label className="filter-wrap">
-                  <span>Branch Account</span>
+                  <span>SR Accounts</span>
                   <select
                     value={srFilter}
                     onChange={(e) => { setSrFilter(e.target.value); setCurrentPage(1) }}
                   >
                     <option value="">All reps</option>
-                    {srOptions.map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
+                    {srOptions.map((m) => {
+                      const tag = (m.role && m.role !== 'Sales Representative' && m.role !== 'Sales Rep') ? ` (${roleAbbr(m.role)})` : ''
+                      return <option key={m.id} value={m.id}>{m.name}{tag}</option>
+                    })}
                   </select>
                 </label>
               )}
@@ -383,7 +404,7 @@ export default function PipelineView({
                         <strong>{stage}</strong>
                         <span>{stageDeals.length} deals</span>
                       </div>
-                      <span className="tone-pill is-neutral">{formatCurrencyCompact(stageValue)}</span>
+                      <span className="u-fs-xs u-text-muted u-font-700">{formatCurrencyCompact(stageValue)}</span>
                     </div>
 
                     <div className="pipeline-lane__cards">
@@ -405,15 +426,15 @@ export default function PipelineView({
                                   {companyMap[deal.companyId]?.name ?? deal.companyId}
                                 </span>
                               </div>
-                              <span className="tone-pill is-warning is-compact">{deal.probability}%</span>
+                              <span className="u-fs-xs u-text-muted u-font-700">{deal.probability}%</span>
                             </div>
 
                             <div className="pipeline-card__divider" />
 
                             <div className="pipeline-card__value u-margin-b-8">
-                              <span className="tone-pill is-warning is-strong">
+                              <strong className="u-fs-lg u-text-accent">
                                 {formatCurrencyCompact(deal.value)}
-                              </span>
+                              </strong>
                             </div>
                             
                             <div className="pipeline-card__stats-list">
@@ -465,7 +486,7 @@ export default function PipelineView({
                   <p>{stage.count} {stage.count === 1 ? 'deal' : 'deals'}</p>
                 </div>
                 <div className="stage-total-card__value">
-                  <span className="tone-pill is-warning">{formatCurrencyCompact(stage.value)}</span>
+                  <strong className="u-fs-md u-text-muted">{formatCurrencyCompact(stage.value)}</strong>
                 </div>
               </article>
             ))}
@@ -474,8 +495,14 @@ export default function PipelineView({
       </section>
 
       {selectedDeal && createPortal(
-        <div className="deal-modal-overlay" onClick={closeDeal}>
-          <div className={`deal-modal ${getStageTone(selectedDeal.stage)}`} onClick={(e) => e.stopPropagation()}>
+        <div
+          className="deal-modal-overlay"
+          onClick={closeDeal}
+        >
+          <div
+            className={`deal-modal ${getStageTone(selectedDeal.stage)}`}
+            onClick={(e) => e.stopPropagation()}
+          >
 
             {/* ── Header ── */}
             <div className="deal-modal__header">
@@ -484,7 +511,12 @@ export default function PipelineView({
                 <h2>{selectedDeal.name}</h2>
               </div>
               <div className="deal-modal__header-actions">
-                <button type="button" className="deal-modal__close" aria-label="Close" onClick={closeDeal}>✕</button>
+                <button
+                  type="button"
+                  className="deal-modal__close"
+                  aria-label="Close"
+                  onClick={closeDeal}
+                >✕</button>
                 {canEdit && !isEditing && (
                   <button type="button" className="secondary-button" onClick={() => {
                     setEditValue(selectedDeal.value)
@@ -496,43 +528,44 @@ export default function PipelineView({
               </div>
             </div>
 
-            {/* Body */}
+            <div className="deal-modal__lower">
             <div className="modal-body-scroll">
-
-              {/* Detail grid */}
-              <div className="deal-modal__grid">
-                <div className="deal-modal__field">
-                  <span className="deal-modal__label">Company</span>
-                  <strong className="deal-modal__value">{companyMap[selectedDeal.companyId]?.name ?? '—'}</strong>
-                </div>
-                {!isSr && <div className="deal-modal__field">
-                  <span className="deal-modal__label">Owner</span>
-                  <strong className="deal-modal__value">{selectedDeal.owner || '—'}</strong>
-                </div>}
-                <div className="deal-modal__field">
-                  <span className="deal-modal__label">Deal Value</span>
-                  {isEditing ? (
-                    <div className="field u-margin-0">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        className="modal-edit-input"
-                        value={editValue === '' ? '' : Number(editValue).toLocaleString('en-US')}
-                        onChange={(e) => {
-                          const raw = e.target.value.replace(/[^0-9.]/g, '')
-                          setEditValue(raw === '' ? '' : Number(raw))
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <strong className="deal-modal__value u-text-accent">{formatCurrencyFull(selectedDeal.value)}</strong>
+              {/* Company & Meta Info */}
+              <div className="u-flex-between u-flex-center" style={{ marginBottom: '16px' }}>
+                <strong className="u-fs-md">{companyMap[selectedDeal.companyId]?.name ?? selectedDeal.companyId}</strong>
+                <div className="u-flex-center-gap-sm">
+                  <span className="u-fs-xs u-text-muted">{selectedDeal.source || 'Manual'}</span>
+                  {!isSr && (
+                    <>
+                      <span className="u-text-muted"> · </span>
+                      <span className="u-fs-xs u-text-muted">{selectedDeal.owner}</span>
+                    </>
                   )}
                 </div>
-                <div className="deal-modal__field">
-                  <span className="deal-modal__label">Probability</span>
-                  {isEditing ? (
-                    <div className="field u-margin-0">
-                      <div className="u-flex-center-gap-sm">
+              </div>
+
+              {isEditing && (
+                <div className="u-margin-b-24" style={{ padding: '0 28px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                    <div className="deal-modal__field">
+                      <span className="deal-modal__label">Deal Value</span>
+                      <div className="field u-margin-0">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          className="modal-edit-input"
+                          value={editValue === '' ? '' : Number(editValue).toLocaleString('en-US')}
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^0-9.]/g, '')
+                            setEditValue(raw === '' ? '' : Number(raw))
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="deal-modal__field">
+                      <span className="deal-modal__label">Probability</span>
+                      <div className="field u-margin-0">
+                        <div className="u-flex-center-gap-sm">
                           <input
                             type="number"
                             min="0"
@@ -546,83 +579,98 @@ export default function PipelineView({
                               setEditProbability(num)
                             }}
                           />
-                        <span className="u-fs-sm u-text-muted">%</span>
+                          <span className="u-fs-sm u-text-muted">%</span>
+                        </div>
                       </div>
                     </div>
-                  ) : (
-                    <strong className="deal-modal__value">
-                      <span className="tone-pill is-warning">{selectedDeal.probability}%</span>
-                    </strong>
-                  )}
-                </div>
-                <div className="deal-modal__field">
-                  <span className="deal-modal__label">Expected Close</span>
-                  {isEditing ? (
-                    <div className="field u-margin-0">
-                      <input
-                        type="date"
-                        className="modal-edit-input u-width-date"
-                        min={TODAY}
-                        value={editCloseDate}
-                        onChange={(e) => setEditCloseDate(e.target.value)}
-                      />
+                    <div className="deal-modal__field">
+                      <span className="deal-modal__label">Expected Close</span>
+                      <div className="field u-margin-0">
+                        <input
+                          type="date"
+                          className="modal-edit-input u-width-date"
+                          min={TODAY}
+                          value={editCloseDate}
+                          onChange={(e) => setEditCloseDate(e.target.value)}
+                        />
+                      </div>
                     </div>
-                  ) : (
-                    <strong className="deal-modal__value">{formatDateLabel(selectedDeal.expectedClose) || '—'}</strong>
-                  )}
+                  </div>
                 </div>
-                <div className="deal-modal__field">
-                  <span className="deal-modal__label">Stage</span>
-                  <strong className="deal-modal__value">{selectedDeal.stage}</strong>
+              )}
+
+              {/* 1. Transaction Summary */}
+              <div className="modal-section-divider u-margin-b-24">
+                <h3 className="deal-modal__subheading">Transaction Summary</h3>
+                <div className="metrics-grid metrics-grid--compact u-grid-3 u-margin-b-16">
+                  <MetricCard 
+                    label="Value" 
+                    value={formatCurrencyCompact(selectedDeal.value)} 
+                    meta="Raw potential" 
+                    accent="accent" 
+                  />
+                  <MetricCard 
+                    label="Weighted" 
+                    value={formatCurrencyCompact((selectedDeal.value * selectedDeal.probability) / 100)} 
+                    meta={`${selectedDeal.probability}% Probability`} 
+                    accent="alt" 
+                  />
+                  <MetricCard
+                    label="Deal Age"
+                    value={(() => { const d = new Date(selectedDeal.created_at || selectedDeal.createdAt); return isNaN(d) ? '—' : `${Math.floor((new Date() - d) / 86400000)} days`; })()}
+                    meta={(() => { const d = new Date(selectedDeal.created_at || selectedDeal.createdAt); return isNaN(d) ? 'Created date unknown' : `Created ${d.toLocaleDateString()}`; })()}
+                    accent="surface"
+                  />
                 </div>
-                {selectedDeal.stage === 'Closed Lost' && selectedDeal.lostReason && (
-                  <div className="deal-modal__field u-span-2">
-                    <span className="deal-modal__label">Loss Reason</span>
-                    <strong className="deal-modal__value u-text-muted">{selectedDeal.lostReason}</strong>
+                
+                {selectedDeal.expectedClose && selectedDeal.stage !== 'Closed Won' && selectedDeal.stage !== 'Closed Lost' && (
+                  <div className="u-pad-12 u-bg-white-03 u-border-radius-md u-flex-between u-flex-center">
+                    <div className="u-flex-column">
+                      <span className="u-fs-10 u-text-muted u-font-700 u-uppercase">Countdown to Close</span>
+                      <strong className="u-fs-md">
+                        {(() => {
+                          const daysLeft = Math.ceil((new Date(selectedDeal.expectedClose) - new Date()) / (1000 * 60 * 60 * 24))
+                          return daysLeft > 0 ? `${daysLeft} days remaining` : daysLeft === 0 ? 'Due today' : `${Math.abs(daysLeft)} days overdue`
+                        })()}
+                      </strong>
+                    </div>
+                    <div className={`status-text ${
+                      Math.ceil((new Date(selectedDeal.expectedClose) - new Date()) / (1000 * 60 * 60 * 24)) < 7 ? 'is-alert' : 'is-positive'
+                    } u-font-700`}>
+                      Target: {new Date(selectedDeal.expectedClose).toLocaleDateString()}
+                    </div>
                   </div>
                 )}
-                {selectedDeal.contactId && (
-                  <div className="deal-modal__field">
-                    <span className="deal-modal__label">Primary Contact</span>
-                    <strong className="deal-modal__value">{contactMap[selectedDeal.contactId]?.name ?? selectedDeal.contactId}</strong>
-                  </div>
-                )}
-                {dealContacts.length > 0 && (
-                  <div className="deal-modal__field u-span-2">
-                    <span className="deal-modal__label">All Associated Contacts</span>
-                    <div className="deal-modal__contact-list">
-                      {dealContacts.map(c => (
-                        <div key={c.id} className="tone-pill is-neutral deal-modal__contact-item">
-                          <div className="deal-modal__contact-header">
-                            <span>{c.name}</span>
-                            {c.deal_role && <span className="deal-modal__contact-role-tag">{c.deal_role}</span>}
-                          </div>
-                          {c.role && <div className="deal-modal__contact-sub">{c.role}</div>}
+              </div>
+
+              {/* 3. Associated Contacts */}
+              {dealContacts.length > 0 && (
+                <div className="modal-section-divider u-margin-b-24">
+                  <h3 className="deal-modal__subheading">Associated Contacts</h3>
+                  <div className="deal-modal__contact-list">
+                    {dealContacts.map(c => (
+                      <div key={c.id} className="deal-modal__contact-item">
+                        <div className="deal-modal__contact-header">
+                          <span className="deal-modal__contact-name">{c.name}</span>
                           {(c.phone || c.email) && (
-                             <div className="deal-modal__contact-details">
+                             <div className="deal-modal__contact-details u-margin-l-auto">
                                {c.phone && <span title="Phone"><IconPhone /> {c.phone}</span>}
                                {c.email && <span title="Email">
-                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ verticalAlign: 'middle', marginRight: '4px' }}>
+                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                                    <polyline points="22,6 12,13 2,6"/>
                                  </svg>
                                  {c.email}
                                </span>}
                              </div>
-
                           )}
                         </div>
-                      ))}
-                    </div>
+                        {c.role && <div className="deal-modal__contact-sub">{c.role}</div>}
+                      </div>
+                    ))}
                   </div>
-                )}
-                {selectedDeal.leadId && (
-                  <div className="deal-modal__field">
-                    <span className="deal-modal__label">Linked Lead</span>
-                    <strong className="deal-modal__value">{leadMap[selectedDeal.leadId]?.customerName ?? selectedDeal.leadId}</strong>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Proposal Documents (only in Proposal stage) */}
               {selectedDeal.stage === 'Proposal' && (
@@ -681,7 +729,7 @@ export default function PipelineView({
                 </div>
               )}
 
-              {/* Task History */}
+              {/* 4. Task History */}
               <div className="deal-modal__history" id="task-history-section">
                 <h3 className="deal-modal__subheading">Task History</h3>
                 <div className="timeline">
@@ -698,10 +746,15 @@ export default function PipelineView({
                           <div className="timeline-dot timeline-dot--accent"></div>
                           <div className="timeline-content">
                             <div className="timeline-header">
-                              <span className="timeline-time">{formatDateTimePHT(task.dueDate || task.created_at)}</span>
-                              <span className="timeline-badge is-activity u-flex-center-gap-sm">
-                                {getTaskTypeIcon(task.type)} {task.type}
-                              </span>
+                              <span className="timeline-time">{formatDateTimePHT(task.created_at)}</span>
+                              <div className="u-flex-center-gap-4">
+                                {task.dueDate && task.status !== 'Completed' && (
+                                  <span className="timeline-due u-fs-2xs u-text-muted u-margin-r-4">Due: {formatDateTimePHT(task.dueDate)}</span>
+                                )}
+                                <span className="timeline-badge is-activity u-flex-center-gap-sm">
+                                  {getTaskTypeIcon(task.type)} {task.type}
+                                </span>
+                              </div>
                             </div>
                             <div className="timeline-body">
                               <p><strong>{task.title}</strong></p>
@@ -709,7 +762,7 @@ export default function PipelineView({
                             </div>
                             <div className="u-flex-center-gap-sm u-margin-t-8">
                               <span
-                                className={`tone-pill ${getToneClass(task.status)} u-cursor-pointer`}
+                                className={`status-text ${getToneClass(task.status)} u-cursor-pointer`}
                                 title={`View all ${task.status.toLowerCase()} tasks`}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -724,10 +777,7 @@ export default function PipelineView({
                                 className="ghost-button u-fs-10-pad-4-8"
                                 onClick={async (e) => {
                                   e.stopPropagation();
-                                  const nextStatus = task.status === 'Completed' ? 'reopened' : 'completed';
                                   await handleTaskStatusToggle(task.id, task.status);
-                                  onViewTasks(nextStatus);
-                                  closeDeal();
                                 }}
                               >
                                 {task.status === 'Completed' ? 'Reopen' : 'Complete'}
@@ -740,91 +790,53 @@ export default function PipelineView({
                 </div>
               </div>
 
-              {/* Activity Logs */}
+              {/* 5. Change History */}
               <div className="deal-modal__history">
-                <h3 className="deal-modal__subheading">Activity Logs</h3>
-                <div className="timeline">
+                <h3 className="deal-modal__subheading">Change History</h3>
+                <div className={`timeline${changeHistoryExpanded ? ' timeline--expanded' : ''}`}>
                   {auditLogs.length === 0 ? (
                     <div className="deal-modal__empty-history">No activity logs found for this deal.</div>
                   ) : (
-                    auditLogs.map(log => {
-                      const dotColor = STAGE_COLORS[selectedDeal?.stage] || 'var(--accent)'
-                      const ACTION_LABELS = {
-                        'stage_change': 'Stage changed',
-                        'value_change': 'Value changed',
-                        'owner_id_change': 'Owner changed',
-                        'close_date_change': 'Close date changed',
-                        'probability_change': 'Probability changed',
-                        'status_change': 'Status changed',
-                        'lost_reason': 'Lost reason',
-                        'deal_created': 'Deal created',
-                      }
-
-                      return (
-                        <div key={log.id} className="timeline-item">
-                          <div className="timeline-dot" style={{ backgroundColor: dotColor }}></div>
-                          <div className="timeline-content">
-                            <div className="timeline-header">
-                              <span className="timeline-time">{formatDateTimePHT(log.changedAt)}</span>
-                              {log.changedBy && (
-                                <span className="timeline-user u-fs-10-muted-ml-8">
-                                  by {log.changedBy}
-                                </span>
-                              )}
-                            </div>
-                            <div className="timeline-body">
-                              <p>
-                                {log.action === 'deal_created' ? (
-                                  <>
-                                    <strong>Deal created</strong>: <span className={`tone-pill ${getToneClass(log.newValue)} is-compact u-margin-h-4`}>{log.newValue}</span>
-                                    {selectedDeal && <> for <strong>{selectedDeal.name}</strong></>}
-                                  </>
-                                ) : log.action.startsWith('task_status:') ? (
-                                  <>
-                                    Status updated for task <strong>"{log.action.split(':')[1]}"</strong>:{' '}
-                                    <span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong>
-                                  </>
-                                ) : log.action === 'task_status_change' ? (
-                                  <>
-                                    <strong>Task status updated</strong>:{' '}
-                                    <span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong>
-                                  </>
-                                ) : (
-                                  <>
-                                    <strong>{ACTION_LABELS[log.action] || log.action.replace(/_/g, ' ')}</strong>:{' '}
-                                    {log.action === 'stage_change' ? (
-                                      <>
-                                        {log.oldValue ? (
-                                          <span className={`tone-pill ${getToneClass(log.oldValue)} is-compact u-margin-h-4`}>{log.oldValue}</span>
-                                        ) : null}
-                                        {log.oldValue && ' → '}
-                                        <span className={`tone-pill ${getToneClass(log.newValue)} is-compact u-margin-h-4`}>{log.newValue}</span>
-                                      </>
-                                    ) : log.action === 'value_change' ? (
-                                      <>{formatCurrencyCompact(Number(log.oldValue))} → <strong>{formatCurrencyCompact(Number(log.newValue))}</strong></>
-                                    ) : log.action === 'close_date_change' ? (
-                                      <>{formatDateLabel(log.oldValue)} → <strong>{formatDateLabel(log.newValue)}</strong></>
-                                    ) : (
-                                      <><span className="timeline-old">{log.oldValue}</span> → <strong>{log.newValue}</strong></>
-                                    )}
-                                  </>
-                                )}
-                              </p>
-                              {log.notes && <p className="timeline-notes">{log.notes}</p>}
-                            </div>
+                    (changeHistoryExpanded ? auditLogs : auditLogs.slice(0, 5)).map((log) => (
+                      <div key={log.id} className="timeline-item">
+                        <div className="timeline-dot"></div>
+                        <div className="timeline-content">
+                          <div className="timeline-header">
+                            <span className="timeline-time">{formatDateTimePHT(log.changedAt)}</span>
+                            <span className="timeline-badge u-fs-10">{log.action}</span>
+                          </div>
+                          <div className="timeline-body">
+                            <p><strong>{log.changedBy}</strong> {log.action || 'updated deal'}</p>
+                            {(log.oldValue || log.newValue) && (
+                              <div className="u-fs-xs u-text-muted u-margin-t-4">
+                                <span className="u-text-warning">{String(log.oldValue || 'none')}</span>
+                                <span className="u-margin-h-8">→</span>
+                                <span className="u-text-accent">{String(log.newValue || 'none')}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      )
-                    })
+                      </div>
+                    ))
                   )}
                 </div>
+                {auditLogs.length > 5 && (
+                  <div className="collapse-bar" onClick={() => setChangeHistoryExpanded(e => !e)}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ transform: `rotate(${changeHistoryExpanded ? 180 : 0}deg)`, transition: 'transform 0.2s' }}
+                    >
+                      <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                    <span>{changeHistoryExpanded ? 'Show less' : `Show all ${auditLogs.length} entries`}</span>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Footer: Save / Cancel or Stage Updater */}
             <div className="deal-modal__footer">
               {isEditing ? (
-                <div className="deal-modal__edit-actions">
+                <div className="deal-modal__edit-actions u-flex-gap-sm">
                   <button
                     type="button"
                     className="primary-button"
@@ -858,7 +870,7 @@ export default function PipelineView({
                   <button type="button" className="secondary-button" onClick={() => setIsEditing(false)}>Cancel</button>
                 </div>
               ) : showLostPrompt ? (
-                <div className="u-width-full">
+                <div className="u-width-full" ref={lostPromptRef}>
                   <p className="deal-modal__footer-label u-margin-b-10">Why was this deal lost?</p>
                   <div className="u-flex-column-gap-sm">
                     <select
@@ -908,6 +920,7 @@ export default function PipelineView({
                 </p>
               )}
             </div>
+            </div>{/* end .deal-modal__lower */}
 
           </div>
         </div>,

@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Panel from '../components/Panel'
 import { apiFetch } from '../api'
 
-export default function AdminProfileView({ currentUser, onUserUpdate, showToast }) {
+export default function AdminProfileView({ currentUser, onUserUpdate, showToast, onLoadingChange }) {
+  useEffect(() => { onLoadingChange?.(false) }, [onLoadingChange])
   const [usernameForm, setUsernameForm] = useState({
     currentPassword: '',
     newUsername: '',

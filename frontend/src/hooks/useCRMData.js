@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { apiFetch, API_BASE } from '../api'
+import { apiFetch, API_BASE, getUser, updatePassword, uploadProfilePhoto, removeProfilePhoto, adjustProfilePhoto } from '../api'
 import { getTodayISO, createRecordId } from '../utils'
 import { STAGE_WORKFLOW } from '../constants'
-import { celebrateWon, celebrateLost } from '../celebration'
+import { triggerJoJo, dismissActiveJoJo, triggerVictorySplash, dismissActiveVictorySplash, triggerClosedWonCelebration, dismissActiveClosedWonCelebration } from '../celebration'
+import jojoSound from '../assets/sounds/jojo.mp3'
+import confettiSound from '../assets/sounds/yeah-boiii-i-i-i.mp3'
 
 const CURRENT_DATE = getTodayISO()
 
+const POLL_FAST   = 15_000
+const POLL_MEDIUM = 30_000
+const POLL_SLOW   = 60_000
 
 function getProbabilityForStage(stage) { return STAGE_WORKFLOW[stage]?.probability ?? 20 }
 
@@ -22,7 +27,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   const abortControllerRef = useRef(null)
   const audioRef = useRef(null)
-  const musicRef = useRef({ won: null, lost: null })
+  const musicRef = useRef({ won: [], lost: [] })
+  // animationRef stores the per-outcome animation style: 'confetti' | 'jojo' | 'none'
+  const animationRef = useRef({ won: 'confetti', lost: 'confetti' })
+  const pollingRef = useRef({ timers: [] })
+
+  function getLostAnimationStyle() {
+    return animationRef.current.lost ?? 'none'
+  }
 
   const getSignal = useCallback(() => {
     if (abortControllerRef.current) {
@@ -138,21 +150,47 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     } catch { /* best-effort background refresh */ }
   }
 
-  function playCelebrationSound(outcome) {
-    const entry = musicRef.current[outcome]
-    if (!entry?.url) return
+  function playCelebrationAnimation(outcome, snapshot = null) {
+    let style = animationRef.current[outcome] ?? 'confetti'
+    if (outcome === 'won' && style === 'jojo') style = 'confetti'
+    if (style === 'none') return
+    if (style === 'victory' && snapshot) {
+      const currentUser = getUser()
+      const profilePicUrl = currentUser?.profilePic ? `${API_BASE}${currentUser.profilePic}` : null
+      const userInitials = currentUser?.name
+        ? currentUser.name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
+        : '?'
+      const resolvedCompany = companies.find(c => c.id === snapshot.companyId)
+      triggerVictorySplash(
+        {
+          name: snapshot.name,
+          value: snapshot.value,
+          companyName: resolvedCompany?.name ?? null,
+          profilePicUrl,
+          userInitials,
+        },
+        () => { /* audio cleanup handled inside component */ }
+      )
+    } else if (style === 'jojo') {
+      triggerJoJo(() => {
+        if (audioRef.current) {
+          audioRef.current.pause()
+          audioRef.current = null
+        }
+      })
+    }
+  }
+
+  /** Stop any active audio, confetti, JoJo, and Victory Splash — call on route change. */
+  function stopAllCelebration() {
     if (audioRef.current) {
       audioRef.current.pause()
+      audioRef.current.currentTime = 0
       audioRef.current = null
     }
-    const audio = new Audio(
-      entry.url.startsWith('http') ? entry.url : `${API_BASE}${entry.url}`
-    )
-    audioRef.current = audio
-    audio.play().catch(() => {})
-    audio.addEventListener('ended', () => {
-      if (audioRef.current === audio) audioRef.current = null
-    })
+    dismissActiveJoJo()
+    dismissActiveVictorySplash()
+    dismissActiveClosedWonCelebration()
   }
 
   async function loadAll() {
@@ -170,13 +208,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         apiFetch(`/api/team${buildQuery()}`, { signal }),
         apiFetch(`/api/deal-contacts`, { signal }),
         apiFetch(`/api/celebration-music`, { signal }),
+        apiFetch(`/api/celebration-animation`, { signal }),
       ])
 
       if (responses.some(r => !r.ok)) {
         throw new Error('API or Database error')
       }
 
-      const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes, dealContactsRes, musicRes] = responses
+      const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes, dealContactsRes, musicRes, animationRes] = responses
 
       const fetchedLeads = await leadsRes.json()
       const fetchedCompanies = await companiesRes.json()
@@ -186,6 +225,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       const fetchedActivities = await activitiesRes.json()
       const fetchedDealContacts = await dealContactsRes.json()
       const fetchedMusic = await musicRes.json()
+      const fetchedAnimation = await animationRes.json()
 
       const dcm = {}
       fetchedDealContacts.forEach((dc) => {
@@ -194,9 +234,15 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       })
       setDealContactMap(dcm)
 
-      const musicMap = { won: null, lost: null }
-      fetchedMusic.forEach((e) => { musicMap[e.outcome] = e })
+      const musicMap = { won: [], lost: [] }
+      fetchedMusic.forEach((e) => {
+        if (musicMap[e.outcome]) musicMap[e.outcome].push(e)
+      })
       musicRef.current = musicMap
+      animationRef.current = {
+        won:  fetchedAnimation.won  ?? 'confetti',
+        lost: fetchedAnimation.lost ?? 'none',
+      }
 
       setLeads(fetchedLeads)
       setCompanies(fetchedCompanies)
@@ -223,6 +269,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
           status: ['Completed', 'Open', 'Reopened'].includes(a.status) ? a.status : 'Open',
           companyName: a.companyName ?? '',
           contact: a.contact_name ?? '',
+          createdAt: a.created_at ?? '',
         })),
       )
       setTeamMembers(await teamRes.json())
@@ -235,8 +282,13 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   // Reset activeBranch/activeRegion whenever the logged-in user changes (login/logout)
   useEffect(() => {
-    setActiveBranch(currentUser?.role === 'Head of Sales' ? '' : (currentUser?.branch ?? ''))
-    setActiveRegion('')
+    if (currentUser?.role === 'Regional Sales Manager') {
+      setActiveBranch('')
+      setActiveRegion(currentUser?.region ?? '')
+    } else {
+      setActiveBranch(currentUser?.role === 'Head of Sales' ? '' : (currentUser?.branch ?? ''))
+      setActiveRegion('')
+    }
   }, [currentUser])
 
   useEffect(() => {
@@ -245,6 +297,45 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort()
       }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser, activeBranch, activeRegion])
+
+  // ─── Real-time polling ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!currentUser) return
+
+    const p = pollingRef.current
+
+    function start() {
+      p.timers = [
+        setInterval(fetchLeads, POLL_FAST),
+        setInterval(fetchDeals, POLL_FAST),
+        setInterval(fetchTasks, POLL_FAST),
+        setInterval(fetchCustomers, POLL_MEDIUM),
+        setInterval(fetchCompanies, POLL_SLOW),
+        setInterval(fetchContacts, POLL_SLOW),
+        setInterval(fetchTeam, POLL_SLOW),
+        setInterval(fetchDealContactMap, POLL_SLOW),
+      ]
+    }
+
+    function stop() {
+      p.timers.forEach(clearInterval)
+      p.timers = []
+    }
+
+    function onVisibility() {
+      if (document.hidden) stop()
+      else start()
+    }
+
+    document.addEventListener('visibilitychange', onVisibility)
+    start()
+
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, activeBranch, activeRegion])
@@ -258,7 +349,11 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       address: leadForm.address,
       region: leadForm.region,
       ownerId: rsm?.id || leadForm.ownerId || null,
-      branch: activeBranch,
+      branch: leadForm.branch || activeBranch,
+      contactName: leadForm.contactName || '',
+      email: leadForm.email || '',
+      website: leadForm.website || '',
+      industry: leadForm.industry || '',
       status: 'New',
       createdAt: CURRENT_DATE,
     }
@@ -273,7 +368,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       if (!res.ok) throw new Error('Network error')
       setNotice(`${newLead.customerName} was saved to the database.`)
       showToast(`Customer "${newLead.customerName}" saved successfully!`)
-      fetchLeads()
+      fetchLeads();
+      fetchCustomers()
     } catch {
       setNotice(`${newLead.customerName} was added locally — backend not reachable.`)
     }
@@ -603,32 +699,72 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   async function updateDealStage(dealId, nextStage, extra = {}) {
 
-    const probability = STAGE_WORKFLOW[nextStage]?.probability ?? 20
     const snapshot = deals.find(d => d.id === dealId)
 
     setDeals((current) =>
       current.map((d) => (d.id === dealId
-        ? { ...d, stage: nextStage, probability, lostReason: extra.lostReason ?? d.lostReason }
+        ? { ...d, stage: nextStage, lostReason: extra.lostReason ?? d.lostReason }
         : d)),
     )
+
+    // Preload celebration audio while API call is in flight
+    let preloadedAudio = null
+    if (nextStage === 'Closed Won') {
+      const entries = musicRef.current.won
+      const entry = entries?.length ? entries[Math.floor(Math.random() * entries.length)] : null
+      if (entry?.url) {
+        preloadedAudio = new Audio(
+          entry.url.startsWith('http') ? entry.url : `${API_BASE}${entry.url}`
+        )
+      } else {
+        preloadedAudio = new Audio(confettiSound)
+      }
+      preloadedAudio.preload = 'auto'
+    } else if (nextStage === 'Closed Lost') {
+      if (animationRef.current.lost === 'jojo') {
+        preloadedAudio = new Audio(jojoSound)
+        preloadedAudio.preload = 'auto'
+      }
+    }
+
     try {
       const res = await apiFetch(`/api/deals/${dealId}/stage`, {
         method: 'PATCH',
-        body: JSON.stringify({ stage: nextStage, ...extra })
+        body: JSON.stringify({ stage: nextStage, probability: snapshot.probability, ...extra })
       })
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}))
         throw new Error(errData.error || `Server error: ${res.status}`)
       }
-      showToast(`Deal stage updated to ${nextStage}`)
       if (nextStage === 'Closed Won') {
-        playCelebrationSound('won')
-        celebrateWon()
+        if (animationRef.current.won === 'victory') {
+          playCelebrationAnimation('won', snapshot)
+        } else if (preloadedAudio) {
+          audioRef.current = preloadedAudio
+          preloadedAudio.play().catch(() => {})
+          triggerClosedWonCelebration(
+            preloadedAudio,
+            () => { if (audioRef.current === preloadedAudio) audioRef.current = null }
+          )
+        } else {
+          triggerClosedWonCelebration(null, null)
+        }
       } else if (nextStage === 'Closed Lost') {
-        playCelebrationSound('lost')
-        celebrateLost()
+        if (animationRef.current.lost === 'jojo') {
+          if (preloadedAudio) {
+            audioRef.current = preloadedAudio
+            preloadedAudio.play().catch(() => {})
+            preloadedAudio.addEventListener('ended', () => {
+              if (audioRef.current === preloadedAudio) audioRef.current = null
+            })
+          }
+          playCelebrationAnimation('lost')
+        }
       }
-      await Promise.all([fetchDeals(), fetchCustomers()])
+      showToast(`Deal stage updated to ${nextStage}`)
+      const syncs = [fetchDeals(), fetchCustomers()]
+      if (nextStage === 'Closed Won' || nextStage === 'Closed Lost') syncs.push(fetchTasks())
+      await Promise.all(syncs)
     } catch (err) {
       setDeals((current) => current.map((d) => (d.id === dealId ? snapshot : d)))
       setNotice(`Stage update failed: ${err.message}`)
@@ -663,6 +799,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       if (fields.value !== undefined) body.value = Number(fields.value)
       if (fields.expectedClose) body.closeDate = fields.expectedClose
       if (fields.probability !== undefined) body.probability = Number(fields.probability)
+      if (fields.ownerId !== undefined) body.ownerId = fields.ownerId
       const res = await apiFetch(`/api/deals/${dealId}/stage`, {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -699,6 +836,34 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
+  async function reassignTask(taskId, newOwnerId) {
+    try {
+      const res = await apiFetch(`/api/activities/${taskId}/reassign`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newOwnerId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Reassign failed')
+      }
+      const { newOwner } = await res.json()
+      setTasks(current =>
+        current.map(t => t.id === taskId ? { ...t, ownerId: newOwnerId, owner: newOwner } : t)
+      )
+      // Full handover touches leads/customers/deals/tasks — refresh them
+      await Promise.all([fetchTasks(), fetchDeals(), fetchLeads(), fetchCustomers()])
+      setNotice('Customer reassigned to new SR.')
+    } catch (err) {
+      setNotice(`Reassign failed: ${err.message}`)
+      throw err
+    }
+  }
+
+  async function acknowledgeCustomer(id) {
+    apiFetch(`/api/customers/${id}/acknowledge`, { method: 'PATCH' }).catch(() => {})
+    setCustomers(cur => cur.map(c => c.id === id ? { ...c, reassignedAt: null } : c))
+  }
+
   async function syncGSheets() {
     setNotice('Synchronizing with Google Sheets...')
     try {
@@ -723,12 +888,16 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     setLeads(current => current.map(l =>
       l.id === leadId ? { ...l, ownerId: newOwnerId, sr: newOwner?.name ?? '' } : l
     ))
+    setCustomers(current => current.map(c =>
+      c.id === leadId ? { ...c, ownerId: newOwnerId, sr: newOwner?.name ?? '' } : c
+    ))
     try {
       const res = await apiFetch(`/api/leads/${leadId}/reassign`, {
         method: 'PATCH',
         body: JSON.stringify({ newOwnerId }),
       })
       if (!res.ok) throw new Error('Reassign failed')
+      fetchCustomers()
       fetchLeads()
       setNotice('Lead reassigned successfully.')
       showToast('Lead reassigned!')
@@ -737,9 +906,52 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
-  return {
+  async function changePassword(currentPassword, newPassword) {
+    try {
+      await updatePassword(currentPassword, newPassword)
+      showToast('Password updated successfully!')
+    } catch (err) {
+      showToast(err.message || 'Failed to update password', 'error')
+      throw err
+    }
+  }
 
+  async function updateProfilePhoto(file) {
+    try {
+      const result = await uploadProfilePhoto(file)
+      // No toast here anymore, the redirect to Adjust Modal is sufficient
+      return result
+    } catch (err) {
+      showToast(err.message || 'Failed to upload photo', 'error')
+      throw err
+    }
+  }
+
+  async function deleteProfilePhoto() {
+    try {
+      await removeProfilePhoto()
+      showToast('Profile photo removed')
+    } catch (err) {
+      showToast(err.message || 'Failed to remove photo', 'error')
+      throw err
+    }
+  }
+
+  async function savePhotoAdjustment(zoom, offsetY, offsetX, rotation, profilePic) {
+    try {
+      await adjustProfilePhoto(zoom, offsetY, offsetX, rotation, profilePic)
+      // Local update is handled in the component for responsiveness, 
+      // but this persists it to the backend.
+    } catch (err) {
+      showToast('Failed to save adjustments', 'error')
+      throw err
+    }
+  }
+
+  return {
     data: { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion },
+    stopAllCelebration,
+    getLostAnimationStyle,
     actions: {
       createLead,
       createContact,
@@ -750,6 +962,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       updateDealStage,
       updateDeal,
       toggleTaskStatus,
+      reassignTask,
+      acknowledgeCustomer,
       syncGSheets,
       reassignLead,
       setActiveBranch,
@@ -760,11 +974,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       fetchCustomers,
       fetchContacts,
       fetchDeals,
-    fetchTasks,
-    fetchTeam,
-    fetchDealContactMap,
-    updateContact,
-  }
-
+      fetchTasks,
+      fetchTeam,
+      fetchDealContactMap,
+      updateContact,
+      changePassword,
+      updateProfilePhoto,
+      deleteProfilePhoto,
+      savePhotoAdjustment,
+    }
   }
 }

@@ -14,7 +14,10 @@ CREATE TABLE IF NOT EXISTS team (
     email    VARCHAR(255),
     role     VARCHAR(100) DEFAULT 'Branch Account',
     branch   VARCHAR(100) NOT NULL,
-    region   ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'Central'
+    region   ENUM('North Luzon', 'Central', 'Vis&Min') DEFAULT 'Central',
+    profile_pic VARCHAR(500) NULL,
+    theme       VARCHAR(50)  DEFAULT 'dark',
+    neon_color  VARCHAR(50)  DEFAULT 'pink'
 );
 
 -- ─── Companies ───────────────────────────────────────────────────────────────
@@ -57,6 +60,7 @@ CREATE TABLE IF NOT EXISTS leads (
     owner_name    VARCHAR(255),
     branch        VARCHAR(100),
     status        VARCHAR(50)  DEFAULT 'New',
+    reassigned_at DATE         NULL,
     created_at    DATE         DEFAULT (CURRENT_DATE),
     FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL
 );
@@ -145,6 +149,15 @@ CREATE TABLE IF NOT EXISTS celebration_music (
     stored_filename   VARCHAR(255),
     is_active         TINYINT(1) DEFAULT 1,
     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ─── Application Settings (key-value) ────────────────────────────────────────
+-- Stores generic app-wide toggles, e.g. celebration_animation_won / _lost.
+-- Valid values for celebration_animation_*: 'confetti' | 'jojo' | 'none' | 'victory'
+CREATE TABLE IF NOT EXISTS app_settings (
+    setting_key   VARCHAR(100) PRIMARY KEY,
+    setting_value TEXT,
+    updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- User seeds are managed by backend bootstrap script for cross-device consistency:

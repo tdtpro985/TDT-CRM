@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import './App.css'
-import { formatCurrencyCompact, displayRole, shortStageLabel, getTodayISO } from './utils'
-import { clearToken, getUser, saveUser, apiFetch } from './api'
+import { formatCurrencyCompact, displayRole, shortStageLabel, getTodayISO, formatRelativeDays } from './utils'
+import { clearToken, getUser, saveUser, apiFetch, API_BASE } from './api'
+import { resetThemeToDefaults } from './hooks/useTheme'
 import {
   CUSTOMER_STATUSES,
   TASK_TYPES,
@@ -22,6 +23,8 @@ import useCRMData    from './hooks/useCRMData'
 import { useTheme } from './hooks/useTheme'
 import LoginPage     from './components/LoginPage'
 import Modal         from './components/Modal'
+import ProfileModal   from './components/ProfileModal'
+import ImageAdjustModal from './components/ImageAdjustModal'
 import AboutContent  from './components/AboutContent'
 import PageSkeleton  from './components/SkeletonLoader'
 import LeadForm      from './components/forms/LeadForm'
@@ -44,14 +47,20 @@ export default function App() {
   const [showLeadForm, setShowLeadForm] = useState(false)
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [showAbout, setShowAbout]       = useState(false)
+  const [showProfile, setShowProfile]   = useState(false)
+  const [showAdjust, setShowAdjust]     = useState(false)
+  const [tempProfilePic, setTempProfilePic] = useState(null)
   const [toast, setToast] = useState(null)
   const [currentUser, setCurrentUser] = useState(getUser())
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarClosing, setSidebarClosing] = useState(false)
+  const [showCustomize, setShowCustomize] = useState(false)
   const sidebarCloseTimer = useRef(null)
+  const [showDueDateAlert, setShowDueDateAlert] = useState(false)
+  const dueAlertShown = useRef(false)
   
   // Theme management
-  const { theme, setTheme } = useTheme()
+  const { theme, setTheme, neonColor, setNeonColor } = useTheme()
 
   // ─── Performance: Search Debounce ──────────────────────────────────────────
   useEffect(() => {
@@ -64,12 +73,19 @@ export default function App() {
   function handleLogin(user) {
     saveUser(user)
     setCurrentUser(user)
+    if (user.theme) setTheme(user.theme)
+    if (user.neonColor) setNeonColor(user.neonColor)
     setNotice(`Welcome back, ${user.name}! You are logged in to the ${user.branch} branch.`)
   }
 
   function handleLogout() {
+    resetThemeToDefaults()   // synchronous: clears sessionStorage + style tag before re-render
     clearToken()
     setCurrentUser(null)
+    setShowDueDateAlert(false)
+    dueAlertShown.current = false
+    setTheme('dark')
+    setNeonColor('pink')
     setNotice('You have been logged out.')
   }
 
@@ -78,9 +94,18 @@ export default function App() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const { data, actions } = useCRMData({ setNotice, showToast, currentUser })
+  const { data, actions, stopAllCelebration } = useCRMData({ setNotice, showToast, currentUser })
   const { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion } = data
   const { setActiveBranch, setActiveRegion, fetchCompanies, fetchContacts } = actions
+
+  // ─── Stop celebration audio/overlay on route change ─────────────────────────
+  const stopAllCelebrationRef = useRef(null)
+  useEffect(() => {
+    stopAllCelebrationRef.current = stopAllCelebration
+  }, [stopAllCelebration])
+  useEffect(() => {
+    if (stopAllCelebrationRef.current) stopAllCelebrationRef.current()
+  }, [location.pathname])
 
   // ─── Derived data ───────────────────────────────────────────────────────────
 
@@ -99,6 +124,40 @@ export default function App() {
   const dueToday = useMemo(() => 
     openTasks.filter((t) => t.dueDate === getTodayISO()),
   [openTasks])
+
+  // ─── Compute tasks due within ±3 days ──────────────────────────────────
+  const dueSoonTasks = useMemo(() => {
+    if (!currentUser) return []
+    const todayStr = getTodayISO()
+    const todayDate = new Date(todayStr)
+    const threeDaysAgo = new Date(todayDate)
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+    const threeAgoStr = threeDaysAgo.toISOString().split('T')[0]
+    const threeDaysLater = new Date(todayDate)
+    threeDaysLater.setDate(threeDaysLater.getDate() + 3)
+    const threeLaterStr = threeDaysLater.toISOString().split('T')[0]
+
+    return openTasks.filter(t => {
+      if (t.status === 'Completed') return false
+      if (!t.dueDate) return false
+      if (String(t.ownerId) !== String(currentUser.id)) return false
+      return t.dueDate >= threeAgoStr && t.dueDate <= threeLaterStr
+    }).sort((a, b) => {
+      if (a.dueDate < b.dueDate) return -1
+      if (a.dueDate > b.dueDate) return 1
+      return 0
+    })
+  }, [openTasks, currentUser])
+
+  // ─── Show due date modal once per session ──────────────────────────────
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (dueSoonTasks.length > 0 && !dueAlertShown.current) {
+      dueAlertShown.current = true
+      setShowDueDateAlert(true)
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [dueSoonTasks])
 
   const currentMonth = useMemo(() => getTodayISO().slice(0, 7), [])
 
@@ -142,6 +201,15 @@ export default function App() {
     { label: 'Conversion Rate', value: `${conversionRate}%`,                meta: `${convertedLeads.length} of ${leads.length} customers converted`,  accent: 'surface', route: '/database'  },
     { label: 'Pipeline Value',  value: formatCurrencyCompact(pipelineValue), meta: 'Expected revenue across active deals',                        accent: 'accent',  route: '/pipeline'  },
   ], [newLeads.length, activeDeals.length, stageSummary, stageBreakdown, conversionRate, convertedLeads.length, leads.length, pipelineValue])
+
+  const searchSuggestions = useMemo(() => {
+    if (activeView !== 'tasks') return []
+    const companyNames = openTasks.map(t => {
+      const deal = deals.find(d => d.id === t.dealId)
+      return t.companyName || companies.find(c => c.id === deal?.companyId)?.name
+    }).filter(Boolean)
+    return [...new Set(companyNames)].sort()
+  }, [activeView, openTasks, deals, companies])
 
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
 
@@ -187,7 +255,7 @@ export default function App() {
     setShowLeadForm(false)
     setShowTaskForm(false)
     setNotice(`${VIEW_META[viewId]?.title || viewId} is active.`)
-    setSidebarOpen(false)
+    // Keep sidebar state as is during navigation
   }
 
   function handlePrimaryAction() {
@@ -257,13 +325,16 @@ export default function App() {
           <DashboardView
             topKpis={topKpis}
             stageSummary={stageSummary}
-            pipelineValue={pipelineValue}
+            deals={deals}
             leads={leads}
             contacts={contacts}
             companies={companies}
             openTasks={openTasks}
             linkHealth={linkHealth}
             currentUser={currentUser}
+            teamMembers={teamMembers}
+            showCustomize={showCustomize}
+            setShowCustomize={setShowCustomize}
           />
         } />
         <Route path="/database" element={
@@ -281,6 +352,7 @@ export default function App() {
             dealStages={DEAL_STAGES}
             companies={companies}
             onCreateTask={handleCreateTask}
+            acknowledgeCustomer={actions.acknowledgeCustomer}
             fetchDealContacts={fetchDealContacts}
             fetchCompanies={fetchCompanies}
             fetchContacts={fetchContacts}
@@ -288,6 +360,7 @@ export default function App() {
             setShowCustomerForm={setShowLeadForm}
             currentUser={currentUser}
             searchQuery={searchQuery}
+            onReassignLead={actions.reassignLead}
           />
         } />
         <Route path="/pipeline" element={
@@ -327,7 +400,9 @@ export default function App() {
             dealContactMap={dealContactMap}
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
+            reassignTask={actions.reassignTask}
             searchQuery={searchQuery}
+            onClearSearch={() => { setSearchInput(''); setSearchQuery(''); }}
             currentUser={currentUser}
           />
         } />
@@ -339,6 +414,16 @@ export default function App() {
   // ─── Guard: show login if not authenticated ──────────────────────────────────
   if (!currentUser) {
     return <LoginPage onLogin={handleLogin} />
+  }
+
+  const getInitials = (name) => {
+    if (!name) return '?'
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2)
   }
 
   // ─── Shell ──────────────────────────────────────────────────────────────────
@@ -365,18 +450,71 @@ export default function App() {
       >
         <div className="brand-block">
           <img src="/tdt-powersteel-logo.png" alt="TDT Powersteel" className="brand-logo" />
-          <div className="brand-user-info">
-            <p className="brand-user-name">{currentUser.name}</p>
-            <p className="brand-user-role">{displayRole(currentUser.role)}</p>
-          </div>
-          <div className="brand-badges">
-            {currentUser.role === 'Head of Sales' ? (
-              <div className="brand-branch-badge is-region">{activeRegion || 'All Regions'}</div>
-            ) : currentUser.role === 'Regional Sales Manager' ? (
-              <div className="brand-branch-badge is-region">{currentUser.region}</div>
-            ) : (
-              <div className="brand-branch-badge">{currentUser.branch}</div>
-            )}
+          <div 
+            className="brand-user-info" 
+            onClick={() => setShowProfile(true)} 
+            style={{ 
+              cursor: 'pointer', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '16px',
+              padding: '10px 14px',
+              borderRadius: 'var(--r-md)',
+              transition: 'background 0.2s',
+              width: '100%',
+              boxSizing: 'border-box'
+            }} 
+            title="My Profile"
+          >
+            <div 
+              className="sidebar-avatar"
+              style={{ 
+                width: '80px', 
+                height: '80px', 
+                borderRadius: '50%', 
+                backgroundColor: 'var(--accent)', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                fontSize: 'var(--fs-xl)',
+                fontWeight: 800,
+                color: 'white',
+                flexShrink: 0,
+                overflow: 'hidden',
+                border: '2px solid var(--border)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+              }}
+            >
+              {currentUser?.profilePic ? (
+                <img 
+                  src={`${API_BASE}${currentUser.profilePic}`} 
+                  alt="" 
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'cover', 
+                    objectPosition: 'center', 
+                    backgroundColor: 'var(--bg-surface)',
+                    transform: `translate(${currentUser?.profileOffsetX || 0}%, ${currentUser?.profileOffsetY || 0}%) scale(${currentUser?.profileZoom || 1}) rotate(${currentUser?.profileRotation || 0}deg)`
+                  }} 
+                />
+              ) : (
+                getInitials(currentUser?.name)
+              )}
+            </div>
+            <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+              <p className="brand-user-name" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: 'var(--fs-lg)' }}>{currentUser?.name}</p>
+              <p className="brand-user-role" style={{ fontSize: 'var(--fs-sm)' }}>{displayRole(currentUser?.role)}</p>
+              <div className="brand-badges" style={{ marginTop: '4px' }}>
+                {currentUser?.role === 'Head of Sales' ? (
+                  <div className="brand-branch-badge is-region">{activeRegion || 'All Regions'}</div>
+                ) : currentUser?.role === 'Regional Sales Manager' ? (
+                  <div className="brand-branch-badge is-region">{currentUser?.region}</div>
+                ) : (
+                  <div className="brand-branch-badge">{currentUser?.branch}</div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -456,9 +594,25 @@ export default function App() {
             <span>Open tasks still waiting on follow-through</span>
           </div>
           
-          <ThemeToggle theme={theme} onThemeChange={setTheme} />
+          <ThemeToggle
+            theme={theme}
+            onThemeChange={setTheme}
+            neonColor={neonColor}
+            onNeonColorChange={setNeonColor}
+            defaultTheme={currentUser?.theme}
+            defaultNeonColor={currentUser?.neonColor}
+            onSaveDefault={(t, nc) => {
+              apiFetch('/api/team/profile/preferences', {
+                method: 'PUT',
+                body: JSON.stringify({ theme: t, neonColor: nc }),
+              })
+              const stored = getUser()
+              if (stored) saveUser({ ...stored, theme: t, neonColor: nc })
+            }}
+          />
           
           <div className="sidebar-user">
+            <button type="button" className="about-button" style={{ marginBottom: '4px' }} onClick={() => setShowProfile(true)}>My Profile</button>
             <button type="button" className="about-button" onClick={() => setShowAbout(true)}>About this system</button>
             <button type="button" className="logout-button" onClick={handleLogout}>Sign out</button>
           </div>
@@ -498,20 +652,41 @@ export default function App() {
                 id="global-search-input"
                 name="searchInput"
                 type="search"
+                list="global-search-suggestions"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder={currentMeta.searchPlaceholder}
                 aria-label={currentMeta.searchPlaceholder}
               />
+              {searchInput && (
+                <button
+                  type="button"
+                  className="search-clear"
+                  aria-label="Clear search"
+                  onClick={() => { setSearchInput(''); setSearchQuery(''); }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+              <datalist id="global-search-suggestions">
+                {searchSuggestions.map(s => <option key={s} value={s} />)}
+              </datalist>
             </label>
             <button type="button" className="secondary-button" onClick={handleShareCurrentView}>Share view</button>
-            {activeView !== 'pipeline' && (
+            {activeView === 'dashboard' && (
+              <button type="button" className="secondary-button" onClick={() => setShowCustomize(true)}>Customize Layout</button>
+            )}
+            {activeView !== 'pipeline' && activeView !== 'dashboard' && (
               <button type="button" className="primary-button" onClick={handlePrimaryAction}>{primaryActionLabel}</button>
             )}
           </div>
         </header>
 
         <div className="notice-bar" aria-live="polite">
+          <span className="status-dot" />
           <strong>Live state</strong>
           <span>{notice}</span>
         </div>
@@ -582,14 +757,106 @@ export default function App() {
       >
         <LeadForm
           teamMembers={teamMembers}
-          branch={currentUser?.branch}
           currentUser={currentUser}
+          contacts={contacts}
           onCancel={() => setShowLeadForm(false)}
           onSubmit={(form) => {
             handleCreateLead(form)
             setShowLeadForm(false)
           }}
         />
+      </Modal>
+
+      <ProfileModal
+        isOpen={showProfile}
+        onClose={() => setShowProfile(false)}
+        currentUser={currentUser}
+        onPasswordChange={actions.changePassword}
+        onPhotoUpload={actions.updateProfilePhoto}
+        onPhotoRemove={actions.deleteProfilePhoto}
+        onUploadSuccess={(url) => {
+          setTempProfilePic(url)
+          setShowProfile(false)
+          setShowAdjust(true)
+        }}
+      />
+
+      <ImageAdjustModal
+        isOpen={showAdjust}
+        onClose={() => {
+          setShowAdjust(false)
+          setTempProfilePic(null)
+        }}
+        imageUrl={tempProfilePic ? `${API_BASE}${tempProfilePic}` : (currentUser?.profilePic ? `${API_BASE}${currentUser.profilePic}` : '')}
+        currentZoom={currentUser?.profileZoom || 1}
+        currentOffsetX={currentUser?.profileOffsetX || 0}
+        currentOffsetY={currentUser?.profileOffsetY || 0}
+        currentRotation={currentUser?.profileRotation || 0}
+        onSave={async (zoom, offsetY, offsetX, rotation) => {
+          // If we have a tempProfilePic, we are saving a NEW photo.
+          // Otherwise, we are just re-adjusting an existing one.
+          await actions.savePhotoAdjustment(zoom, offsetY, offsetX, rotation, tempProfilePic)
+          
+          // Update local state to reflect changes immediately
+          const updated = { 
+            ...currentUser, 
+            profileZoom: zoom, 
+            profileOffsetY: offsetY, 
+            profileOffsetX: offsetX, 
+            profileRotation: rotation 
+          }
+          if (tempProfilePic) {
+            updated.profilePic = tempProfilePic
+          }
+          
+          setCurrentUser(updated)
+          saveUser(updated)
+          setTempProfilePic(null)
+          showToast('Profile photo updated!')
+        }}
+      />
+
+      <Modal
+        isOpen={showDueDateAlert}
+        onClose={() => setShowDueDateAlert(false)}
+        title="Upcoming Due Dates"
+        kicker="Alert"
+      >
+        <div style={{ padding: '0 24px 24px' }}>
+          {dueSoonTasks.length === 0 ? (
+            <p className="u-text-muted">No tasks with upcoming due dates.</p>
+          ) : (
+            dueSoonTasks.map(t => (
+              <div
+                key={t.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 0',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: 'var(--fs-sm)' }}>{t.title}</strong>
+                  <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {t.companyName || t.contact || '—'}
+                  </div>
+                </div>
+                <div
+                  style={{
+                    fontSize: 'var(--fs-sm)',
+                    fontWeight: 600,
+                    whiteSpace: 'nowrap',
+                    color: t.dueDate < getTodayISO() ? 'var(--alert)' : 'var(--warning)',
+                  }}
+                >
+                  {formatRelativeDays(t.dueDate)}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </Modal>
     </div>
   )

@@ -9,35 +9,21 @@ from .database import get_db_connection, close_connection
 load_dotenv()
 
 MANILA_SRS = [
-    {'username': 'mrky',  'name': 'Mrky',  'role': 'Head of Sales'},
-    {'username': 'den',   'name': 'Den',   'role': 'Regional Sales Manager'},
-    {'username': '1dan',  'name': '1Dan',  'role': 'Sales Representative'},
-    {'username': '1jas',  'name': '1Jas',  'role': 'Sales Representative'},
-    {'username': '1jems', 'name': '1Jems', 'role': 'Sales Representative'},
-    {'username': 'abi',   'name': 'Abi',   'role': 'Sales Representative'},
-    {'username': 'aga',   'name': 'Aga',   'role': 'Sales Representative'},
-    {'username': 'central', 'name': 'Central', 'role': 'Sales Representative'},
-    {'username': 'che',   'name': 'Che',   'role': 'Sales Representative'},
-    {'username': 'dlm',   'name': 'DLM',   'role': 'Sales Representative'},
-    {'username': 'ema',   'name': 'Ema',   'role': 'Sales Representative'},
-    {'username': 'fmar',  'name': 'FMAR',  'role': 'Sales Representative'},
-    {'username': 'gen',   'name': 'Gen',   'role': 'Sales Representative'},
-    {'username': 'jhn',   'name': 'Jhn',   'role': 'Sales Representative'},
-    {'username': 'knd',   'name': 'KND',   'role': 'Sales Representative'},
-    {'username': 'kim',   'name': 'Kim',   'role': 'Sales Representative'},
-    {'username': 'lpc',   'name': 'LPC',   'role': 'Sales Representative'},
-    {'username': 'mat',   'name': 'Mat',   'role': 'Sales Representative'},
-    {'username': 'mav',   'name': 'Mav',   'role': 'Sales Representative'},
-    {'username': 'mel',   'name': 'Mel',   'role': 'Sales Representative'},
-    {'username': 'mldy',  'name': 'Mldy',  'role': 'Sales Representative'},
-    {'username': 'nes',   'name': 'Nes',   'role': 'Sales Representative'},
-    {'username': 'tdt',   'name': 'TDT',   'role': 'Sales Representative'},
-    {'username': 'van',   'name': 'Van',   'role': 'Sales Representative'},
-    {'username': 'vic',   'name': 'Vic',   'role': 'Sales Representative'},
+    # Management — Head of Sales (Jasmin) and Regional Sales Manager (Marky)
+    {'username': 'jasmin', 'name': 'Jasmin', 'role': 'Head of Sales'},
+    {'username': 'marky',  'name': 'Marky',  'role': 'Regional Sales Manager'},
+    # Sales Representatives
+    {'username': 'melody', 'name': 'Melody', 'role': 'Sales Representative'},
+    {'username': 'emma',   'name': 'Emma',   'role': 'Sales Representative'},
+    {'username': 'karen',  'name': 'Karen',  'role': 'Sales Representative'},
+    {'username': 'aga',    'name': 'Aga',    'role': 'Sales Representative'},
+    {'username': 'loren',  'name': 'Loren',  'role': 'Sales Representative'},
+    {'username': 'dennis', 'name': 'Dennis', 'role': 'Sales Representative'},
+    {'username': 'justin', 'name': 'Justin', 'role': 'Sales Representative'},
 ]
 
 
-def seed_manila_srs(password=None, reset_passwords=False):
+def seed_manila_srs(password=None, reset_passwords=False, replace=False):
     default_password = password or os.getenv('DEFAULT_BRANCH_PASSWORD') or 'TDTpowersteel2024'
     conn = get_db_connection()
     if not conn:
@@ -46,9 +32,24 @@ def seed_manila_srs(password=None, reset_passwords=False):
 
     created = 0
     updated = 0
+    deleted = 0
 
     try:
         cursor = conn.cursor(dictionary=True)
+
+        if replace:
+            # Wipe the old Manila roster (SRs + management) before recreating.
+            # Branch Account login and Admin are untouched. Customer owner_id
+            # is nulled via ON DELETE SET NULL — managers reassign afterward.
+            cursor.execute(
+                '''DELETE FROM team
+                   WHERE branch = %s
+                     AND role IN ('Sales Representative', 'Head of Sales', 'Regional Sales Manager')''',
+                ('Manila',),
+            )
+            deleted = cursor.rowcount
+            conn.commit()
+
         for sr in MANILA_SRS:
             cursor.execute('SELECT id FROM team WHERE username = %s', (sr['username'],))
             existing = cursor.fetchone()
@@ -70,7 +71,7 @@ def seed_manila_srs(password=None, reset_passwords=False):
                 updated += 1
 
         conn.commit()
-        print(f'Done. Created: {created}, Updated: {updated}')
+        print(f'Done. Deleted: {deleted}, Created: {created}, Updated: {updated}')
     finally:
         close_connection(conn)
 
@@ -78,9 +79,10 @@ def seed_manila_srs(password=None, reset_passwords=False):
 def main():
     parser = argparse.ArgumentParser(description='Seed Manila SR accounts into the team table.')
     parser.add_argument('--reset-passwords', action='store_true', help='Reset passwords and roles for existing SR accounts.')
+    parser.add_argument('--replace', action='store_true', help='Delete the existing Manila SR + management accounts first, then recreate the roster fresh.')
     parser.add_argument('--password', help='Override default password for this run.')
     args = parser.parse_args()
-    seed_manila_srs(password=args.password, reset_passwords=args.reset_passwords)
+    seed_manila_srs(password=args.password, reset_passwords=args.reset_passwords, replace=args.replace)
 
 
 if __name__ == '__main__':

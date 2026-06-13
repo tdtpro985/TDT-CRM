@@ -1,2 +1,0 @@
-the task history should be updated too for example the SR change the probability to 30, the task history of the new opportunity will count it as task history for 
-the new opportunity and if the SR change again the probability in the qualified that change should be count as Task history and until if close won or lost 

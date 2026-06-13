@@ -218,6 +218,18 @@ export function isSrRole(role) {
   return role === 'Branch Account' || role === 'Sales Rep' || role === 'Sales Representative'
 }
 
+const ROLE_ABBR = {
+  'Head of Sales': 'HoS',
+  'Regional Sales Manager': 'RSM',
+  'Branch Account': 'Branch',
+  'Admin': 'Admin',
+}
+
+// Short role tag used in the manager "mine" filter label, e.g. "Marky (RSM)".
+export function roleAbbr(role) {
+  return ROLE_ABBR[role] ?? role
+}
+
 export function shortStageLabel(stage, SHORT_STAGE_LABEL) {
   return SHORT_STAGE_LABEL[stage] ?? stage
 }
@@ -242,4 +254,13 @@ export function isValidPhone(val) {
 
 export function isValidEmail(val) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val || '')
+}
+
+export function getInitials(name) {
+  if (!name) return '?'
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
 }

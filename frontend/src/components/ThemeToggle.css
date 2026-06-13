@@ -8,6 +8,12 @@
   border-top: 1px solid var(--border);
 }
 
+.theme-toggle-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .theme-toggle-label {
   font-size: var(--fs-xs);
   font-weight: 600;
@@ -17,6 +23,28 @@
   margin: 0;
 }
 
+.theme-save-btn {
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-2xs);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.theme-save-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.theme-save-btn.is-saved {
+  border-color: var(--positive);
+  color: var(--positive);
+}
+
 .theme-toggle-buttons {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -24,6 +52,7 @@
 }
 
 .theme-toggle-btn {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -52,6 +81,18 @@
   font-weight: 600;
 }
 
+.theme-default-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--positive);
+  box-shadow: 0 0 5px var(--positive);
+  pointer-events: none;
+}
+
 .theme-toggle-icon {
   font-size: var(--fs-lg);
   display: block;
@@ -60,6 +101,58 @@
 
 .theme-toggle-name {
   display: block;
+}
+
+/* ── Neon Color Picker ───────────────────────────────────────── */
+
+.neon-color-picker {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: 4px;
+}
+
+.neon-color-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, outline-offset 0.15s ease;
+}
+
+.neon-color-dot:hover {
+  transform: scale(1.2);
+}
+
+.neon-color-dot.is-active {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+  transform: scale(1.1);
+}
+
+.neon-color-dot.is-default {
+  box-shadow: 0 0 0 2px var(--positive);
+}
+
+.neon-color-dot--rainbow {
+  background: conic-gradient(
+    #FF00FF, #CC00FF, #0088FF, #00FFFF,
+    #00FF88, #FFFF00, #FF6600, #FF0033, #FF00FF
+  );
+  animation: neon-rainbow-spin 3s linear infinite;
+}
+
+.neon-color-dot--rainbow.is-active {
+  animation: neon-rainbow-spin 1.2s linear infinite;
+}
+
+@keyframes neon-rainbow-spin {
+  from { filter: hue-rotate(0deg); }
+  to   { filter: hue-rotate(360deg); }
 }
 
 /* Responsive: hide labels on very small screens */
