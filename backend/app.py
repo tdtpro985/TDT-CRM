@@ -188,14 +188,34 @@ def ensure_schema():
 ensure_schema()
 
 app = Flask(__name__)
-CORS(app)
+
+# Restrict CORS to the configured frontend origin(s) instead of allowing all.
+# FRONTEND_URL may be a comma-separated list. Default covers both local dev origins
+# (localhost and 127.0.0.1 are distinct origins to the browser).
+_default_origins = 'http://localhost:5173,http://127.0.0.1:5173'
+_frontend_origins = [o.strip() for o in os.getenv('FRONTEND_URL', _default_origins).split(',') if o.strip()]
+CORS(app, origins=_frontend_origins, supports_credentials=True)
+
+# Single source of truth for debug mode (also used for the JWT secret check below).
+_DEBUG = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
 
 @app.before_request
 def log_request_info():
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {request.method} {request.path} | Origin: {request.headers.get('Origin')}")
+    # Per-request logging is dev-only — avoids spamming production logs.
+    if _DEBUG:
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {request.method} {request.path} | Origin: {request.headers.get('Origin')}")
 
 
-app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-key')
+# JWT secret must be set explicitly. In production (FLASK_DEBUG != true) a missing
+# secret is fatal — falling back to a hardcoded default would let anyone forge tokens.
+_jwt_secret = os.getenv('JWT_SECRET_KEY')
+if not _jwt_secret:
+    if _DEBUG:
+        print("WARNING: JWT_SECRET_KEY is not set — using an insecure dev secret. Set it in backend/.env before deploying.")
+        _jwt_secret = 'dev-insecure-secret'
+    else:
+        raise RuntimeError("JWT_SECRET_KEY environment variable is required in production. Set it in backend/.env.")
+app.config['JWT_SECRET_KEY'] = _jwt_secret
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=8)  # 8-hour sessions
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB upload limit
 jwt = JWTManager(app)
@@ -3566,7 +3586,6 @@ def get_celebration_animation():
 
 
 if __name__ == '__main__':
-    debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
     port = int(os.getenv('FLASK_PORT', '5001'))
     print(f" * Starting backend on 0.0.0.0:{port}")
-    app.run(debug=debug_mode, port=port, host='0.0.0.0')
+    app.run(debug=_DEBUG, port=port, host='0.0.0.0')

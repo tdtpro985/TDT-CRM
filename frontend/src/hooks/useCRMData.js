@@ -8,11 +8,6 @@ import confettiSound from '../assets/sounds/yeah-boiii-i-i-i.mp3'
 
 const CURRENT_DATE = getTodayISO()
 
-<<<<<<< Updated upstream
-const POLL_FAST   = 15_000
-const POLL_MEDIUM = 30_000
-const POLL_SLOW   = 60_000
-=======
 // Background polling: silently re-fetch shared data so other users' changes
 // appear without a manual refresh. Single tuning knob.
 const POLL_INTERVAL_MS = 25000
@@ -20,7 +15,6 @@ const POLL_INTERVAL_MS = 25000
 // can't overwrite an in-flight optimistic update before its own refetch lands.
 const MUTATION_GUARD_MS = 5000
 
->>>>>>> Stashed changes
 
 function getProbabilityForStage(stage) { return STAGE_WORKFLOW[stage]?.probability ?? 20 }
 
@@ -46,7 +40,6 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   const musicRef = useRef({ won: [], lost: [] })
   // animationRef stores the per-outcome animation style: 'confetti' | 'jojo' | 'none'
   const animationRef = useRef({ won: 'confetti', lost: 'confetti' })
-  const pollingRef = useRef({ timers: [] })
 
   function getLostAnimationStyle() {
     return animationRef.current.lost ?? 'none'
@@ -317,43 +310,6 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, activeBranch, activeRegion])
 
-<<<<<<< Updated upstream
-  // ─── Real-time polling ─────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!currentUser) return
-
-    const p = pollingRef.current
-
-    function start() {
-      p.timers = [
-        setInterval(fetchLeads, POLL_FAST),
-        setInterval(fetchDeals, POLL_FAST),
-        setInterval(fetchTasks, POLL_FAST),
-        setInterval(fetchCustomers, POLL_MEDIUM),
-        setInterval(fetchCompanies, POLL_SLOW),
-        setInterval(fetchContacts, POLL_SLOW),
-        setInterval(fetchTeam, POLL_SLOW),
-        setInterval(fetchDealContactMap, POLL_SLOW),
-      ]
-    }
-
-    function stop() {
-      p.timers.forEach(clearInterval)
-      p.timers = []
-    }
-
-    function onVisibility() {
-      if (document.hidden) stop()
-      else start()
-    }
-
-    document.addEventListener('visibilitychange', onVisibility)
-    start()
-
-    return () => {
-      stop()
-      document.removeEventListener('visibilitychange', onVisibility)
-=======
   // Background polling: silently refresh shared data so changes made by other
   // users appear without a manual reload. Reuses the existing fetchX() helpers
   // (which don't touch `loading`, so no skeleton flash) and the current scope
@@ -376,7 +332,6 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     return () => {
       clearInterval(id)
       document.removeEventListener('visibilitychange', onVisible)
->>>>>>> Stashed changes
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser, activeBranch, activeRegion])
@@ -746,12 +701,12 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
 
   async function updateDealStage(dealId, nextStage, extra = {}) {
 
-<<<<<<< Updated upstream
-=======
     markMutating()
-    const probability = STAGE_WORKFLOW[nextStage]?.probability ?? 20
->>>>>>> Stashed changes
     const snapshot = deals.find(d => d.id === dealId)
+    if (!snapshot) {
+      setNotice('Deal not found — please refresh and try again.')
+      return
+    }
 
     setDeals((current) =>
       current.map((d) => (d.id === dealId
