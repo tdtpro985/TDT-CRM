@@ -39,6 +39,11 @@ __pycache__/
 backend/__pycache__/
 backend/database/__pycache__/
 
+# Customer data exports — never commit (contains PII)
+*.xlsx
+*.xls
+backend/database/excel/
+
 # Database and backup dumps
 *.sqlite
 *.sqlite3
