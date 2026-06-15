@@ -59,10 +59,23 @@ CREATE TABLE IF NOT EXISTS leads (
     owner_id      INT,
     owner_name    VARCHAR(255),
     branch        VARCHAR(100),
-    status        VARCHAR(50)  DEFAULT 'New',
-    reassigned_at DATE         NULL,
-    created_at    DATE         DEFAULT (CURRENT_DATE),
+    status          VARCHAR(50)  DEFAULT 'New',
+    reassigned_at   DATE         NULL,
+    approval_status VARCHAR(20)  NOT NULL DEFAULT 'approved',
+    created_at      DATE         DEFAULT (CURRENT_DATE),
     FOREIGN KEY (owner_id) REFERENCES team(id) ON DELETE SET NULL
+);
+
+-- ─── Customer Approvals (RSM/HOS endorsements) ───────────────────────────────
+CREATE TABLE IF NOT EXISTS customer_approvals (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    lead_id     VARCHAR(100) NOT NULL,
+    reviewer_id INT NOT NULL,
+    action      VARCHAR(50)  NOT NULL,
+    notes       TEXT,
+    created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewer_id) REFERENCES team(id) ON DELETE CASCADE
 );
 
 -- ─── Deals ────────────────────────────────────────────────────────────────────

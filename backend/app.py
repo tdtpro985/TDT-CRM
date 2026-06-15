@@ -177,6 +177,31 @@ def ensure_schema():
 
         conn.commit()
 
+        # Ensure approval_status column exists in leads table
+        cursor.execute("""
+            SELECT COUNT(*) FROM information_schema.COLUMNS
+            WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'leads' AND COLUMN_NAME = 'approval_status'
+        """)
+        if cursor.fetchone()[0] == 0:
+            print("Adding missing 'approval_status' column to 'leads' table...")
+            cursor.execute("ALTER TABLE leads ADD COLUMN approval_status VARCHAR(20) NOT NULL DEFAULT 'approved'")
+            conn.commit()
+
+        # Ensure customer_approvals table exists (RSM/HOS endorsements)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS customer_approvals (
+                id          INT AUTO_INCREMENT PRIMARY KEY,
+                lead_id     VARCHAR(100) NOT NULL,
+                reviewer_id INT NOT NULL,
+                action      VARCHAR(50)  NOT NULL,
+                notes       TEXT,
+                created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,
+                FOREIGN KEY (reviewer_id) REFERENCES team(id) ON DELETE CASCADE
+            )
+        """)
+        conn.commit()
+
         # Migrate 'Sales Rep' role → 'Branch Account'
         cursor.execute("UPDATE team SET role = 'Branch Account' WHERE role = 'Sales Rep'")
         conn.commit()
@@ -687,11 +712,14 @@ def get_customers():
                 )
                 params.extend([user_id, user_branch])
 
+        # Exclude pending/rejected customers from the main list
+        where_clauses.append("(l.approval_status = 'approved' OR l.approval_status IS NULL)")
+
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
 
         query += " ORDER BY c.name"
-        
+
         cursor.execute(query, tuple(params))
         return jsonify(rows_to_list(cursor))
     finally:
@@ -861,6 +889,199 @@ def acknowledge_customer(customer_id):
         )
         conn.commit()
         return jsonify({'success': True})
+    finally:
+        close_connection(conn)
+
+
+# ─── Customer Approval Workflow ───────────────────────────────────────────────
+
+@app.route('/api/customers/pending', methods=['GET'])
+@jwt_required()
+def get_pending_customers():
+    """Return pending-approval customers scoped to the caller's role."""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        claims = get_jwt()
+        user_id = get_jwt_identity()
+        branch = request.args.get('branch', '')
+        region = request.args.get('region', '')
+
+        scope_parts, restrict_owner, scope_params = build_scope(claims, branch, requested_region=region)
+        where_clauses = ["l.approval_status = 'pending'"] + list(scope_parts)
+        params = list(scope_params)
+        if restrict_owner:
+            user_branch = normalize_branch(claims.get('branch', ''))
+            where_clauses.append(
+                "(l.owner_id = %s OR (l.owner_id IS NULL AND LOWER(TRIM(l.branch)) = %s))"
+            )
+            params.extend([user_id, user_branch])
+
+        query = """
+            SELECT
+                l.id, l.customer_name AS customerName, l.branch, l.region,
+                l.address, l.contact_num AS contactNum, l.created_at AS createdAt,
+                l.approval_status AS approvalStatus,
+                COALESCE(t_lead.name, l.owner_name, t.name) AS sr,
+                t_lead.id AS ownerId
+            FROM leads l
+            LEFT JOIN companies c ON c.id = l.id
+            LEFT JOIN team t ON c.owner_id = t.id
+            LEFT JOIN team t_lead ON l.owner_id = t_lead.id
+            WHERE {where}
+            ORDER BY l.created_at DESC
+        """.format(where=" AND ".join(where_clauses))
+
+        cursor.execute(query, tuple(params))
+        leads = rows_to_list(cursor)
+
+        # Attach endorsements for each lead
+        if leads:
+            lead_ids = [l['id'] for l in leads]
+            ph = ', '.join(['%s'] * len(lead_ids))
+            cursor.execute(f"""
+                SELECT ca.lead_id, ca.action, ca.notes, ca.created_at,
+                       t.name AS reviewerName, t.role AS reviewerRole
+                FROM customer_approvals ca
+                JOIN team t ON ca.reviewer_id = t.id
+                WHERE ca.lead_id IN ({ph})
+                ORDER BY ca.created_at ASC
+            """, tuple(lead_ids))
+            endorsements = cursor.fetchall()
+            cols = [d[0] for d in cursor.description]
+            from collections import defaultdict
+            emap = defaultdict(list)
+            for row in endorsements:
+                e = dict(zip(cols, row))
+                e['createdAt'] = to_pht(e.get('createdAt'))
+                emap[e['lead_id']].append(e)
+            for lead in leads:
+                lead['endorsements'] = emap.get(lead['id'], [])
+                lead['createdAt'] = to_pht(lead.get('createdAt'))
+
+        return jsonify(leads)
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/customers/<customer_id>/endorse', methods=['POST'])
+@jwt_required()
+def endorse_customer(customer_id):
+    """RSM or HOS endorses a pending customer (does not change approval_status)."""
+    claims = get_jwt()
+    user_id = get_jwt_identity()
+    user_role = claims.get('role', '')
+    if ROLE_RANK.get(user_role, 0) <= 40 or user_role == 'Admin':
+        return jsonify({'error': 'Only RSM or HOS can endorse customers.'}), 403
+
+    data = request.get_json() or {}
+    action = data.get('action', '')
+    if action not in ('endorsed', 'flagged'):
+        return jsonify({'error': 'action must be "endorsed" or "flagged"'}), 400
+    notes = (data.get('notes') or '').strip()
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT approval_status FROM leads WHERE id = %s", (customer_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Customer not found'}), 404
+        if row[0] != 'pending':
+            return jsonify({'error': 'Customer is no longer pending'}), 409
+
+        # Remove any prior endorsement from this reviewer (upsert via delete+insert)
+        cursor.execute(
+            "DELETE FROM customer_approvals WHERE lead_id = %s AND reviewer_id = %s",
+            (customer_id, user_id)
+        )
+        cursor.execute(
+            "INSERT INTO customer_approvals (lead_id, reviewer_id, action, notes) VALUES (%s, %s, %s, %s)",
+            (customer_id, user_id, action, notes or None)
+        )
+        log_audit(conn, 'lead', customer_id, f'endorsement_{action}', None, notes or None, user_id)
+        conn.commit()
+        return jsonify({'success': True, 'action': action})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/customers/<customer_id>/approve', methods=['POST'])
+@jwt_required()
+def approve_customer(customer_id):
+    """Admin approves a pending customer — makes it visible in the customer DB."""
+    claims = get_jwt()
+    user_id = get_jwt_identity()
+    if claims.get('role') != 'Admin':
+        return jsonify({'error': 'Admin only'}), 403
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT approval_status, customer_name FROM leads WHERE id = %s", (customer_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Customer not found'}), 404
+        if row[0] not in ('pending', 'rejected'):
+            return jsonify({'error': 'Customer is already approved'}), 409
+
+        cursor.execute(
+            "UPDATE leads SET approval_status = 'approved' WHERE id = %s",
+            (customer_id,)
+        )
+        log_audit(conn, 'lead', customer_id, 'approved', row[0], 'approved', user_id)
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/customers/<customer_id>/reject', methods=['POST'])
+@jwt_required()
+def reject_customer(customer_id):
+    """Admin rejects a pending customer."""
+    claims = get_jwt()
+    user_id = get_jwt_identity()
+    if claims.get('role') != 'Admin':
+        return jsonify({'error': 'Admin only'}), 403
+
+    data = request.get_json() or {}
+    reason = (data.get('reason') or '').strip()
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT approval_status FROM leads WHERE id = %s", (customer_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Customer not found'}), 404
+        if row[0] not in ('pending', 'approved'):
+            return jsonify({'error': 'Customer is already rejected'}), 409
+
+        cursor.execute(
+            "UPDATE leads SET approval_status = 'rejected' WHERE id = %s",
+            (customer_id,)
+        )
+        log_audit(conn, 'lead', customer_id, 'rejected', row[0], reason or 'rejected', user_id)
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 
@@ -1380,6 +1601,14 @@ def create_lead():
         contact_name = data.get('contactName') or customer_name
         email = data.get('email')
 
+        # Duplicate check: reject if a customer with the same name already exists (any branch)
+        cursor.execute(
+            "SELECT id FROM leads WHERE LOWER(TRIM(customer_name)) = %s LIMIT 1",
+            (customer_name.strip().lower(),)
+        )
+        if cursor.fetchone():
+            return jsonify({'error': f'A customer named "{customer_name}" already exists.'}), 409
+
         # Validation: Ensure owner_id belongs to the correct branch/region
         if owner_id:
             cursor.execute('SELECT branch, region, role FROM team WHERE id = %s', (owner_id,))
@@ -1404,10 +1633,16 @@ def create_lead():
                 elif normalize_branch(team_row[0]) != normalize_branch(branch):
                     return jsonify({'error': f'Owner branch ({team_row[0]}) mismatch with lead branch ({branch})'}), 400
         
+        # Determine approval status: SR/Branch Account submissions go pending; managers skip approval
+        _caller_claims = get_jwt()
+        _caller_role = _caller_claims.get('role', '')
+        _low_rank_roles = ('Sales Representative', 'Branch Account', 'Sales Rep')
+        approval_status = 'pending' if _caller_role in _low_rank_roles else 'approved'
+
         # 1. Insert into leads (Master record matching GSheets)
         cursor.execute(
-            """INSERT INTO leads (id, customer_name, contact_num, address, region, owner_id, branch, status, created_at)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            """INSERT INTO leads (id, customer_name, contact_num, address, region, owner_id, branch, status, created_at, approval_status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 lead_id,
                 customer_name,
@@ -1418,6 +1653,7 @@ def create_lead():
                 branch,
                 data.get('status', 'New'),
                 data.get('createdAt') or date.today(),
+                approval_status,
             ),
         )
         
