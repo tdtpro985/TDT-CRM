@@ -214,8 +214,10 @@ export default function App() {
   // ─── Actions Wrapper ─────────────────────────────────────────────────────────
 
   const handleCreateLead = async (form) => {
-    const newLead = await actions.createLead(form);
-    setSelectedLeadId(newLead.id)
+    const result = await actions.createLead(form);
+    if (result?.error) return result
+    setSelectedLeadId(result.lead.id)
+    return result
   }
 
   const handleCreateTask = async (form) => {
@@ -361,6 +363,7 @@ export default function App() {
             currentUser={currentUser}
             searchQuery={searchQuery}
             onReassignLead={actions.reassignLead}
+            endorseCustomer={actions.endorseCustomer}
           />
         } />
         <Route path="/pipeline" element={
@@ -760,8 +763,9 @@ export default function App() {
           currentUser={currentUser}
           contacts={contacts}
           onCancel={() => setShowLeadForm(false)}
-          onSubmit={(form) => {
-            handleCreateLead(form)
+          onSubmit={async (form) => {
+            const result = await handleCreateLead(form)
+            if (result?.error) return result
             setShowLeadForm(false)
           }}
         />

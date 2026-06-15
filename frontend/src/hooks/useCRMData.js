@@ -362,7 +362,15 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         method: 'POST',
         body: JSON.stringify(newLead),
       })
-      if (!res.ok) throw new Error('Network error')
+      if (!res.ok) {
+        // Backend rejected (e.g. 409 duplicate) — roll back the optimistic insert and surface the error
+        const data = await res.json().catch(() => ({}))
+        const error = data.error || 'Could not save customer.'
+        setLeads((current) => current.filter((l) => l.id !== newLead.id))
+        setNotice(error)
+        showToast(error)
+        return { error }
+      }
       setNotice(`${newLead.customerName} was saved to the database.`)
       showToast(`Customer "${newLead.customerName}" saved successfully!`)
       fetchLeads();
@@ -370,7 +378,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     } catch {
       setNotice(`${newLead.customerName} was added locally — backend not reachable.`)
     }
-    return newLead
+    return { lead: newLead }
   }
 
   async function createContact(contactForm) {
@@ -950,6 +958,18 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
+  async function endorseCustomer(customerId, action, notes) {
+    const res = await apiFetch(`/api/customers/${customerId}/endorse`, {
+      method: 'POST',
+      body: JSON.stringify({ action, notes }),
+    })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      return { error: data.error || 'Failed to submit review.' }
+    }
+    return { ok: true }
+  }
+
   async function savePhotoAdjustment(zoom, offsetY, offsetX, rotation, profilePic) {
     try {
       await adjustProfilePhoto(zoom, offsetY, offsetX, rotation, profilePic)
@@ -995,6 +1015,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       updateProfilePhoto,
       deleteProfilePhoto,
       savePhotoAdjustment,
+      endorseCustomer,
     }
   }
 }
