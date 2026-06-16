@@ -78,9 +78,12 @@ export default function AdminPortal() {
   useEffect(() => {
     if (!adminUser) return
     apiFetch('/api/customers/pending')
-      .then(r => r.json())
-      .then(d => setAdminPendingCount(Array.isArray(d) ? d.length : 0))
-      .catch(() => {})
+      .then(r => r.json().then(d => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!ok) { console.error('Admin pending count error:', d); return }
+        setAdminPendingCount(Array.isArray(d) ? d.length : 0)
+      })
+      .catch((err) => console.error('Admin pending count failed:', err))
   }, [adminUser])
 
   if (!adminUser) {

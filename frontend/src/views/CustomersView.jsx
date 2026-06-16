@@ -100,9 +100,13 @@ export default function CustomersView({
     let isCurrent = true
     setPendingLoading(true)
     apiFetch('/api/customers/pending')
-      .then(r => r.json())
-      .then(d => { if (isCurrent) setPendingCustomers(Array.isArray(d) ? d : []) })
-      .catch(() => { if (isCurrent) setPendingCustomers([]) })
+      .then(r => r.json().then(d => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!isCurrent) return
+        if (!ok) { console.error('Pending customers fetch error:', d?.error || JSON.stringify(d)); setPendingCustomers([]); return }
+        setPendingCustomers(Array.isArray(d) ? d : [])
+      })
+      .catch((err) => { if (isCurrent) { console.error('Pending customers fetch failed:', err); setPendingCustomers([]) } })
       .finally(() => { if (isCurrent) setPendingLoading(false) })
     return () => { isCurrent = false }
   }, [statusFilter])
@@ -945,6 +949,7 @@ export default function CustomersView({
             const result = await onCreateCustomer(form)
             if (result?.error) return result
             setShowCustomerForm(false)
+            if (isSr) setStatusFilter('pending')
           }}
         />
       </Modal>
