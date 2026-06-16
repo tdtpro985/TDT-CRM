@@ -4,14 +4,14 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, formatDateTimePHT, formatRelativeDays, getToneClass, getTodayISO, getCurrentMonthISO, matchesSearch, isSrRole, roleAbbr } from '../utils'
-import { ITEMS_PER_PAGE, LOST_REASONS, STAGE_COLORS, HEALTH_MAP, DEAL_STAGES } from '../constants'
+import { LOST_REASONS, STAGE_COLORS, HEALTH_MAP, DEAL_STAGES } from '../constants'
 import { apiFetch } from '../api'
-import Pagination from '../components/Pagination'
 
 import { IconPhone, IconCheck, IconCalendar, IconMail, IconClipboard } from '../components/Icons'
 
 const CURRENT_MONTH = getCurrentMonthISO()
 const TODAY = getTodayISO()
+const STAGE_CARD_LIMIT = 5
 
 const STAGE_TONES = {
   'Qualified':       'is-stage-qualified',
@@ -56,7 +56,7 @@ export default function PipelineView({
   searchQuery,
 }) {
   const [stageFilter, setStageFilter] = useState('all')
-  const [currentPage, setCurrentPage] = useState(1)
+  const [stageExpanded, setStageExpanded] = useState({})
   const isSr = isSrRole(currentUser?.role)
 
   const companyMap = useMemo(() => {
@@ -65,13 +65,6 @@ export default function PipelineView({
     return map
   }, [companies, leads])
   const contactMap = useMemo(() => Object.fromEntries((contacts  ?? []).map((c) => [c.id, c])), [contacts])
-
-  // Reset page on search change (adjusting state during render)
-  const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
-  if (searchQuery !== prevSearchQuery) {
-    setPrevSearchQuery(searchQuery)
-    setCurrentPage(1)
-  }
 
   const filteredDeals = useMemo(() => deals.filter(
     (d) =>
@@ -91,8 +84,7 @@ export default function PipelineView({
   const [lostReason, setLostReason] = useState(LOST_REASONS[0])
   const [lostNotes, setLostNotes] = useState('')
 
-  // Show/hide closed stages
-  const [showClosed, setShowClosed] = useState(false)
+
 
   // SR filter (HoS/Admin only, requires a specific branch to be selected)
   const [srFilter, setSrFilter] = useState('')
@@ -111,6 +103,17 @@ export default function PipelineView({
   // Audit logs
   const [auditLogs, setAuditLogs] = useState([])
   const [changeHistoryExpanded, setChangeHistoryExpanded] = useState(false)
+  const [changeHistoryFilter, setChangeHistoryFilter] = useState('')
+
+  const changeHistoryActions = useMemo(() => {
+    const actions = new Set(auditLogs.map(l => l.action).filter(Boolean))
+    return ['', ...Array.from(actions).sort()]
+  }, [auditLogs])
+
+  const filteredAuditLogs = useMemo(() => {
+    if (!changeHistoryFilter) return auditLogs
+    return auditLogs.filter(l => l.action === changeHistoryFilter)
+  }, [auditLogs, changeHistoryFilter])
 
   const isUpdatingRef = useRef(false)
   const lostPromptRef = useRef(null)
@@ -155,9 +158,7 @@ export default function PipelineView({
     ((currentUser?.role === 'Head of Sales' || currentUser?.role === 'Regional Sales Manager') && !ownerIsManager)
   )
 
-  const visibleStages = showClosed
-    ? dealStages
-    : dealStages.filter((s) => s !== 'Closed Won' && s !== 'Closed Lost')
+  const visibleStages = dealStages
 
   useEffect(() => {
     if (location.state?.openDealId) {
@@ -232,16 +233,6 @@ export default function PipelineView({
   const srFilteredDeals = (canFilterBySR && srFilter)
     ? filteredDeals.filter((d) => String(d.ownerId) === String(srFilter))
     : filteredDeals
-
-  const totalPages = Math.ceil(srFilteredDeals.length / ITEMS_PER_PAGE)
-
-  const getPaginatedData = (data, page, limit) => {
-    const pageNum = page === '' || isNaN(page) ? 1 : parseInt(page, 10)
-    const start = (pageNum - 1) * limit
-    return data.slice(start, start + limit)
-  }
-
-  const paginatedDeals = useMemo(() => getPaginatedData(srFilteredDeals, currentPage, ITEMS_PER_PAGE), [srFilteredDeals, currentPage])
 
   const closingThisMonth = activeDeals.filter((d) => d.expectedClose?.startsWith(CURRENT_MONTH)).length
 
@@ -352,7 +343,6 @@ export default function PipelineView({
                   value={stageFilter}
                   onChange={(e) => {
                     setStageFilter(e.target.value)
-                    setCurrentPage(1)
                     setNotice('Pipeline filter updated for the current opportunity view.')
                   }}
                 >
@@ -365,7 +355,7 @@ export default function PipelineView({
                   <span>SR Accounts</span>
                   <select
                     value={srFilter}
-                    onChange={(e) => { setSrFilter(e.target.value); setCurrentPage(1) }}
+                    onChange={(e) => { setSrFilter(e.target.value) }}
                   >
                     <option value="">All reps</option>
                     {srOptions.map((m) => {
@@ -375,20 +365,14 @@ export default function PipelineView({
                   </select>
                 </label>
               )}
-                <button
-                  type="button"
-                  className="secondary-button is-compact"
-                  onClick={() => setShowClosed((v) => !v)}
-                >
-                  {showClosed ? 'Hide Closed' : 'Show Closed'}
-                </button>
+
             </div>
           }
         >
           <div className="pipeline-board-wrapper">
             <div className="pipeline-board">
               {visibleStages.map((stage) => {
-                const stageDeals = paginatedDeals
+                const stageDeals = srFilteredDeals
                   .filter((d) => d.stage === stage)
                   .sort((a, b) => {
                     const urgencyDiff = (b.urgencyScore ?? 0) - (a.urgencyScore ?? 0)
@@ -396,6 +380,8 @@ export default function PipelineView({
                     return (b.lastTouch ?? '').localeCompare(a.lastTouch ?? '')
                   })
                 const stageValue = stageDeals.reduce((sum, d) => sum + d.value, 0)
+                const isExpanded = !!stageExpanded[stage]
+                const visibleCards = isExpanded ? stageDeals : stageDeals.slice(0, STAGE_CARD_LIMIT)
 
                 return (
                   <article key={stage} className="pipeline-lane">
@@ -407,13 +393,13 @@ export default function PipelineView({
                       <span className="u-fs-xs u-text-muted u-font-700">{formatCurrencyCompact(stageValue)}</span>
                     </div>
 
-                    <div className="pipeline-lane__cards">
+                    <div className={`pipeline-lane__cards${isExpanded ? ' pipeline-lane__cards--scrollable' : ''}`}>
                       {stageDeals.length === 0 ? (
                         <div className="pipeline-card pipeline-card--empty">
                           No deals in this stage for the current filter.
                         </div>
                       ) : (
-                        stageDeals.map((deal) => (
+                        visibleCards.map((deal) => (
                           <article
                             key={deal.id}
                             className={`pipeline-card ${getStageTone(deal.stage)}${deal.urgencyLabel === 'Overdue' ? ' is-health-critical' : ''}${deal.urgencyLabel === 'High Priority' ? ' is-health-at-risk' : ''}${deal.urgencyLabel === 'Due Today' ? ' is-health-healthy' : ''}`}
@@ -461,14 +447,25 @@ export default function PipelineView({
                         ))
                       )}
                     </div>
+
+                    {stageDeals.length > STAGE_CARD_LIMIT && (
+                      <div
+                        className="collapse-bar"
+                        onClick={() => setStageExpanded(prev => ({ ...prev, [stage]: !prev[stage] }))}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                          style={{ transform: `rotate(${isExpanded ? 180 : 0}deg)`, transition: 'transform 0.2s' }}
+                        >
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                        <span>{isExpanded ? 'Show less' : `Show all ${stageDeals.length} deals`}</span>
+                      </div>
+                    )}
                   </article>
                 )
               })}
             </div>
           </div>
-
-          {/* Global Pagination */}
-          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
         </Panel>
 
         {/* Stage Totals Summary */}
@@ -653,16 +650,22 @@ export default function PipelineView({
                         <div className="deal-modal__contact-header">
                           <span className="deal-modal__contact-name">{c.name}</span>
                           {(c.phone || c.email) && (
-                             <div className="deal-modal__contact-details u-margin-l-auto">
-                               {c.phone && <span title="Phone"><IconPhone /> {c.phone}</span>}
-                               {c.email && <span title="Email">
-                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                   <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                                   <polyline points="22,6 12,13 2,6"/>
-                                 </svg>
-                                 {c.email}
-                               </span>}
-                             </div>
+                            <div className="deal-modal__contact-details u-ml-auto">
+                              {c.phone && (
+                                <a href={`tel:${c.phone}`} className="deal-modal__contact-link" title="Call">
+                                  <IconPhone /> {c.phone}
+                                </a>
+                              )}
+                              {c.email && (
+                                <a href={`mailto:${c.email}`} className="deal-modal__contact-link" title="Email">
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                    <polyline points="22,6 12,13 2,6"/>
+                                  </svg>
+                                  {c.email}
+                                </a>
+                              )}
+                            </div>
                           )}
                         </div>
                         {c.role && <div className="deal-modal__contact-sub">{c.role}</div>}
@@ -746,11 +749,8 @@ export default function PipelineView({
                           <div className="timeline-dot timeline-dot--accent"></div>
                           <div className="timeline-content">
                             <div className="timeline-header">
-                              <span className="timeline-time">{formatDateTimePHT(task.created_at)}</span>
+                              <div />
                               <div className="u-flex-center-gap-4">
-                                {task.dueDate && task.status !== 'Completed' && (
-                                  <span className="timeline-due u-fs-2xs u-text-muted u-margin-r-4">Due: {formatDateTimePHT(task.dueDate)}</span>
-                                )}
                                 <span className="timeline-badge is-activity u-flex-center-gap-sm">
                                   {getTaskTypeIcon(task.type)} {task.type}
                                 </span>
@@ -782,6 +782,9 @@ export default function PipelineView({
                               >
                                 {task.status === 'Completed' ? 'Reopen' : 'Complete'}
                               </button>
+                              {task.dueDate && task.status !== 'Completed' && (
+                                <span className="u-ml-auto u-fs-2xs u-text-muted">Due: {formatDateTimePHT(task.dueDate)}</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -791,46 +794,63 @@ export default function PipelineView({
               </div>
 
               {/* 5. Change History */}
-              <div className="deal-modal__history">
-                <h3 className="deal-modal__subheading">Change History</h3>
-                <div className={`timeline${changeHistoryExpanded ? ' timeline--expanded' : ''}`}>
-                  {auditLogs.length === 0 ? (
-                    <div className="deal-modal__empty-history">No activity logs found for this deal.</div>
-                  ) : (
-                    (changeHistoryExpanded ? auditLogs : auditLogs.slice(0, 5)).map((log) => (
-                      <div key={log.id} className="timeline-item">
-                        <div className="timeline-dot"></div>
-                        <div className="timeline-content">
-                          <div className="timeline-header">
-                            <span className="timeline-time">{formatDateTimePHT(log.changedAt)}</span>
-                            <span className="timeline-badge u-fs-10">{log.action}</span>
-                          </div>
-                          <div className="timeline-body">
-                            <p><strong>{log.changedBy}</strong> {log.action || 'updated deal'}</p>
-                            {(log.oldValue || log.newValue) && (
-                              <div className="u-fs-xs u-text-muted u-margin-t-4">
-                                <span className="u-text-warning">{String(log.oldValue || 'none')}</span>
-                                <span className="u-margin-h-8">→</span>
-                                <span className="u-text-accent">{String(log.newValue || 'none')}</span>
-                              </div>
-                            )}
+              {!isSr && (
+                <div className="deal-modal__history">
+                  <div className="u-flex-between u-flex-center u-margin-b-12">
+                    <h3 className="deal-modal__subheading u-margin-0">Change History</h3>
+                    {changeHistoryActions.length > 1 && (
+                      <div className="filter-wrap">
+                        <select
+                          value={changeHistoryFilter}
+                          onChange={e => setChangeHistoryFilter(e.target.value)}
+                        >
+                          <option value="">All actions</option>
+                          {changeHistoryActions.filter(Boolean).map(a => (
+                            <option key={a} value={a}>{a}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  <div className={`timeline${changeHistoryExpanded ? ' timeline--expanded' : ''}`}>
+                    {filteredAuditLogs.length === 0 ? (
+                      <div className="deal-modal__empty-history">No activity logs found for this deal.</div>
+                    ) : (
+                      (changeHistoryExpanded ? filteredAuditLogs : filteredAuditLogs.slice(0, 5)).map((log) => (
+                        <div key={log.id} className="timeline-item">
+                          <div className="timeline-dot"></div>
+                          <div className="timeline-content">
+                            <div className="timeline-header">
+                              <span className="timeline-time">{formatDateTimePHT(log.changedAt)}</span>
+                              <span className="timeline-badge u-fs-10">{log.action}</span>
+                            </div>
+                            <div className="timeline-body">
+                              <p><strong>{log.changedBy}</strong> {log.action || 'updated deal'}</p>
+                              {(log.oldValue || log.newValue) && (
+                                <div className="u-fs-xs u-text-muted u-margin-t-4">
+                                  <span className="u-text-warning">{String(log.oldValue || 'none')}</span>
+                                  <span className="u-margin-h-8">→</span>
+                                  <span className="u-text-accent">{String(log.newValue || 'none')}</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))
+                      ))
+                    )}
+                  </div>
+                  {filteredAuditLogs.length > 5 && (
+                    <div className="collapse-bar" onClick={() => setChangeHistoryExpanded(e => !e)}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
+                        style={{ transform: `rotate(${changeHistoryExpanded ? 180 : 0}deg)`, transition: 'transform 0.2s' }}
+                      >
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                      <span>{changeHistoryExpanded ? 'Show less' : `Show all ${filteredAuditLogs.length} entries`}</span>
+                    </div>
                   )}
                 </div>
-                {auditLogs.length > 5 && (
-                  <div className="collapse-bar" onClick={() => setChangeHistoryExpanded(e => !e)}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-                      style={{ transform: `rotate(${changeHistoryExpanded ? 180 : 0}deg)`, transition: 'transform 0.2s' }}
-                    >
-                      <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                    <span>{changeHistoryExpanded ? 'Show less' : `Show all ${auditLogs.length} entries`}</span>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
             {/* Footer: Save / Cancel or Stage Updater */}

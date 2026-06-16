@@ -217,7 +217,7 @@
   flex-direction: row;
   flex-wrap: nowrap;
   gap: 16px;
-  align-items: stretch;
+  align-items: flex-start;
   justify-content: flex-start;
   width: 100%;
 }
@@ -234,8 +234,8 @@
   position: relative;
   overflow: hidden;
   transition: border-color 0.2s ease;
-  flex: 0 0 280px;
-  width: 280px;
+  flex: 1 1 0;
+  min-width: 140px;
   max-width: 100%;
 }
 
@@ -246,13 +246,6 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
-@media (max-width: 1100px) {
-  .kanban-column,
-  .pipeline-lane {
-    flex-basis: 240px;
-    width: 240px;
-  }
-}
 
 @media (max-width: 768px) {
   .pipeline-board,
@@ -398,6 +391,25 @@
   overflow: visible;
   width: 100%;
   min-width: 0;
+}
+
+.pipeline-lane__cards--scrollable {
+  max-height: 740px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) transparent;
+}
+
+.pipeline-lane__cards--scrollable > .pipeline-card {
+  flex-shrink: 0;
+}
+
+.pipeline-lane__cards--scrollable::-webkit-scrollbar { width: 4px; }
+.pipeline-lane__cards--scrollable::-webkit-scrollbar-track { background: transparent; }
+.pipeline-lane__cards--scrollable::-webkit-scrollbar-thumb {
+  background-color: var(--accent);
+  border-radius: var(--r-full);
 }
 
 .pipeline-card {
@@ -3131,23 +3143,32 @@
 }
 
 .deal-modal__contact-details {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: var(--fs-xs);
-  color: var(--text-muted);
-}
-
-.deal-modal__contact-details span {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  will-change: transform;
-  text-transform: none;
+  gap: 12px;
+}
+
+.deal-modal__contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.deal-modal__contact-link:hover {
+  color: var(--accent-strong);
+  text-decoration: underline;
 }
 
 .deal-modal__contact-details svg {
-  opacity: 0.7;
+  opacity: 0.85;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
 }
 
 [data-theme="light"] .deal-modal__contact-details {

@@ -58,7 +58,7 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, currentUser,
     }
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     const newErrors = {}
     if (!leadForm.customerName.trim()) newErrors.customerName = 'Customer name is required'
@@ -72,7 +72,8 @@ export default function LeadForm({ onSubmit, onCancel, teamMembers, currentUser,
       setErrors(newErrors)
       return
     }
-    onSubmit(leadForm)
+    const result = await onSubmit(leadForm)
+    if (result?.error) setErrors({ customerName: result.error })
   }
 
   return (
