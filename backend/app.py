@@ -1069,7 +1069,7 @@ def approve_customer(customer_id):
             return jsonify({'error': 'Customer is already approved'}), 409
 
         cursor.execute(
-            "UPDATE leads SET approval_status = 'approved' WHERE id = %s",
+            "UPDATE leads SET approval_status = 'approved', reassigned_at = CURRENT_DATE WHERE id = %s",
             (customer_id,)
         )
         log_audit(conn, 'lead', customer_id, 'approved', row[0], 'approved', user_id)
@@ -1113,6 +1113,46 @@ def reject_customer(customer_id):
         log_audit(conn, 'lead', customer_id, 'rejected', row[0], reason or 'rejected', user_id)
         conn.commit()
         return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/customers/<customer_id>', methods=['DELETE'])
+@jwt_required()
+def admin_delete_customer(customer_id):
+    """Admin permanently deletes a customer and all related data."""
+    claims = get_jwt()
+    user_id = get_jwt_identity()
+    if claims.get('role') != 'Admin':
+        return jsonify({'error': 'Admin only'}), 403
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT customer_name FROM leads WHERE id = %s", (customer_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Customer not found'}), 404
+        customer_name = row[0]
+
+        # Cascade manually (most FKs are ON DELETE SET NULL, not CASCADE)
+        cursor.execute(
+            "DELETE FROM activities WHERE deal_id IN (SELECT id FROM deals WHERE company_id = %s)",
+            (customer_id,)
+        )
+        cursor.execute("DELETE FROM deals WHERE company_id = %s", (customer_id,))
+        cursor.execute("DELETE FROM contacts WHERE company_id = %s", (customer_id,))
+        cursor.execute("DELETE FROM companies WHERE id = %s", (customer_id,))
+        cursor.execute("DELETE FROM leads WHERE id = %s", (customer_id,))  # cascades customer_approvals
+
+        log_audit(conn, 'lead', customer_id, 'deleted', customer_name, None, user_id)
+        conn.commit()
+        return jsonify({'success': True, 'deleted': customer_name})
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 500
