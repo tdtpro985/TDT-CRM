@@ -42,7 +42,8 @@ export default function CustomersView({
   setNotice,
   currentUser,
   searchQuery,
-  onReassignLead
+  onReassignLead,
+  endorseCustomer
 }) {
   const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState('all')
@@ -83,6 +84,53 @@ export default function CustomersView({
   const [assignOwnerId, setAssignOwnerId] = useState('')
   const [assignProcessing, setAssignProcessing] = useState(false)
   const isManager = !isSr && currentUser?.role !== 'Branch Account'
+  const isRsmOrHos = currentUser?.role === 'Regional Sales Manager' || currentUser?.role === 'Head of Sales'
+
+  // ─── Pending Approval tab ──────────────────────────────────────────────────
+  const [pendingCustomers, setPendingCustomers] = useState([])
+  const [pendingLoading, setPendingLoading] = useState(false)
+  const [reviewTarget, setReviewTarget] = useState(null)      // customer being reviewed
+  const [reviewAction, setReviewAction] = useState('endorsed')
+  const [reviewNotes, setReviewNotes] = useState('')
+  const [reviewSubmitting, setReviewSubmitting] = useState(false)
+  const [reviewError, setReviewError] = useState('')
+
+  useEffect(() => {
+    if (statusFilter !== 'pending') return
+    let isCurrent = true
+    setPendingLoading(true)
+    apiFetch('/api/customers/pending')
+      .then(r => r.json().then(d => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (!isCurrent) return
+        if (!ok) { console.error('Pending customers fetch error:', d?.error || JSON.stringify(d)); setPendingCustomers([]); return }
+        setPendingCustomers(Array.isArray(d) ? d : [])
+      })
+      .catch((err) => { if (isCurrent) { console.error('Pending customers fetch failed:', err); setPendingCustomers([]) } })
+      .finally(() => { if (isCurrent) setPendingLoading(false) })
+    return () => { isCurrent = false }
+  }, [statusFilter])
+
+  async function handleReviewSubmit(endorseCustomer) {
+    if (!reviewTarget) return
+    setReviewSubmitting(true)
+    setReviewError('')
+    const result = await endorseCustomer(reviewTarget.id, reviewAction, reviewNotes)
+    setReviewSubmitting(false)
+    if (result?.error) {
+      setReviewError(result.error)
+      return
+    }
+    setReviewTarget(null)
+    setReviewNotes('')
+    setReviewAction('endorsed')
+    // Re-fetch pending list
+    apiFetch('/api/customers/pending')
+      .then(r => r.json())
+      .then(d => setPendingCustomers(Array.isArray(d) ? d : []))
+      .catch(() => {})
+    setNotice?.('Review submitted.')
+  }
 
   // Reset page on search change (adjusting state during render)
   const [prevSearchQuery, setPrevSearchQuery] = useState(searchQuery)
@@ -328,6 +376,7 @@ export default function CustomersView({
                   }}
                 >
                   <option value="all">All</option>
+                  <option value="pending">Pending</option>
                   {!isSr && <option value="mine">{currentUser?.name} ({roleAbbr(currentUser?.role)})</option>}
                   <option value="Newly Assigned">🆕 Newly Assigned</option>
                   {isManager && <option value="Unassigned">Unassigned</option>}
@@ -338,7 +387,62 @@ export default function CustomersView({
           }
         >
           <div className="customer-registry-body">
-            {filteredCustomers.length === 0
+            {statusFilter === 'pending' ? (
+              pendingLoading
+                ? <EmptyState title="Loading pending customers…" copy="" />
+                : pendingCustomers.length === 0
+                  ? <EmptyState title="No pending customers" copy="All submitted customers have been reviewed." />
+                  : (
+                    <div className="contact-list customer-registry-list">
+                      {pendingCustomers.map((c) => {
+                        const myEndorsement = c.endorsements?.find(e => e.reviewerName === currentUser?.name)
+                        return (
+                          <div
+                            key={c.id}
+                            className="contact-card"
+                            onDoubleClick={() => {
+                              if (isRsmOrHos) {
+                                setReviewTarget(c)
+                                setReviewAction(myEndorsement?.action || 'endorsed')
+                                setReviewNotes(myEndorsement?.notes || '')
+                                setReviewError('')
+                              }
+                            }}
+                            title={isRsmOrHos ? 'Double-click to review' : ''}
+                            style={isRsmOrHos ? { cursor: 'pointer' } : {}}
+                          >
+                            <div>
+                              <strong className="u-fs-md u-text-strong u-block u-flex-center-gap-4">
+                                {c.customerName}
+                                <span className="admin-role-pill u-fs-10" style={{ background: 'var(--color-warning, #f59e0b)', color: '#000' }}>Pending</span>
+                              </strong>
+                              <div className="u-fs-xs u-text-muted u-margin-t-4 u-flex-center-gap-4">
+                                <span>{c.branch}</span>
+                                <IconDot />
+                                <span>{c.sr || 'Unassigned'}</span>
+                              </div>
+                              {c.endorsements?.length > 0 && (
+                                <div className="u-fs-xs u-margin-t-4 u-flex-center-gap-4" style={{ color: 'var(--color-success, #22c55e)' }}>
+                                  {c.endorsements.map((e, i) => (
+                                    <span key={i}>
+                                      {e.action === 'endorsed' ? '✓' : '⚑'} {e.reviewerName} ({e.reviewerRole === 'Regional Sales Manager' ? 'RSM' : 'HOS'})
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {isRsmOrHos && myEndorsement && (
+                                <div className="u-fs-xs u-margin-t-2" style={{ color: 'var(--color-muted)' }}>
+                                  Your review: <em>{myEndorsement.action === 'endorsed' ? 'Looks Good' : 'Flagged'}</em>
+                                  {myEndorsement.notes && ` — "${myEndorsement.notes}"`}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+            ) : filteredCustomers.length === 0
               ? <EmptyState title="No customers match this filter" copy="Try adjusting your status filter." />
               : (
                 <>
@@ -446,7 +550,7 @@ export default function CustomersView({
                   </div>
                   <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
                 </>
-                )}
+              )}
           </div>
         </Panel>
 
@@ -841,9 +945,11 @@ export default function CustomersView({
           currentUser = {currentUser}
           contacts = {contacts}
           onCancel = {() => setShowCustomerForm(false)}
-          onSubmit = {(form) =>{
-            onCreateCustomer(form)
+          onSubmit = {async (form) =>{
+            const result = await onCreateCustomer(form)
+            if (result?.error) return result
             setShowCustomerForm(false)
+            if (isSr) setStatusFilter('pending')
           }}
         />
       </Modal>
@@ -1163,6 +1269,98 @@ export default function CustomersView({
                 Open in Pipeline →
               </button>
               <button type="button" className="secondary-button" onClick={() => setDealSummary(null)}>Close</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* RSM/HOS Review Modal */}
+      {reviewTarget && (
+        <Modal
+          isOpen={!!reviewTarget}
+          onClose={() => { setReviewTarget(null); setReviewError('') }}
+          title={reviewTarget.customerName}
+          kicker="Review Pending Customer"
+        >
+          <div className="form-body">
+            <div className="u-margin-b-16">
+              <p className="u-fs-sm u-text-muted u-margin-b-4">Branch: <strong>{reviewTarget.branch}</strong></p>
+              <p className="u-fs-sm u-text-muted u-margin-b-4">SR: <strong>{reviewTarget.sr || '—'}</strong></p>
+              {reviewTarget.address && <p className="u-fs-sm u-text-muted u-margin-b-4">Address: <strong>{reviewTarget.address}</strong></p>}
+              {reviewTarget.contactNum && <p className="u-fs-sm u-text-muted u-margin-b-4">Phone: <strong>{reviewTarget.contactNum}</strong></p>}
+            </div>
+
+            {reviewTarget.endorsements?.length > 0 && (
+              <div className="u-margin-b-16" style={{ borderTop: '1px solid var(--color-border)', paddingTop: '12px' }}>
+                <p className="u-fs-xs u-text-muted u-margin-b-8">Previous reviews:</p>
+                {reviewTarget.endorsements.map((e, i) => (
+                  <div key={i} className="u-fs-xs u-margin-b-4">
+                    <strong>{e.reviewerName}</strong> ({e.reviewerRole === 'Regional Sales Manager' ? 'RSM' : 'HOS'}):
+                    {' '}<span style={{ color: e.action === 'endorsed' ? 'var(--color-success, #22c55e)' : 'var(--color-warning, #f59e0b)' }}>
+                      {e.action === 'endorsed' ? 'Looks Good' : 'Flagged'}
+                    </span>
+                    {e.notes && <em> — "{e.notes}"</em>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <label className="field field--span-2 u-margin-b-12">
+              <span>Your Assessment</span>
+              <div className="u-flex-center-gap-16" style={{ marginTop: '6px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="reviewAction"
+                    value="endorsed"
+                    checked={reviewAction === 'endorsed'}
+                    onChange={() => setReviewAction('endorsed')}
+                  />
+                  Looks Good
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="reviewAction"
+                    value="flagged"
+                    checked={reviewAction === 'flagged'}
+                    onChange={() => setReviewAction('flagged')}
+                  />
+                  Flag for Admin
+                </label>
+              </div>
+            </label>
+
+            <label className="field field--span-2">
+              <span>Notes (optional)</span>
+              <textarea
+                value={reviewNotes}
+                onChange={e => setReviewNotes(e.target.value)}
+                placeholder="Add context for the admin…"
+                rows={3}
+                style={{ resize: 'vertical' }}
+              />
+            </label>
+
+            {reviewError && <p className="u-alert u-fs-10 u-margin-t-4">{reviewError}</p>}
+
+            <div className="form-actions field--span-2">
+              <button
+                type="button"
+                className="primary-button"
+                disabled={reviewSubmitting}
+                onClick={() => handleReviewSubmit(endorseCustomer)}
+              >
+                {reviewSubmitting ? 'Submitting…' : 'Submit Review'}
+              </button>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => { setReviewTarget(null); setReviewError('') }}
+                disabled={reviewSubmitting}
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </Modal>
