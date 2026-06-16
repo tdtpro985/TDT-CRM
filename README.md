@@ -37,12 +37,7 @@ The application is built with a modern, decoupled architecture:
 
 ## Getting Started
 
-### Quick Start (Windows)
-Double-click `START-HERE.bat` at the repo root. It opens two terminal windows — one for the backend and one for the frontend.
-
-Default login credentials are provided separately by your administrator.
-
-### Manual Setup
+### Setup
 
 #### 1. Environment & Database
 
