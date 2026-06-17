@@ -3164,6 +3164,12 @@
   text-decoration: underline;
 }
 
+.deal-modal__contact-number {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
 .deal-modal__contact-details svg {
   opacity: 0.85;
   width: 16px;
