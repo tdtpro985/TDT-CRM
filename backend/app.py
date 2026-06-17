@@ -177,18 +177,33 @@ def ensure_schema():
 
         conn.commit()
 
-        # Ensure approval_status column exists in leads table
-        cursor.execute("""
+    except Exception as e:
+        print(f"Error during schema verification: {e}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+    # approval_status: isolated block so prior failures cannot skip it.
+    try:
+        cursor4 = conn.cursor()
+        cursor4.execute("""
             SELECT COUNT(*) FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = database() AND TABLE_NAME = 'leads' AND COLUMN_NAME = 'approval_status'
         """)
-        if cursor.fetchone()[0] == 0:
+        if cursor4.fetchone()[0] == 0:
             print("Adding missing 'approval_status' column to 'leads' table...")
-            cursor.execute("ALTER TABLE leads ADD COLUMN approval_status VARCHAR(20) NOT NULL DEFAULT 'approved'")
+            cursor4.execute("ALTER TABLE leads ADD COLUMN approval_status VARCHAR(20) NOT NULL DEFAULT 'approved'")
             conn.commit()
+        cursor4.close()
+    except Exception as e4:
+        print(f"Warning: could not add approval_status column: {e4}")
 
-        # Ensure customer_approvals table exists (RSM/HOS endorsements)
-        cursor.execute("""
+    # customer_approvals: isolated block so prior failures cannot skip it.
+    # No FK constraints — avoids charset/engine mismatch failures across MySQL versions.
+    try:
+        cursor2 = conn.cursor()
+        cursor2.execute("""
             CREATE TABLE IF NOT EXISTS customer_approvals (
                 id          INT AUTO_INCREMENT PRIMARY KEY,
                 lead_id     VARCHAR(100) NOT NULL,
@@ -196,17 +211,23 @@ def ensure_schema():
                 action      VARCHAR(50)  NOT NULL,
                 notes       TEXT,
                 created_at  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE,
-                FOREIGN KEY (reviewer_id) REFERENCES team(id) ON DELETE CASCADE
+                INDEX idx_ca_lead (lead_id),
+                INDEX idx_ca_reviewer (reviewer_id)
             )
         """)
         conn.commit()
+        cursor2.close()
+    except Exception as e2:
+        print(f"Warning: could not create customer_approvals table: {e2}")
 
-        # Migrate 'Sales Rep' role → 'Branch Account'
-        cursor.execute("UPDATE team SET role = 'Branch Account' WHERE role = 'Sales Rep'")
+    # Migrate 'Sales Rep' role → 'Branch Account' (idempotent, always runs)
+    try:
+        cursor3 = conn.cursor()
+        cursor3.execute("UPDATE team SET role = 'Branch Account' WHERE role = 'Sales Rep'")
         conn.commit()
-    except Exception as e:
-        print(f"Error during schema verification: {e}")
+        cursor3.close()
+    except Exception:
+        pass
     finally:
         close_connection(conn)
 
@@ -483,6 +504,9 @@ def to_pht(dt):
         return None
     if isinstance(dt, str):
         return dt
+    # DATE columns return datetime.date (no tzinfo attr); datetime is a subclass of date
+    if type(dt) is date:
+        return dt.isoformat()
     local_tz = datetime.now().astimezone().tzinfo
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=local_tz)
@@ -937,31 +961,41 @@ def get_pending_customers():
         cursor.execute(query, tuple(params))
         leads = rows_to_list(cursor)
 
-        # Attach endorsements for each lead
+        # Attach endorsements — degrade gracefully if customer_approvals table is missing
         if leads:
-            lead_ids = [l['id'] for l in leads]
-            ph = ', '.join(['%s'] * len(lead_ids))
-            cursor.execute(f"""
-                SELECT ca.lead_id, ca.action, ca.notes, ca.created_at,
-                       t.name AS reviewerName, t.role AS reviewerRole
-                FROM customer_approvals ca
-                JOIN team t ON ca.reviewer_id = t.id
-                WHERE ca.lead_id IN ({ph})
-                ORDER BY ca.created_at ASC
-            """, tuple(lead_ids))
-            endorsements = cursor.fetchall()
-            cols = [d[0] for d in cursor.description]
-            from collections import defaultdict
-            emap = defaultdict(list)
-            for row in endorsements:
-                e = dict(zip(cols, row))
-                e['createdAt'] = to_pht(e.get('createdAt'))
-                emap[e['lead_id']].append(e)
-            for lead in leads:
-                lead['endorsements'] = emap.get(lead['id'], [])
-                lead['createdAt'] = to_pht(lead.get('createdAt'))
+            try:
+                lead_ids = [l['id'] for l in leads]
+                ph = ', '.join(['%s'] * len(lead_ids))
+                cursor.execute(f"""
+                    SELECT ca.lead_id, ca.action, ca.notes, ca.created_at,
+                           t.name AS reviewerName, t.role AS reviewerRole
+                    FROM customer_approvals ca
+                    LEFT JOIN team t ON ca.reviewer_id = t.id
+                    WHERE ca.lead_id IN ({ph})
+                    ORDER BY ca.created_at ASC
+                """, tuple(lead_ids))
+                endorsements = cursor.fetchall()
+                cols = [d[0] for d in cursor.description]
+                from collections import defaultdict
+                emap = defaultdict(list)
+                for row in endorsements:
+                    e = dict(zip(cols, row))
+                    e['createdAt'] = to_pht(e.get('createdAt'))
+                    emap[e['lead_id']].append(e)
+                for lead in leads:
+                    lead['endorsements'] = emap.get(lead['id'], [])
+                    lead['createdAt'] = to_pht(lead.get('createdAt'))
+            except Exception:
+                for lead in leads:
+                    lead['endorsements'] = []
+                    lead['createdAt'] = to_pht(lead.get('createdAt'))
 
         return jsonify(leads)
+    except Exception as e:
+        import traceback
+        print(f"[pending] ERROR: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 
@@ -1035,7 +1069,7 @@ def approve_customer(customer_id):
             return jsonify({'error': 'Customer is already approved'}), 409
 
         cursor.execute(
-            "UPDATE leads SET approval_status = 'approved' WHERE id = %s",
+            "UPDATE leads SET approval_status = 'approved', reassigned_at = CURRENT_DATE WHERE id = %s",
             (customer_id,)
         )
         log_audit(conn, 'lead', customer_id, 'approved', row[0], 'approved', user_id)
@@ -1079,6 +1113,46 @@ def reject_customer(customer_id):
         log_audit(conn, 'lead', customer_id, 'rejected', row[0], reason or 'rejected', user_id)
         conn.commit()
         return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/customers/<customer_id>', methods=['DELETE'])
+@jwt_required()
+def admin_delete_customer(customer_id):
+    """Admin permanently deletes a customer and all related data."""
+    claims = get_jwt()
+    user_id = get_jwt_identity()
+    if claims.get('role') != 'Admin':
+        return jsonify({'error': 'Admin only'}), 403
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT customer_name FROM leads WHERE id = %s", (customer_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'error': 'Customer not found'}), 404
+        customer_name = row[0]
+
+        # Cascade manually (most FKs are ON DELETE SET NULL, not CASCADE)
+        cursor.execute(
+            "DELETE FROM activities WHERE deal_id IN (SELECT id FROM deals WHERE company_id = %s)",
+            (customer_id,)
+        )
+        cursor.execute("DELETE FROM deals WHERE company_id = %s", (customer_id,))
+        cursor.execute("DELETE FROM contacts WHERE company_id = %s", (customer_id,))
+        cursor.execute("DELETE FROM companies WHERE id = %s", (customer_id,))
+        cursor.execute("DELETE FROM leads WHERE id = %s", (customer_id,))  # cascades customer_approvals
+
+        log_audit(conn, 'lead', customer_id, 'deleted', customer_name, None, user_id)
+        conn.commit()
+        return jsonify({'success': True, 'deleted': customer_name})
     except Exception as e:
         conn.rollback()
         return jsonify({'error': str(e)}), 500
@@ -1601,12 +1675,20 @@ def create_lead():
         contact_name = data.get('contactName') or customer_name
         email = data.get('email')
 
-        # Duplicate check: reject if a customer with the same name already exists (any branch)
+        # Duplicate check: scope to same branch, only block on approved/pending records.
+        # Rejected records are ignored so SRs can re-submit. Different branches may share names.
         cursor.execute(
-            "SELECT id FROM leads WHERE LOWER(TRIM(customer_name)) = %s LIMIT 1",
-            (customer_name.strip().lower(),)
+            """SELECT id, approval_status FROM leads
+               WHERE LOWER(TRIM(customer_name)) = %s
+                 AND LOWER(TRIM(branch)) = %s
+                 AND approval_status IN ('approved', 'pending')
+               LIMIT 1""",
+            (customer_name.strip().lower(), (branch or '').strip().lower())
         )
-        if cursor.fetchone():
+        existing = cursor.fetchone()
+        if existing:
+            if existing[1] == 'pending':
+                return jsonify({'error': f'"{customer_name}" is already awaiting approval — check your Pending tab.'}), 409
             return jsonify({'error': f'A customer named "{customer_name}" already exists.'}), 409
 
         # Validation: Ensure owner_id belongs to the correct branch/region

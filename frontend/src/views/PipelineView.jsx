@@ -7,7 +7,7 @@ import { formatCurrencyCompact, formatDateLabel, formatDateTimePHT, formatRelati
 import { LOST_REASONS, STAGE_COLORS, HEALTH_MAP, DEAL_STAGES } from '../constants'
 import { apiFetch } from '../api'
 
-import { IconPhone, IconCheck, IconCalendar, IconMail, IconClipboard } from '../components/Icons'
+import { IconPhone, IconCheck, IconCalendar, IconMail, IconClipboard, IconViber } from '../components/Icons'
 
 const CURRENT_MONTH = getCurrentMonthISO()
 const TODAY = getTodayISO()
@@ -652,19 +652,20 @@ export default function PipelineView({
                           {(c.phone || c.email) && (
                             <div className="deal-modal__contact-details u-ml-auto">
                               {c.phone && (
-                                <a href={`tel:${c.phone}`} className="deal-modal__contact-link" title="Call">
-                                  <IconPhone /> {c.phone}
+                                <a href={`viber://chat?number=${encodeURIComponent(c.phone.replace(/[^0-9+]/g, ''))}`} className="deal-modal__contact-link" title="Call via Viber">
+                                  <IconViber />
                                 </a>
                               )}
+                              {c.phone && <span className="deal-modal__contact-number">{c.phone}</span>}
                               {c.email && (
-                                <a href={`mailto:${c.email}`} className="deal-modal__contact-link" title="Email">
+                                <a href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(c.email)}`} className="deal-modal__contact-link" title="Send Email" target="_blank" rel="noopener noreferrer">
                                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                                     <polyline points="22,6 12,13 2,6"/>
                                   </svg>
-                                  {c.email}
                                 </a>
                               )}
+                              {c.email && <span className="deal-modal__contact-number">{c.email}</span>}
                             </div>
                           )}
                         </div>
