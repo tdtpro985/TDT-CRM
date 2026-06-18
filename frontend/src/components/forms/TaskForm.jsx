@@ -1,12 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { createRecordId, isValidPhone, isValidEmail } from '../../utils'
 import { apiFetch } from '../../api'
 import { TASK_TYPES, TASK_PRIORITIES, STAGE_WORKFLOW } from '../../constants'
+import { createRecordId } from '../../utils'
 import Select from '../Select'
-
-const IconAlert = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-)
 
 const IconDot = () => (
   <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
@@ -43,8 +39,10 @@ function CompanyCombobox({ companies, companyId, onChange }) {
 export default function TaskForm({
   onSubmit, onCancel, deals, companies, contacts = [], teamMembers = [],
   currentUser, taskTypes = TASK_TYPES, taskPriorities = TASK_PRIORITIES,
-  dealStages = [], prefilledCompanyId = '', fetchCompanies, fetchContacts,
-  fetchDealContacts
+  dealStages = [], prefilledCompanyId = '',
+  fetchDealContacts,
+  customTaskTypes = [],
+  onCreateCustomTaskType,
 }) {
   const [taskForm, setTaskForm] = useState({
     title: '',
@@ -66,14 +64,15 @@ export default function TaskForm({
   const [hasManuallyInteracted, setHasManuallyInteracted] = useState(false)
   const hasManuallyInteractedRef = useRef(false)
   hasManuallyInteractedRef.current = hasManuallyInteracted
-  
+
+  const [isAddingType, setIsAddingType] = useState(false)
+  const [newTypeName, setNewTypeName] = useState('')
+  const [newTypeError, setNewTypeError] = useState('')
+
   const [fetchedContacts, setFetchedContacts] = useState([])
   
   // UI State
   const [section1Expanded, setSection1Expanded] = useState(false)
-  const [addingContact, setAddingContact] = useState(false)
-  const [newContact, setNewContact] = useState({ name: '', role: '', email: '', phone: '' })
-  const [contactErrors, setContactErrors] = useState({})
 
 
   // Dynamic Metadata State
@@ -86,6 +85,7 @@ export default function TaskForm({
   })
 
   const canAssignSR = currentUser?.role === 'Head of Sales' || currentUser?.role === 'Regional Sales Manager'
+  const allTaskTypes = [...taskTypes, ...customTaskTypes.map(t => t.name)]
 
   const activeDeals = useMemo(() => {
     if (!taskForm.companyId) return []
@@ -277,92 +277,6 @@ export default function TaskForm({
     return num.toLocaleString('en-US')
   }, [taskForm.dealValue])
 
-  async function handleAddContact() {
-    const cErrors = {}
-    if (!newContact.name.trim()) cErrors.name = 'Name is required'
-    if (newContact.phone && !isValidPhone(newContact.phone)) cErrors.phone = 'Invalid phone number'
-    if (newContact.email && !isValidEmail(newContact.email)) cErrors.email = 'Invalid email address'
-    if (!newContact.email && !newContact.phone) {
-      cErrors.phone = 'Phone or email is required'
-      cErrors.email = 'Phone or email is required'
-    }
-    if (Object.keys(cErrors).length > 0) {
-      setContactErrors(cErrors)
-      return
-    }
-
-    setContactErrors({})
-    
-    let companyIdToUse = taskForm.companyId
-    let selectedCompany = companies.find(c => c.id === taskForm.companyId || c.name === taskForm.companyId)
-
-    // If company doesn't exist, create it first
-    if (!selectedCompany && taskForm.companyId) {
-      const newCompanyId = createRecordId('company')
-      const companyPayload = {
-        id: newCompanyId,
-        name: taskForm.companyId.trim(),
-        status: 'Active'
-      }
-      try {
-        const cRes = await apiFetch('/api/companies', { method: 'POST', body: JSON.stringify(companyPayload) })
-        if (cRes.ok) {
-          selectedCompany = await cRes.json()
-          companyIdToUse = selectedCompany.id
-          // Update parent form so it knows the new ID
-          setTaskForm(prev => ({ ...prev, companyId: companyIdToUse }))
-          if (fetchCompanies) fetchCompanies()
-        } else {
-          console.error('Failed to create company for new contact')
-          return
-        }
-      } catch (err) {
-        console.error('Error creating company:', err)
-        return
-      }
-    }
-
-    if (!selectedCompany) return
-
-    // Clean phone number to +63 format if it starts with 09
-    let cleanPhone = newContact.phone.replace(/\s/g, '')
-    if (cleanPhone.startsWith('09')) {
-      cleanPhone = '+63' + cleanPhone.substring(1)
-    }
-
-    const payload = {
-      id: createRecordId('contact'),
-      name: newContact.name.trim(),
-      email: newContact.email.trim(),
-      phone: cleanPhone,
-      role: newContact.role.trim(),
-      companyId: selectedCompany.id,
-      status: 'Active'
-    }
-
-    try {
-      const res = await apiFetch('/api/contacts', { method: 'POST', body: JSON.stringify(payload) })
-    if (res.ok) {
-      const saved = await res.json()
-      setHasManuallyInteracted(true)
-      setSelectedContactIds(prev => [...prev, saved.id])
-
-        setAddingContact(false)
-        setNewContact({ name: '', email: '', phone: '', role: '' })
-        if (fetchContacts) fetchContacts()
-      } else if (res.status === 409) {
-        const errData = await res.json()
-        setContactErrors({ global: errData.error || 'Contact already exists' })
-      } else {
-        const errData = await res.json()
-        setContactErrors({ global: errData.error || 'Failed to add contact' })
-      }
-    } catch (err) {
-      console.error('Failed to add contact:', err)
-      setContactErrors({ global: 'Network error occurred' })
-    }
-  }
-
   async function handleSubmit(e) {
     e.preventDefault()
 
@@ -437,92 +351,7 @@ export default function TaskForm({
               </span>
             )}
           </div>
-          <button
-            type="button"
-            className="ghost-button u-fs-11 u-pad-2-6"
-            onClick={() => {
-              if (!taskForm.companyId) {
-                setErrors(prev => ({ ...prev, contact: 'Select a company first before adding a contact' }))
-                return
-              }
-              setErrors(prev => ({ ...prev, contact: '' }))
-              setAddingContact(!addingContact)
-            }}
-          >
-            {addingContact ? 'Cancel' : '+ Add Contact'}
-          </button>
         </div>
-
-        {errors.contact && <p className="u-fs-10 u-alert u-margin-t-4 u-margin-b-8">{errors.contact}</p>}
-
-        {addingContact && (
-          <div className="u-bg-white-03 u-r-md u-pad-16 u-margin-b-16 u-border">
-            {contactErrors.global && (
-              <div className="u-alert-bg-soft u-alert u-pad-10-14 u-r-md u-fs-11 u-font-600 u-margin-b-12 u-border-alert-soft u-flex-center-gap-sm">
-                <IconAlert /> {contactErrors.global}
-              </div>
-            )}
-            <div className="form-grid u-margin-0 u-gap-12">
-              <label className="field">
-                <span>Contact Name</span>
-                <input
-                  placeholder="Full name"
-                  value={newContact.name}
-                  onChange={e => { setNewContact({...newContact, name: e.target.value}); setContactErrors(p => ({...p, name: ''})) }}
-                  className={contactErrors.name ? 'u-border-alert' : ''}
-                />
-                {contactErrors.name && <p className="u-fs-10 u-alert u-margin-t-4">{contactErrors.name}</p>}
-              </label>
-              <label className="field">
-                <span>Role</span>
-                <input
-                  placeholder="e.g. Manager, Owner"
-                  value={newContact.role}
-                  onChange={e => setNewContact({...newContact, role: e.target.value})}
-                />
-              </label>
-              <label className="field">
-                <span>Phone number</span>
-                <input
-                  placeholder="e.g. 0965 033 5781"
-                  value={newContact.phone}
-                  onChange={e => { setNewContact({...newContact, phone: e.target.value}); setContactErrors(p => ({...p, phone: ''})) }}
-                  className={contactErrors.phone ? 'u-border-alert' : ''}
-                />
-                {contactErrors.phone && <p className="u-fs-10 u-alert u-margin-t-4">{contactErrors.phone}</p>}
-              </label>
-              <label className="field">
-                <span>Email address</span>
-                <input
-                  placeholder="name@company.com"
-                  value={newContact.email}
-                  onChange={e => { setNewContact({...newContact, email: e.target.value}); setContactErrors(p => ({...p, email: ''})) }}
-                  className={contactErrors.email ? 'u-border-alert' : ''}
-                />
-                {contactErrors.email && <p className="u-fs-10 u-alert u-margin-t-4">{contactErrors.email}</p>}
-              </label>
-            </div>
-            <div className="u-flex u-flex-gap-sm u-justify-end u-margin-t-16">
-              <button 
-                type="button" 
-                className="secondary-button u-pad-6-14 u-fs-xs"
-                onClick={() => {
-                  setAddingContact(false)
-                  setNewContact({ name: '', email: '', phone: '', role: '' })
-                }}
-              >
-                Cancel
-              </button>
-              <button 
-                type="button" 
-                className="primary-button u-pad-6-14 u-fs-xs"
-                onClick={handleAddContact}
-              >
-                Create Contact
-              </button>
-            </div>
-          </div>
-        )}
 
         <div className="admin-table-wrap u-max-h-120 u-overflow-y-auto">
           <table className="admin-table">
@@ -591,29 +420,50 @@ export default function TaskForm({
 
       <label className="field">
         <span>Follow-up</span>
-        <Select 
+        <Select
           value={taskForm.type}
           onChange={v => handleChange({ target: { name: 'type', value: v } })}
-          options={taskTypes.map(t => ({ value: t, label: t }))}
+          options={allTaskTypes.map(t => ({ value: t, label: t }))}
         />
       </label>
+      {canAssignSR && !isAddingType && (
+        <button type="button" className="ghost-button u-fs-xs u-margin-t-6"
+          onClick={() => setIsAddingType(true)}>
+          + Add new type
+        </button>
+      )}
+
+      {canAssignSR && isAddingType && (
+        <div className="field">
+          <span className="u-fs-xs u-font-600 u-text-muted u-block u-margin-b-6">New type name</span>
+          <div className="u-flex-center-gap-sm">
+            <input
+              value={newTypeName}
+              onChange={e => { setNewTypeName(e.target.value); setNewTypeError('') }}
+              placeholder="e.g. Site Visit, Demo..."
+              className={newTypeError ? 'u-border-alert' : ''}
+              autoFocus
+            />
+            <button type="button" className="ghost-button u-text-accent" onClick={async () => {
+              if (!newTypeName.trim()) { setNewTypeError('Enter a type name'); return }
+              try {
+                const created = await onCreateCustomTaskType(createRecordId('ttype'), newTypeName.trim())
+                handleChange({ target: { name: 'type', value: created.name } })
+                setIsAddingType(false)
+                setNewTypeName('')
+              } catch (err) {
+                setNewTypeError(err.message)
+              }
+            }}>Save</button>
+            <button type="button" className="ghost-button" onClick={() => {
+              setIsAddingType(false); setNewTypeName(''); setNewTypeError('')
+            }}>Cancel</button>
+          </div>
+          {newTypeError && <p className="u-fs-10 u-alert u-margin-t-4">{newTypeError}</p>}
+        </div>
+      )}
 
       {/* Dynamic Metadata Fields */}
-      {taskForm.type === 'Call' && (
-        <label className="field">
-          <span>Phone Number</span>
-          <input 
-            value={metadata.phoneNumber || ''} 
-            onChange={e => setMetadata({...metadata, phoneNumber: e.target.value})} 
-            placeholder="+63..." 
-          />
-          {taskForm.dealId && selectedContactIds.length > 0 && (
-            <small className="u-text-muted u-fs-10 u-margin-t-4 u-block">
-              Contacts already accounted for — dial number or type to add a new contact
-            </small>
-          )}
-        </label>
-      )}
 
       {taskForm.type === 'Meeting' && (
         <>
@@ -628,21 +478,6 @@ export default function TaskForm({
         </>
       )}
 
-      {taskForm.type === 'Email' && (
-        <label className="field">
-          <span>Email Subject</span>
-          <input 
-            value={metadata.emailSubject || ''} 
-            onChange={e => setMetadata({...metadata, emailSubject: e.target.value})} 
-            placeholder="Re: Opportunity..." 
-          />
-          {taskForm.dealId && selectedContactIds.length > 0 && (
-            <small className="u-text-muted u-fs-10 u-margin-t-4 u-block">
-              Contacts already accounted for — write subject or type to add a new contact
-            </small>
-          )}
-        </label>
-      )}
 
       {canAssignSR && (
         <label className="field">

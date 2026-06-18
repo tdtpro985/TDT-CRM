@@ -11,6 +11,7 @@ import AdminProfileView from './views/AdminProfileView'
 import AdminCelebrationMusicView from './views/AdminCelebrationMusicView'
 import AdminNotificationsView from './views/AdminNotificationsView'
 import AdminCustomersView from './views/AdminCustomersView'
+import AdminApiKeysView from './views/AdminApiKeysView'
 import { IconCheck } from './components/Icons'
 import { useTheme } from './hooks/useTheme'
 import ThemeToggle from './components/ThemeToggle'
@@ -26,6 +27,7 @@ const REGION_BRANCHES = {
 const NAV = [
   { id: 'analytics',          label: 'Analytics',          description: 'Branch stats and system overview' },
   { id: 'accounts',           label: 'Account Management', description: 'Create and manage branch accounts' },
+  { id: 'api-keys',           label: 'API Keys',           description: 'Manage integration API access keys' },
   { id: 'celebration-music',  label: 'Celebration Music',  description: 'Configure win/lost sounds' },
   { id: 'customers',          label: 'Customer Database',   description: 'Browse and manage all customer records' },
   { id: 'notifications',      label: 'Notifications',      description: 'Review and approve pending customers' },
@@ -35,6 +37,7 @@ const NAV = [
 const VIEW_META = {
   analytics:         { eyebrow: 'System administration', title: 'Analytics' },
   accounts:          { eyebrow: 'System administration', title: 'Account Management' },
+  'api-keys':        { eyebrow: 'System administration', title: 'API Keys' },
   'celebration-music': { eyebrow: 'System administration', title: 'Celebration Music' },
   customers:         { eyebrow: 'System administration', title: 'Customer Database' },
   notifications:     { eyebrow: 'System administration', title: 'Notifications' },
@@ -113,15 +116,22 @@ export default function AdminPortal() {
         </div>
 
         <nav className="sidebar-nav u-flex-0-0-auto" aria-label="Admin navigation">
-          <Link 
-            to="/admin/accounts" 
+          <Link
+            to="/admin/accounts"
             className={`nav-item ${location.pathname.startsWith('/admin/accounts') ? 'is-active' : ''}`}
             onClick={() => setSidebarOpen(false)}
           >
             Manage Accounts
           </Link>
-          <Link 
-            to="/admin/analytics" 
+          <Link
+            to="/admin/api-keys"
+            className={`nav-item ${location.pathname.startsWith('/admin/api-keys') ? 'is-active' : ''}`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            API Keys
+          </Link>
+          <Link
+            to="/admin/analytics"
             className={`nav-item ${location.pathname.startsWith('/admin/analytics') ? 'is-active' : ''}`}
             onClick={() => setSidebarOpen(false)}
           >
@@ -251,6 +261,7 @@ export default function AdminPortal() {
             <Route path="/" element={<Navigate to="/admin/analytics" replace />} />
             <Route path="/analytics" element={<AdminAnalyticsView activeBranch={activeBranch} activeRegion={activeRegion} onLoadingChange={setAdminLoading} />} />
             <Route path="/accounts" element={<AdminView currentUser={adminUser} showToast={showToast} onLoadingChange={setAdminLoading} />} />
+            <Route path="/api-keys" element={<AdminApiKeysView showToast={showToast} onLoadingChange={setAdminLoading} />} />
             <Route path="/celebration-music" element={<AdminCelebrationMusicView showToast={showToast} onLoadingChange={setAdminLoading} />} />
             <Route path="/customers" element={<AdminCustomersView activeBranch={activeBranch} activeRegion={activeRegion} showToast={showToast} onLoadingChange={setAdminLoading} />} />
             <Route path="/notifications" element={<AdminNotificationsView showToast={showToast} onLoadingChange={setAdminLoading} onCountChange={setAdminPendingCount} />} />

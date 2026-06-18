@@ -57,7 +57,9 @@ export default function App() {
   const [showCustomize, setShowCustomize] = useState(false)
   const sidebarCloseTimer = useRef(null)
   const [showDueDateAlert, setShowDueDateAlert] = useState(false)
+  const [activeNotifTab, setActiveNotifTab] = useState('due')
   const dueAlertShown = useRef(false)
+  const DUE_ALERT_SESSION_KEY = 'crm_due_alert_shown'
   
   // Theme management
   const { theme, setTheme, neonColor, setNeonColor } = useTheme()
@@ -84,6 +86,7 @@ export default function App() {
     setCurrentUser(null)
     setShowDueDateAlert(false)
     dueAlertShown.current = false
+    sessionStorage.removeItem(DUE_ALERT_SESSION_KEY)
     setTheme('dark')
     setNeonColor('pink')
     setNotice('You have been logged out.')
@@ -95,8 +98,8 @@ export default function App() {
   }
 
   const { data, actions, stopAllCelebration } = useCRMData({ setNotice, showToast, currentUser })
-  const { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion } = data
-  const { setActiveBranch, setActiveRegion, fetchCompanies, fetchContacts } = actions
+  const { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, customTaskTypes, loading, activeBranch, activeRegion } = data
+  const { setActiveBranch, setActiveRegion, fetchCompanies, fetchContacts, createCustomTaskType, deleteCustomTaskType } = actions
 
   // ─── Stop celebration audio/overlay on route change ─────────────────────────
   const stopAllCelebrationRef = useRef(null)
@@ -105,6 +108,12 @@ export default function App() {
   }, [stopAllCelebration])
   useEffect(() => {
     if (stopAllCelebrationRef.current) stopAllCelebrationRef.current()
+    if (location.pathname === '/dashboard') {
+      /* eslint-disable react-hooks/set-state-in-effect */
+      setSearchInput('')
+      setSearchQuery('')
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
   }, [location.pathname])
 
   // ─── Derived data ───────────────────────────────────────────────────────────
@@ -149,11 +158,29 @@ export default function App() {
     })
   }, [openTasks, currentUser])
 
-  // ─── Show due date modal once per session ──────────────────────────────
+  // ─── Announcements derived from existing lead/task state ─────────────────
+  const announcements = useMemo(() => {
+    if (!currentUser) return []
+    const items = []
+    leads.filter(l => l.reassignedAt).forEach(l =>
+      items.push({ type: 'reassigned', label: `${l.customerName} was reassigned`, date: l.reassignedAt })
+    )
+    if (['Regional Sales Manager', 'Head of Sales', 'Admin'].includes(currentUser.role)) {
+      leads.filter(l => l.approvalStatus === 'pending').forEach(l =>
+        items.push({ type: 'pending', label: `${l.customerName} is pending approval`, date: l.createdAt })
+      )
+    }
+    return items.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  }, [leads, currentUser])
+
+  // ─── Show notifications modal once per login session ──────────────────────
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
-    if (dueSoonTasks.length > 0 && !dueAlertShown.current) {
+    if (dueSoonTasks.length > 0
+        && !dueAlertShown.current
+        && !sessionStorage.getItem(DUE_ALERT_SESSION_KEY)) {
       dueAlertShown.current = true
+      sessionStorage.setItem(DUE_ALERT_SESSION_KEY, '1')
       setShowDueDateAlert(true)
     }
     /* eslint-enable react-hooks/set-state-in-effect */
@@ -337,6 +364,7 @@ export default function App() {
             teamMembers={teamMembers}
             showCustomize={showCustomize}
             setShowCustomize={setShowCustomize}
+            announcements={announcements}
           />
         } />
         <Route path="/database" element={
@@ -363,6 +391,7 @@ export default function App() {
             currentUser={currentUser}
             searchQuery={searchQuery}
             onReassignLead={actions.reassignLead}
+            onCompanyReassign={actions.handleCompanyReassignment}
             endorseCustomer={actions.endorseCustomer}
           />
         } />
@@ -385,6 +414,7 @@ export default function App() {
             handleDealStageChange={actions.updateDealStage}
             handleDealUpdate={actions.updateDeal}
             handleTaskStatusToggle={actions.toggleTaskStatus}
+            onDealReassign={actions.handleDealReassignment}
             onViewTasks={() => {
               navigate('/tasks')
             }}
@@ -399,11 +429,9 @@ export default function App() {
             dueToday={dueToday}
             deals={deals}
             companies={companies}
-            teamMembers={teamMembers}
             dealContactMap={dealContactMap}
             onCreateTask={handleCreateTask}
             handleTaskStatusToggle={actions.toggleTaskStatus}
-            reassignTask={actions.reassignTask}
             searchQuery={searchQuery}
             onClearSearch={() => { setSearchInput(''); setSearchQuery(''); }}
             currentUser={currentUser}
@@ -649,7 +677,7 @@ export default function App() {
             </div>
           )}
           <div className="top-bar-actions">
-            <label className="search-field" htmlFor="global-search-input">
+            {location.pathname !== '/dashboard' && <label className="search-field" htmlFor="global-search-input">
               <span className="search-icon" aria-hidden="true"><IconSearch size={16} /></span>
               <input
                 id="global-search-input"
@@ -677,7 +705,7 @@ export default function App() {
               <datalist id="global-search-suggestions">
                 {searchSuggestions.map(s => <option key={s} value={s} />)}
               </datalist>
-            </label>
+            </label>}
             <button type="button" className="secondary-button" onClick={handleShareCurrentView}>Share view</button>
             {activeView === 'dashboard' && (
               <button type="button" className="secondary-button" onClick={() => setShowCustomize(true)}>Customize Layout</button>
@@ -730,6 +758,9 @@ export default function App() {
           fetchDealContacts={fetchDealContacts}
           fetchCompanies={fetchCompanies}
           fetchContacts={fetchContacts}
+          customTaskTypes={customTaskTypes}
+          onCreateCustomTaskType={createCustomTaskType}
+          onDeleteCustomTaskType={deleteCustomTaskType}
           onCancel={() => setShowTaskForm(false)}
           onSubmit={async (form) => {
             try {
@@ -823,42 +854,95 @@ export default function App() {
       <Modal
         isOpen={showDueDateAlert}
         onClose={() => setShowDueDateAlert(false)}
-        title="Upcoming Due Dates"
+        title="Notifications"
         kicker="Alert"
       >
         <div style={{ padding: '0 24px 24px' }}>
-          {dueSoonTasks.length === 0 ? (
-            <p className="u-text-muted">No tasks with upcoming due dates.</p>
-          ) : (
-            dueSoonTasks.map(t => (
-              <div
-                key={t.id}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+            {['due', 'announcements'].map(tab => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveNotifTab(tab)}
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 0',
-                  borderBottom: '1px solid var(--border)',
+                  padding: '4px 12px',
+                  borderRadius: 'var(--r-full)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 'var(--fs-xs)',
+                  fontWeight: 600,
+                  background: activeNotifTab === tab ? 'var(--accent)' : 'var(--bg-soft)',
+                  color: activeNotifTab === tab ? '#000' : 'var(--text-secondary)',
                 }}
               >
-                <div>
-                  <strong style={{ fontSize: 'var(--fs-sm)' }}>{t.title}</strong>
-                  <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
-                    {t.companyName || t.contact || '—'}
-                  </div>
-                </div>
+                {tab === 'due' ? `Due Dates${dueSoonTasks.length ? ` (${dueSoonTasks.length})` : ''}` : `Announcements${announcements.length ? ` (${announcements.length})` : ''}`}
+              </button>
+            ))}
+          </div>
+
+          {activeNotifTab === 'due' && (
+            dueSoonTasks.length === 0 ? (
+              <p className="u-text-muted">No tasks with upcoming due dates.</p>
+            ) : (
+              dueSoonTasks.map(t => (
                 <div
+                  key={t.id}
                   style={{
-                    fontSize: 'var(--fs-sm)',
-                    fontWeight: 600,
-                    whiteSpace: 'nowrap',
-                    color: t.dueDate < getTodayISO() ? 'var(--alert)' : 'var(--warning)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 0',
+                    borderBottom: '1px solid var(--border)',
                   }}
                 >
-                  {formatRelativeDays(t.dueDate)}
+                  <div>
+                    <strong style={{ fontSize: 'var(--fs-sm)' }}>{t.title}</strong>
+                    <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      {t.companyName || t.contact || '—'}
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 'var(--fs-sm)',
+                      fontWeight: 600,
+                      whiteSpace: 'nowrap',
+                      color: t.dueDate < getTodayISO() ? 'var(--alert)' : 'var(--warning)',
+                    }}
+                  >
+                    {formatRelativeDays(t.dueDate)}
+                  </div>
                 </div>
-              </div>
-            ))
+              ))
+            )
+          )}
+
+          {activeNotifTab === 'announcements' && (
+            announcements.length === 0 ? (
+              <p className="u-text-muted">No announcements.</p>
+            ) : (
+              announcements.map((a, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 0',
+                    borderBottom: '1px solid var(--border)',
+                  }}
+                >
+                  <div>
+                    <strong style={{ fontSize: 'var(--fs-sm)' }}>{a.label}</strong>
+                    <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '2px', textTransform: 'capitalize' }}>
+                      {a.type === 'reassigned' ? 'Lead reassignment' : 'Pending approval'}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    {a.date}
+                  </div>
+                </div>
+              ))
+            )
           )}
         </div>
       </Modal>

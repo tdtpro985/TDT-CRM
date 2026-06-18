@@ -4,9 +4,9 @@ import Panel from '../components/Panel'
 import MetricCard from '../components/MetricCard'
 import EmptyState from '../components/EmptyState'
 import { formatDueDate, getToneClass, getPaginatedData, matchesSearch, isSrRole } from '../utils'
-import { ITEMS_PER_PAGE } from '../constants'
-
 import Pagination from '../components/Pagination'
+
+const TASK_ITEMS_PER_PAGE = 4
 
 import { IconPhone, IconCalendar, IconMail, IconClipboard, IconMapPin } from '../components/Icons'
 
@@ -20,7 +20,7 @@ const IconChevronDown = ({ expanded }) => (
   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`u-transition-transform ${expanded ? 'u-rotate-180' : ''}`}><polyline points="6 9 12 15 18 9"/></svg>
 )
 
-function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatusToggle, isHighlighted, canReassign, isReassigning, isProcessing, reassignOwnerId, setReassignOwnerId, branchSRs, onStartReassign, onConfirmReassign, onCancelReassign }) {
+function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatusToggle, isHighlighted, showOwner }) {
   const [expanded, setExpanded] = useState(false)
   
   const TypeIcon = useMemo(() => {
@@ -45,6 +45,9 @@ function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatus
             <span className="u-accent u-flex">{TypeIcon}</span>
             {task.title}
           </strong>
+          {showOwner && task.owner && (
+            <span className="u-fs-xs u-text-muted u-block u-margin-t-2">{task.owner}</span>
+          )}
         </div>
         {linkedDeal?.stage && (
           <span className={`status-text ${getToneClass(linkedDeal.stage)} u-fs-10`}>
@@ -117,41 +120,10 @@ function TaskCard({ task, linkedDeal, contactObjects, metadata, handleTaskStatus
 
       <div className="activity-card__footer">
         <span>{formatDueDate(task.dueDate)}</span>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {canReassign && !isReassigning && (
-            <button type="button" className="ghost-button" onClick={onStartReassign}>Re-assign</button>
-          )}
-          <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id, task.status)}>
-            {task.status === 'Completed' ? 'Reopen task' : 'Mark complete'}
-          </button>
-        </div>
+        <button type="button" className="ghost-button" onClick={() => handleTaskStatusToggle(task.id, task.status)}>
+          {task.status === 'Completed' ? 'Reopen task' : 'Mark complete'}
+        </button>
       </div>
-      {isReassigning && (
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '8px 12px', borderTop: '1px solid var(--border)' }}>
-          <select
-            value={reassignOwnerId}
-            onChange={e => setReassignOwnerId(e.target.value)}
-            className="admin-select"
-            style={{ flex: 1, fontSize: 'var(--fs-sm)' }}
-            disabled={isProcessing}
-          >
-            <option value="">Select SR…</option>
-            {branchSRs.map(m => (
-              <option key={m.id} value={String(m.id)}>{m.name}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="primary-button"
-            style={{ fontSize: 'var(--fs-sm)', padding: '4px 12px' }}
-            disabled={isProcessing || !reassignOwnerId || reassignOwnerId === String(task.ownerId ?? '')}
-            onClick={onConfirmReassign}
-          >
-            {isProcessing ? (<><span className="spinner-small" /> Reassigning…</>) : 'Confirm'}
-          </button>
-          <button type="button" className="ghost-button" onClick={onCancelReassign} disabled={isProcessing}>Cancel</button>
-        </div>
-      )}
     </article>
   )
 }
@@ -163,10 +135,8 @@ export default function TasksView({
   dueToday,
   deals,
   companies,
-  teamMembers,
   dealContactMap,
   handleTaskStatusToggle,
-  reassignTask,
   searchQuery,
   onClearSearch,
   currentUser
@@ -179,12 +149,8 @@ export default function TasksView({
   const [pinnedTaskId, setPinnedTaskId] = useState(null)
   const [clearingSearch, setClearingSearch] = useState(false)
   const [focusQueueExpanded, setFocusQueueExpanded] = useState(false)
-  const [reassigningTaskId, setReassigningTaskId] = useState(null)
-  const [reassignOwnerId, setReassignOwnerId] = useState('')
-  const [reassignProcessing, setReassignProcessing] = useState(false)
+  const [focusPriorityFilter, setFocusPriorityFilter] = useState('all')
   const isSr = isSrRole(currentUser?.role)
-
-  const canReassign = !isSr && currentUser?.role !== 'Branch Account'
 
   const companyMap = useMemo(() => Object.fromEntries((companies ?? []).map((c) => [c.id, c])), [companies])
 
@@ -211,8 +177,9 @@ export default function TasksView({
     return enriched.filter(
       (t) => {
         return (
-          (taskFilter === 'all' || 
-           (taskFilter === 'open' && t.status === 'Open') || 
+          (taskFilter === 'all' ||
+           taskFilter === 'recent' ||
+           (taskFilter === 'open' && t.status === 'Open') ||
            (taskFilter === 'completed' && t.status === 'Completed') ||
            (taskFilter === 'reopened' && t.status === 'Reopened')) &&
           matchesSearch(searchQuery, [t.resolvedCompanyName])
@@ -228,9 +195,9 @@ export default function TasksView({
     })
   }, [tasks, taskFilter, searchQuery, deals, companyMap, pinnedTaskId])
 
-  const totalPages = Math.ceil(filteredTasks.length / ITEMS_PER_PAGE)
+  const totalPages = Math.ceil(filteredTasks.length / TASK_ITEMS_PER_PAGE)
 
-  const paginatedTasks = useMemo(() => getPaginatedData(filteredTasks, currentPage, ITEMS_PER_PAGE), [filteredTasks, currentPage])
+  const paginatedTasks = useMemo(() => getPaginatedData(filteredTasks, currentPage, TASK_ITEMS_PER_PAGE), [filteredTasks, currentPage])
 
   // Scroll to and highlight task
   useEffect(() => {
@@ -291,7 +258,10 @@ export default function TasksView({
     return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1)
   })
   const FOCUS_QUEUE_LIMIT = 5
-  const focusQueue = focusQueueExpanded ? sortedOpenTasks : sortedOpenTasks.slice(0, FOCUS_QUEUE_LIMIT)
+  const priorityFilteredTasks = focusPriorityFilter === 'all'
+    ? sortedOpenTasks
+    : sortedOpenTasks.filter(t => t.priority === focusPriorityFilter)
+  const focusQueue = focusQueueExpanded ? priorityFilteredTasks : priorityFilteredTasks.slice(0, FOCUS_QUEUE_LIMIT)
 
   const completedCount = tasks.filter((t) => t.status === 'Completed').length
   const highPriorityCount = openTasks.filter((t) => t.priority === 'High').length
@@ -324,6 +294,7 @@ export default function TasksView({
                   >
 
                   <option value="all">All tasks</option>
+                  <option value="recent">Recent</option>
                   <option value="open">Open</option>
                   <option value="reopened">Reopened</option>
                   <option value="completed">Completed</option>
@@ -371,30 +342,7 @@ export default function TasksView({
                         metadata={metadata}
                         handleTaskStatusToggle={handleTaskStatusToggle}
                         isHighlighted={highlightedTaskId === task.id}
-                        canReassign={canReassign}
-                        isReassigning={reassigningTaskId === task.id}
-                        isProcessing={reassigningTaskId === task.id && reassignProcessing}
-                        reassignOwnerId={reassigningTaskId === task.id ? reassignOwnerId : ''}
-                        setReassignOwnerId={setReassignOwnerId}
-                        branchSRs={(teamMembers ?? []).filter(m =>
-                          m.branch?.toLowerCase() === linkedDeal?.branch?.toLowerCase() &&
-                          (m.role === 'Sales Representative' || m.role === 'Branch Account' || m.role === 'Sales Rep')
-                        )}
-                        onStartReassign={() => { setReassigningTaskId(task.id); setReassignOwnerId('') }}
-                        onConfirmReassign={async () => {
-                          if (!reassignOwnerId || reassignProcessing) return
-                          setReassignProcessing(true)
-                          try {
-                            await reassignTask(task.id, Number(reassignOwnerId))
-                            setReassigningTaskId(null)
-                            setReassignOwnerId('')
-                          } catch {
-                            // notice shown via useCRMData
-                          } finally {
-                            setReassignProcessing(false)
-                          }
-                        }}
-                        onCancelReassign={() => { setReassigningTaskId(null); setReassignOwnerId('') }}
+                        showOwner={!isSr}
                       />
                     </div>
                   )
@@ -411,6 +359,19 @@ export default function TasksView({
             kicker="Focus queue"
             title="Most urgent follow-ups"
             detail="Use this queue to keep daily activity aligned with the pipeline."
+            action={
+              <div className="panel-inline-controls">
+                <label className="filter-wrap">
+                  <span>Priority</span>
+                  <select value={focusPriorityFilter} onChange={e => setFocusPriorityFilter(e.target.value)}>
+                    <option value="all">All</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
+                  </select>
+                </label>
+              </div>
+            }
           >
             <div className="simple-list">
               {focusQueue.map((task) => {
@@ -454,10 +415,10 @@ export default function TasksView({
                 )
               })}
             </div>
-            {sortedOpenTasks.length > FOCUS_QUEUE_LIMIT && (
+            {priorityFilteredTasks.length > FOCUS_QUEUE_LIMIT && (
               <div className="collapse-bar u-margin-t-8" onClick={() => setFocusQueueExpanded(e => !e)}>
                 <IconChevronDown expanded={focusQueueExpanded} />
-                <span>{focusQueueExpanded ? 'Show less' : `Show all ${sortedOpenTasks.length} tasks`}</span>
+                <span>{focusQueueExpanded ? 'Show less' : `Show all ${priorityFilteredTasks.length} tasks`}</span>
               </div>
             )}
           </Panel>

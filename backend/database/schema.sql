@@ -173,5 +173,32 @@ CREATE TABLE IF NOT EXISTS app_settings (
     updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- ─── Custom Task Types ───────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS task_type_configs (
+    id         VARCHAR(100) PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    created_by INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES team(id) ON DELETE SET NULL,
+    UNIQUE KEY uq_task_type_name (name)
+);
+
+-- ─── Integration API Keys ────────────────────────────────────────────────────
+-- Keys are issued by admins; plaintext is shown once and never stored.
+CREATE TABLE IF NOT EXISTS api_keys (
+    id            INT AUTO_INCREMENT PRIMARY KEY,
+    name          VARCHAR(100) NOT NULL,
+    key_hash      VARCHAR(64)  NOT NULL UNIQUE,
+    key_prefix    VARCHAR(16)  NOT NULL,
+    permissions   JSON         NOT NULL,
+    branch        VARCHAR(50)  DEFAULT NULL,
+    region        VARCHAR(50)  DEFAULT NULL,
+    owner_id      INT          DEFAULT NULL,
+    created_by    INT          DEFAULT NULL,
+    last_used_at  DATETIME     DEFAULT NULL,
+    is_active     TINYINT(1)   DEFAULT 1,
+    created_at    DATETIME     DEFAULT NOW()
+);
+
 -- User seeds are managed by backend bootstrap script for cross-device consistency:
 -- python -m database.bootstrap_users
