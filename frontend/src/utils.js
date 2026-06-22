@@ -111,7 +111,6 @@ export function getToneClass(value) {
   const normalizedValue = String(value).toLowerCase()
 
   // Exact stage matches (synchronize with kanban board colors)
-  if (normalizedValue === 'qualified') return 'is-warning'        // Orange
   if (normalizedValue === 'new opportunity') return 'is-open'     // Blue
   if (normalizedValue === 'proposal') return 'is-positive'        // Green
   if (normalizedValue === 'negotiation') return 'is-alert'        // Red/Pink

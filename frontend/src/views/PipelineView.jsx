@@ -14,7 +14,6 @@ const TODAY = getTodayISO()
 const STAGE_CARD_LIMIT = 5
 
 const STAGE_TONES = {
-  'Qualified':       'is-stage-qualified',
   'New Opportunity': 'is-stage-new-opportunity',
   'Proposal':        'is-stage-proposal',
   'Negotiation':     'is-stage-negotiation',

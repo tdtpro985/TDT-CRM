@@ -11,13 +11,11 @@ ITEMS_PER_PAGE = 20
 
 ACTIVE_STAGES = [
     'New Opportunity',
-    'Qualified',
     'Proposal',
     'Negotiation'
 ]
 
 STAGE_PROBABILITY = {
-    'Qualified':       20,
     'New Opportunity': 40,
     'Proposal':        60,
     'Negotiation':     80
@@ -47,7 +45,7 @@ def fill_pipeline(conn, branch=None, target_per_stage=ITEMS_PER_PAGE):
         cursor.execute("""
             SELECT COUNT(*) FROM deals d
             LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
-            WHERE d.stage IN ('New Opportunity','Qualified','Proposal','Negotiation')
+            WHERE d.stage IN ('New Opportunity','Proposal','Negotiation')
               AND l.branch = %s
         """, (b,))
         total_active = cursor.fetchone()[0]
@@ -71,7 +69,7 @@ def fill_pipeline(conn, branch=None, target_per_stage=ITEMS_PER_PAGE):
             lead_id, customer_name, branch_name, owner_id = lead
             deal_id = str(uuid.uuid4())
             value = random.randint(25000, 500000)
-            prob = STAGE_PROBABILITY.get('Qualified', 20)
+            prob = STAGE_PROBABILITY.get('New Opportunity', 40)
             expected_close = date.today() + timedelta(days=random.randint(15, 60))
 
             cursor.execute("""
@@ -82,7 +80,7 @@ def fill_pipeline(conn, branch=None, target_per_stage=ITEMS_PER_PAGE):
                 customer_name,
                 lead_id,
                 lead_id,
-                'Qualified',
+                'New Opportunity',
                 value,
                 expected_close,
                 prob,

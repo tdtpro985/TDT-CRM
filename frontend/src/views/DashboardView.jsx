@@ -151,7 +151,6 @@ function StageDonutChart({ data, hovered, onHover }) {
   const total = activeStages.reduce((sum, s) => sum + s.count, 0)
 
   const STAGE_COLORS = {
-    'Qualified':       '#ff9800',
     'New Opportunity': '#38bdf8',
     'Proposal':        '#34d399',
     'Negotiation':     '#fb7185',
@@ -404,7 +403,6 @@ export default function DashboardView({
   }, [deals, teamMembers])
 
   const PIPELINE_STAGE_COLORS = {
-    'Qualified':       '#ff9800',
     'New Opportunity': '#38bdf8',
     'Proposal':        '#34d399',
     'Negotiation':     '#fb7185',
