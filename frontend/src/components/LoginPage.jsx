@@ -17,7 +17,6 @@ const BRANCHES = [
   'Legazpi',
   'Palawan',
   'Powerstore',
-  'Headquarters',
 ]
 
 const NEON_COLOR_SWATCHES = [
@@ -39,10 +38,11 @@ export default function LoginPage({ onLogin }) {
     { id: 'light', label: 'Light', icon: IconSun },
     { id: 'neon', label: 'Neon', icon: IconSparkle },
   ]
-  const [form, setForm] = useState({ 
-    username: '', 
-    password: '', 
-    branch: localStorage.getItem('tdt_last_branch') || '' 
+  const savedBranch = localStorage.getItem('tdt_last_branch') || ''
+  const [form, setForm] = useState({
+    username: '',
+    password: '',
+    branch: BRANCHES.includes(savedBranch) ? savedBranch : '',
   })
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')

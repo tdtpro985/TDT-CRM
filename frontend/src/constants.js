@@ -7,11 +7,6 @@ export const TASK_PRIORITIES = ['Low', 'Medium', 'High']
 export const LEAD_SOURCES = ['Website', 'Referral', 'Outbound', 'Event', 'Email']
 
 export const STAGE_WORKFLOW = {
-  'Qualified':       { 
-    probability: 20, 
-    activityType: 'Call',    
-    hint: 'Verify company exists in the customer database.'
-  },
   'New Opportunity': { 
     probability: 40, 
     activityType: 'Call',    
@@ -34,7 +29,6 @@ export const DEAL_STAGES = Object.keys(STAGE_WORKFLOW)
 export const SHORT_STAGE_LABEL = { 'New Opportunity': 'New Opp', 'Closed Won': 'Won', 'Closed Lost': 'Lost' }
 
 export const STAGE_COLORS = {
-  'Qualified':       'var(--accent-strong)',
   'New Opportunity': '#38bdf8',
   'Proposal':        '#34d399',
   'Negotiation':     '#fb7185',
@@ -50,9 +44,6 @@ export const REGION_BRANCHES = {
 
 export const LOST_REASONS = ['Price', 'Competitor', 'Budget', 'Timeline', 'No response', 'Other']
 
-export const HEALTH_LABELS = ['Critical', 'At Risk', 'Healthy']
-export const HEALTH_COLORS = { Critical: '#fb7185', 'At Risk': 'var(--warning)', Healthy: '#34d399' }
-export const HEALTH_MAP = { Overdue: 'Critical', 'High Priority': 'At Risk', 'Due Today': 'Healthy' }
 
 export const NAV_CONFIG = [
   { id: 'dashboard', label: 'Dashboard',         description: '5 KPI overview' },

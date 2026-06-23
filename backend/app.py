@@ -2,10 +2,12 @@ import os
 import csv
 import io
 import uuid
+import hashlib
+import secrets
 import traceback
 from functools import wraps
 from importlib import import_module
-from flask import Flask, request, jsonify, send_from_directory, make_response, send_file
+from flask import Flask, g, request, jsonify, send_from_directory, make_response, send_file
 from flask_cors import CORS
 from openpyxl import Workbook
 from openpyxl.styles import PatternFill, Font, Alignment
@@ -26,7 +28,6 @@ load_dotenv(os.path.join(basedir, '.env'))
 
 from database.database import get_db_connection, close_connection
 from database.sync_pipeline import fill_pipeline
-from gsheets_sync import sync_from_sheets
 
 def ensure_schema():
     conn = get_db_connection()
@@ -220,6 +221,48 @@ def ensure_schema():
     except Exception as e2:
         print(f"Warning: could not create customer_approvals table: {e2}")
 
+    # task_type_configs: custom task types defined by RSM/HoS
+    try:
+        cursor5 = conn.cursor()
+        cursor5.execute("""
+            CREATE TABLE IF NOT EXISTS task_type_configs (
+                id         VARCHAR(100) PRIMARY KEY,
+                name       VARCHAR(100) NOT NULL,
+                created_by INT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (created_by) REFERENCES team(id) ON DELETE SET NULL,
+                UNIQUE KEY uq_task_type_name (name)
+            )
+        """)
+        conn.commit()
+        cursor5.close()
+    except Exception as e5:
+        print(f"Warning: could not create task_type_configs table: {e5}")
+
+    # api_keys: integration API key storage
+    try:
+        cursor6 = conn.cursor()
+        cursor6.execute("""
+            CREATE TABLE IF NOT EXISTS api_keys (
+                id            INT AUTO_INCREMENT PRIMARY KEY,
+                name          VARCHAR(100) NOT NULL,
+                key_hash      VARCHAR(64)  NOT NULL UNIQUE,
+                key_prefix    VARCHAR(16)  NOT NULL,
+                permissions   JSON         NOT NULL,
+                branch        VARCHAR(50)  DEFAULT NULL,
+                region        VARCHAR(50)  DEFAULT NULL,
+                owner_id      INT          DEFAULT NULL,
+                created_by    INT          DEFAULT NULL,
+                last_used_at  DATETIME     DEFAULT NULL,
+                is_active     TINYINT(1)   DEFAULT 1,
+                created_at    DATETIME     DEFAULT NOW()
+            )
+        """)
+        conn.commit()
+        cursor6.close()
+    except Exception as e6:
+        print(f"Warning: could not create api_keys table: {e6}")
+
     # Migrate 'Sales Rep' role → 'Branch Account' (idempotent, always runs)
     try:
         cursor3 = conn.cursor()
@@ -316,6 +359,45 @@ def admin_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
+def api_key_required(permissions_needed=None):
+    """Decorator for integration API endpoints. Validates Bearer tdt_... API keys."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            auth = request.headers.get('Authorization', '')
+            if not auth.startswith('Bearer tdt_'):
+                return jsonify({"error": "Missing or invalid API key", "code": "UNAUTHORIZED"}), 401
+            raw_key = auth[7:]
+            key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+            conn = get_db_connection()
+            if not conn:
+                return jsonify({"error": "Database unavailable", "code": "SERVICE_UNAVAILABLE"}), 503
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT id, name, permissions, branch, region, owner_id FROM api_keys WHERE key_hash=%s AND is_active=1",
+                    (key_hash,)
+                )
+                columns = [col[0] for col in cursor.description]
+                row = cursor.fetchone()
+                if not row:
+                    return jsonify({"error": "Invalid or revoked API key", "code": "UNAUTHORIZED"}), 401
+                key_row = dict(zip(columns, row))
+                if permissions_needed:
+                    perms = json.loads(key_row['permissions']) if isinstance(key_row['permissions'], str) else key_row['permissions']
+                    missing = [p for p in permissions_needed if p not in perms]
+                    if missing:
+                        return jsonify({"error": f"Missing permissions: {', '.join(missing)}", "code": "PERMISSION_DENIED"}), 403
+                cursor.execute("UPDATE api_keys SET last_used_at=NOW() WHERE id=%s", (key_row['id'],))
+                conn.commit()
+            finally:
+                close_connection(conn)
+            g.api_key = key_row
+            return fn(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
 @app.errorhandler(Exception)
 def handle_exception(e):
     from werkzeug.exceptions import HTTPException
@@ -326,7 +408,6 @@ def handle_exception(e):
     return jsonify(error="An internal error occurred"), 500
 
 STAGE_PROBABILITY = {
-    'Qualified':       20,
     'New Opportunity': 40,
     'Proposal':        60,
     'Negotiation':     80,
@@ -710,7 +791,7 @@ def get_customers():
                     SUM(CASE WHEN stage = 'Closed Won' THEN value ELSE 0 END) AS closedWonValue,
                     SUM(CASE WHEN stage = 'Closed Lost' THEN value ELSE 0 END) AS closedLostValue,
                     SUM(CASE WHEN stage IN ('Proposal', 'Negotiation') THEN 1 ELSE 0 END) AS hasNegotiation,
-                    SUM(CASE WHEN stage IN ('New Opportunity', 'Qualified') THEN 1 ELSE 0 END) AS hasProspect
+                    SUM(CASE WHEN stage = 'New Opportunity' THEN 1 ELSE 0 END) AS hasProspect
                 FROM deals
                 GROUP BY company_id
             ) deal_stats ON c.id = deal_stats.company_id
@@ -804,7 +885,7 @@ def get_customer_detail(customer_id):
                     SUM(CASE WHEN stage = 'Closed Won' THEN value ELSE 0 END) AS closedWonValue,
                     SUM(CASE WHEN stage = 'Closed Lost' THEN value ELSE 0 END) AS closedLostValue,
                     SUM(CASE WHEN stage IN ('Proposal', 'Negotiation') THEN 1 ELSE 0 END) AS hasNegotiation,
-                    SUM(CASE WHEN stage IN ('New Opportunity', 'Qualified') THEN 1 ELSE 0 END) AS hasProspect
+                    SUM(CASE WHEN stage = 'New Opportunity' THEN 1 ELSE 0 END) AS hasProspect
                 FROM deals
                 GROUP BY company_id
             ) deal_stats ON c.id = deal_stats.company_id
@@ -1069,6 +1150,13 @@ def approve_customer(customer_id):
             return jsonify({'error': 'Customer is already approved'}), 409
 
         cursor.execute(
+            "SELECT COUNT(*) FROM customer_approvals WHERE lead_id = %s AND action = 'endorsed'",
+            (customer_id,)
+        )
+        if cursor.fetchone()[0] == 0:
+            return jsonify({'error': 'This record must be endorsed by an RSM or Head of Sales first.'}), 403
+
+        cursor.execute(
             "UPDATE leads SET approval_status = 'approved', reassigned_at = CURRENT_DATE WHERE id = %s",
             (customer_id,)
         )
@@ -1105,6 +1193,13 @@ def reject_customer(customer_id):
             return jsonify({'error': 'Customer not found'}), 404
         if row[0] not in ('pending', 'approved'):
             return jsonify({'error': 'Customer is already rejected'}), 409
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM customer_approvals WHERE lead_id = %s AND action = 'endorsed'",
+            (customer_id,)
+        )
+        if cursor.fetchone()[0] == 0:
+            return jsonify({'error': 'This record must be endorsed by an RSM or Head of Sales first.'}), 403
 
         cursor.execute(
             "UPDATE leads SET approval_status = 'rejected' WHERE id = %s",
@@ -1380,6 +1475,57 @@ def create_company():
         close_connection(conn)
 
 
+@app.route('/api/companies/<company_id>', methods=['PATCH'])
+@jwt_required()
+@admin_required
+def update_company(company_id):
+    """Admin edits core company/lead fields: industry, website, address, contact_num."""
+    data = request.get_json() or {}
+    user_id = get_jwt_identity()
+
+    company_fields = {k: v for k, v in {
+        'industry':    data.get('industry'),
+        'website':     data.get('website'),
+    }.items() if k in data}
+    lead_fields = {k: v for k, v in {
+        'address':     data.get('address'),
+        'contact_num': data.get('contact_num'),
+    }.items() if k in data}
+
+    if not company_fields and not lead_fields:
+        return jsonify({'error': 'No updatable fields provided'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM companies WHERE id = %s", (company_id,))
+        if not cursor.fetchone():
+            return jsonify({'error': 'Company not found'}), 404
+
+        if company_fields:
+            set_clause = ', '.join(f"{k} = %s" for k in company_fields)
+            cursor.execute(
+                f"UPDATE companies SET {set_clause} WHERE id = %s",
+                tuple(company_fields.values()) + (company_id,)
+            )
+        if lead_fields:
+            set_clause = ', '.join(f"{k} = %s" for k in lead_fields)
+            cursor.execute(
+                f"UPDATE leads SET {set_clause} WHERE id = %s",
+                tuple(lead_fields.values()) + (company_id,)
+            )
+        log_audit(conn, 'lead', company_id, 'company_updated', None, str({**company_fields, **lead_fields}), user_id)
+        conn.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+
 # ─── Contacts ─────────────────────────────────────────────────────────────────
 
 @app.route('/api/contacts', methods=['GET'])
@@ -1591,22 +1737,6 @@ def update_contact(contact_id):
         return jsonify({'message': 'Contact updated', 'id': contact_id})
     finally:
         close_connection(conn)
-
-
-# ─── Google Sheets Sync ───────────────────────────────────────────────────────
-
-@app.route('/api/sync/gsheets', methods=['POST'])
-@limiter.limit("2 per minute")
-@jwt_required()
-@admin_required
-def trigger_gsheets_sync():
-    try:
-        result = sync_from_sheets()
-        if "error" in result:
-            return jsonify(result), 500
-        return jsonify(result), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 # ─── Leads ────────────────────────────────────────────────────────────────────
@@ -1950,7 +2080,7 @@ def create_deal():
     if not all(k in data for k in ['id', 'name']):
         return jsonify({'error': 'id and name are required'}), 400
 
-    stage = data.get('stage', 'Qualified')
+    stage = data.get('stage', 'New Opportunity')
     probability = STAGE_PROBABILITY.get(stage, 20)
 
     conn = get_db_connection()
@@ -2219,6 +2349,132 @@ def update_deal_stage(deal_id):
         if new_activity:
             result['activity'] = new_activity
         return jsonify(result)
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/deals/<deal_id>/reassign', methods=['PATCH'])
+@jwt_required()
+def reassign_deal_isolated(deal_id):
+    """Reassign a single deal to a new SR without cascading to company or sibling deals."""
+    claims = get_jwt()
+    user_id = get_jwt_identity()
+    if ROLE_RANK.get(claims.get('role', ''), 0) <= 40:
+        return jsonify({'error': 'Insufficient permissions to reassign deals'}), 403
+
+    data = request.get_json()
+    new_owner_id = data.get('newOwnerId')
+    if not new_owner_id:
+        return jsonify({'error': 'newOwnerId is required'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT owner_id, branch FROM deals WHERE id = %s', (deal_id,))
+        deal_row = cursor.fetchone()
+        if not deal_row:
+            return jsonify({'error': 'Deal not found'}), 404
+        old_owner_id, deal_branch = deal_row
+
+        cursor.execute('SELECT name, role, branch FROM team WHERE id = %s', (new_owner_id,))
+        target_row = cursor.fetchone()
+        if not target_row:
+            return jsonify({'error': 'New owner not found in team'}), 400
+        _, target_role, target_branch = target_row
+
+        if not can_assign(claims, user_id, new_owner_id, target_role):
+            return jsonify({'error': f'Cannot assign to a user with equal or higher role ({target_role})'}), 403
+
+        if deal_branch and target_branch and deal_branch.lower() != target_branch.lower():
+            return jsonify({'error': 'Cannot reassign deal to an SR from a different branch'}), 403
+
+        if str(old_owner_id) == str(new_owner_id):
+            return jsonify({'message': 'Deal already assigned to this owner'}), 200
+
+        cursor.execute('UPDATE deals SET owner_id = %s WHERE id = %s', (new_owner_id, deal_id))
+        log_audit(conn, 'deal', deal_id, 'reassign_isolated', str(old_owner_id), str(new_owner_id), user_id)
+        conn.commit()
+        return jsonify({'message': 'Deal re-assigned successfully'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/companies/<company_id>/reassign', methods=['PATCH'])
+@jwt_required()
+def reassign_company(company_id):
+    """Re-assign company owner and cascade to all active deals and contacts."""
+    claims = get_jwt()
+    user_id = get_jwt_identity()
+    if ROLE_RANK.get(claims.get('role', ''), 0) <= 40:
+        return jsonify({'error': 'Insufficient permissions to reassign company accounts'}), 403
+
+    data = request.get_json()
+    new_owner_id = data.get('newOwnerId')
+    if not new_owner_id:
+        return jsonify({'error': 'newOwnerId is required'}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT owner_id FROM companies WHERE id = %s', (company_id,))
+        company_row = cursor.fetchone()
+        if not company_row:
+            return jsonify({'error': 'Company not found'}), 404
+        old_owner_id = company_row[0]
+
+        cursor.execute('SELECT name, role, branch FROM team WHERE id = %s', (new_owner_id,))
+        target_row = cursor.fetchone()
+        if not target_row:
+            return jsonify({'error': 'New owner not found in team'}), 400
+        _, target_role, target_branch = target_row
+
+        if not can_assign(claims, user_id, new_owner_id, target_role):
+            return jsonify({'error': f'Cannot assign to a user with equal or higher role ({target_role})'}), 403
+
+        cursor.execute('SELECT branch FROM leads WHERE id = %s', (company_id,))
+        lead_row = cursor.fetchone()
+        company_branch = (lead_row[0] or '') if lead_row else ''
+        if company_branch and target_branch and company_branch.lower() != target_branch.lower():
+            return jsonify({'error': 'Cannot reassign to an SR from a different branch'}), 403
+
+        cursor.execute('UPDATE companies SET owner_id = %s WHERE id = %s', (new_owner_id, company_id))
+        log_audit(conn, 'company', company_id, 'reassign', str(old_owner_id), str(new_owner_id), user_id)
+
+        cursor.execute(
+            "UPDATE deals SET owner_id = %s WHERE company_id = %s AND stage NOT IN ('Closed Won', 'Closed Lost')",
+            (new_owner_id, company_id)
+        )
+        deals_updated = cursor.rowcount
+        log_audit(conn, 'company', company_id, 'reassign_deals_cascade', str(old_owner_id), str(new_owner_id), user_id)
+
+        cursor.execute('UPDATE contacts SET owner_id = %s WHERE company_id = %s', (new_owner_id, company_id))
+        contacts_updated = cursor.rowcount
+
+        cursor.execute(
+            'UPDATE leads SET owner_id = %s, reassigned_at = CURRENT_DATE WHERE id = %s',
+            (new_owner_id, company_id)
+        )
+
+        conn.commit()
+        return jsonify({
+            'message': 'Company account re-assigned successfully',
+            'cascade': {
+                'company_id': company_id,
+                'new_owner_id': int(new_owner_id),
+                'deals_updated': deals_updated,
+                'contacts_updated': contacts_updated,
+            }
+        })
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
     finally:
         close_connection(conn)
 
@@ -3395,11 +3651,11 @@ def import_customers():
                 skipped += 1
                 continue
 
-            customer_name = str(row[22]).strip().replace('\xa0', '').strip() if row[22] else ''
-            address       = str(row[23]).strip() if row[23] else ''
-            contact_num   = _parse_phone(row[25])
-            owner_name    = str(row[26]).strip() if row[26] else ''
-            branch        = str(row[27]).strip() if row[27] else ''
+            customer_name  = str(row[22]).strip().replace('\xa0', '').strip() if row[22] else ''
+            address        = str(row[23]).strip() if row[23] else ''
+            contact_num    = _parse_phone(row[25])
+            owner_name     = str(row[26]).strip() if row[26] else ''
+            branch         = str(row[27]).strip() if row[27] else ''
 
             if not customer_name or not branch:
                 if customer_name or branch:
@@ -3899,6 +4155,763 @@ def get_celebration_animation():
             'won':  rows.get('celebration_animation_won',  'confetti'),
             'lost': rows.get('celebration_animation_lost', 'none'),
         })
+    finally:
+        close_connection(conn)
+
+
+_MANAGER_ROLES = {'Head of Sales', 'Regional Sales Manager', 'Admin'}
+
+@app.route('/api/task-type-configs', methods=['GET'])
+@jwt_required()
+def list_task_type_configs():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, name, created_by, created_at FROM task_type_configs ORDER BY created_at')
+        rows = rows_to_list(cursor)
+        return jsonify([{
+            'id': r['id'],
+            'name': r['name'],
+            'createdBy': r['created_by'],
+            'createdAt': to_pht(r['created_at']) if r['created_at'] else None,
+        } for r in rows])
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/task-type-configs', methods=['POST'])
+@jwt_required()
+def create_task_type_config():
+    claims = get_jwt()
+    if claims.get('role') not in _MANAGER_ROLES:
+        return jsonify(error='Access restricted to managers and above'), 403
+    data = request.get_json()
+    if not data or not data.get('name', '').strip():
+        return jsonify(error='name is required'), 400
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        user_id = get_jwt_identity()
+        type_id = data.get('id') or f"ttype-{data['name'].strip().lower().replace(' ', '-')}"
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO task_type_configs (id, name, created_by) VALUES (%s, %s, %s)',
+            (type_id, data['name'].strip(), user_id)
+        )
+        conn.commit()
+        log_audit(conn, 'task_type_config', type_id, 'created', None, data['name'].strip(), user_id)
+        cursor.execute('SELECT id, name, created_by, created_at FROM task_type_configs WHERE id = %s', (type_id,))
+        row = rows_to_list(cursor)[0]
+        return jsonify({
+            'id': row['id'],
+            'name': row['name'],
+            'createdBy': row['created_by'],
+            'createdAt': to_pht(row['created_at']) if row['created_at'] else None,
+        }), 201
+    except Exception as e:
+        if 'Duplicate entry' in str(e) or '1062' in str(e):
+            return jsonify(error='A type with this name already exists'), 409
+        return jsonify(error=str(e)), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/task-type-configs/<type_id>', methods=['DELETE'])
+@jwt_required()
+def delete_task_type_config(type_id):
+    claims = get_jwt()
+    if claims.get('role') not in _MANAGER_ROLES:
+        return jsonify(error='Access restricted to managers and above'), 403
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        user_id = get_jwt_identity()
+        cursor = conn.cursor()
+        cursor.execute('SELECT name FROM task_type_configs WHERE id = %s', (type_id,))
+        row = rows_to_list(cursor)
+        if not row:
+            return jsonify(error='Not found'), 404
+        type_name = row[0]['name']
+        cursor.execute('DELETE FROM task_type_configs WHERE id = %s', (type_id,))
+        conn.commit()
+        log_audit(conn, 'task_type_config', type_id, 'deleted', type_name, None, user_id)
+        return '', 204
+    finally:
+        close_connection(conn)
+
+
+# ─── Integration API: Admin Key Management ────────────────────────────────────
+
+@app.route('/api/admin/api-keys', methods=['GET'])
+@jwt_required()
+@admin_required
+def list_api_keys():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT k.id, k.name, k.key_prefix, k.permissions, k.branch, k.region,
+                   k.owner_id, t.name AS ownerName, k.is_active, k.last_used_at, k.created_at
+            FROM api_keys k
+            LEFT JOIN team t ON k.owner_id = t.id
+            ORDER BY k.created_at DESC
+        """)
+        columns = [col[0] for col in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        for r in rows:
+            if isinstance(r.get('permissions'), str):
+                r['permissions'] = json.loads(r['permissions'])
+            r['lastUsedAt'] = to_pht(r.pop('last_used_at', None))
+            r['createdAt'] = to_pht(r.pop('created_at', None))
+            r['isActive'] = bool(r.pop('is_active', 1))
+        return jsonify(rows)
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/api-keys', methods=['POST'])
+@jwt_required()
+@admin_required
+def create_api_key():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    permissions = data.get('permissions', [])
+    if not name:
+        return jsonify(error='name is required'), 400
+    valid_perms = {'deals:read', 'deals:write', 'contacts:read', 'contacts:write', 'companies:read', 'companies:write'}
+    invalid = [p for p in permissions if p not in valid_perms]
+    if invalid:
+        return jsonify(error=f'Invalid permissions: {", ".join(invalid)}. Valid: {", ".join(sorted(valid_perms))}'), 400
+    if not permissions:
+        return jsonify(error='At least one permission is required'), 400
+
+    raw_key = 'tdt_' + secrets.token_hex(16)
+    key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+    key_prefix = raw_key[:12]
+    user_id = get_jwt_identity()
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO api_keys (name, key_hash, key_prefix, permissions, branch, region, owner_id, created_by)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (name, key_hash, key_prefix, json.dumps(permissions),
+             data.get('branch') or None, data.get('region') or None,
+             data.get('owner_id') or None, user_id)
+        )
+        conn.commit()
+        new_id = cursor.lastrowid
+        return jsonify({
+            'id': new_id,
+            'name': name,
+            'key': raw_key,
+            'keyPrefix': key_prefix,
+            'permissions': permissions,
+            'branch': data.get('branch') or None,
+            'region': data.get('region') or None,
+            'note': 'Store this key securely — it will not be shown again.'
+        }), 201
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/api-keys/<int:key_id>', methods=['PATCH'])
+@jwt_required()
+@admin_required
+def toggle_api_key(key_id):
+    data = request.get_json() or {}
+    if 'is_active' not in data:
+        return jsonify(error='is_active is required'), 400
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM api_keys WHERE id=%s", (key_id,))
+        if not cursor.fetchone():
+            return jsonify(error='API key not found'), 404
+        cursor.execute("UPDATE api_keys SET is_active=%s WHERE id=%s", (1 if data['is_active'] else 0, key_id))
+        conn.commit()
+        return jsonify({'id': key_id, 'isActive': bool(data['is_active'])})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/admin/api-keys/<int:key_id>', methods=['DELETE'])
+@jwt_required()
+@admin_required
+def delete_api_key(key_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM api_keys WHERE id=%s", (key_id,))
+        if not cursor.fetchone():
+            return jsonify(error='API key not found'), 404
+        cursor.execute("DELETE FROM api_keys WHERE id=%s", (key_id,))
+        conn.commit()
+        return '', 204
+    finally:
+        close_connection(conn)
+
+
+# ─── Integration API v1 ───────────────────────────────────────────────────────
+
+def _v1_scope_claims():
+    """Build fake JWT claims from the api_key scope for use with build_scope()."""
+    key = g.api_key
+    if key.get('branch'):
+        return {'role': 'Branch Account', 'branch': key['branch'], 'region': key.get('region') or ''}
+    if key.get('region'):
+        return {'role': 'Regional Sales Manager', 'branch': '', 'region': key['region']}
+    return {'role': 'Admin', 'branch': '', 'region': ''}
+
+
+def _v1_paginate(request_args):
+    try:
+        page = max(1, int(request_args.get('page', 1)))
+        per_page = min(200, max(1, int(request_args.get('per_page', 50))))
+    except (ValueError, TypeError):
+        page, per_page = 1, 50
+    return page, per_page, (page - 1) * per_page
+
+
+@app.route('/api/v1/ping', methods=['GET'])
+@api_key_required()
+def v1_ping():
+    key = g.api_key
+    perms = json.loads(key['permissions']) if isinstance(key['permissions'], str) else key['permissions']
+    return jsonify({
+        'status': 'ok',
+        'name': key['name'],
+        'scope': {'branch': key.get('branch'), 'region': key.get('region')},
+        'permissions': perms,
+    })
+
+
+# ── v1 Deals ─────────────────────────────────────────────────────────────────
+
+@app.route('/api/v1/deals', methods=['GET'])
+@api_key_required(['deals:read'])
+def v1_get_deals():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        claims = _v1_scope_claims()
+        scope_parts, _, scope_params = build_scope(claims, '', col='LOWER(TRIM(l.branch))', requested_region='')
+        where_parts = list(scope_parts)
+        params = list(scope_params)
+        stage_filter = request.args.get('stage', '').strip()
+        if stage_filter:
+            where_parts.append('d.stage = %s')
+            params.append(stage_filter)
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+        page, per_page, offset = _v1_paginate(request.args)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM deals d
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            {where_sql}
+        """, tuple(params))
+        total = cursor.fetchone()[0]
+        cursor.execute(f"""
+            SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
+                   d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
+                   d.probability, d.lost_reason AS lostReason, d.owner_id AS ownerId,
+                   t.name AS ownerName, d.branch, d.created_at AS createdAt
+            FROM deals d
+            LEFT JOIN team t ON d.owner_id = t.id
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            {where_sql}
+            ORDER BY d.created_at DESC
+            LIMIT %s OFFSET %s
+        """, tuple(params) + (per_page, offset))
+        columns = [col[0] for col in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        for r in rows:
+            r['closeDate'] = to_pht(r.get('closeDate'))
+            r['createdAt'] = to_pht(r.get('createdAt'))
+            r['value'] = float(r['value']) if r.get('value') is not None else None
+        return jsonify({'data': rows, 'meta': {'total': total, 'page': page, 'perPage': per_page}})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/v1/deals/<deal_id>', methods=['GET'])
+@api_key_required(['deals:read'])
+def v1_get_deal(deal_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        claims = _v1_scope_claims()
+        scope_parts, _, scope_params = build_scope(claims, '', col='LOWER(TRIM(l.branch))', requested_region='')
+        where_parts = list(scope_parts) + ['d.id = %s']
+        params = list(scope_params) + [deal_id]
+        where_sql = 'WHERE ' + ' AND '.join(where_parts)
+        cursor.execute(f"""
+            SELECT d.id, d.name, d.company_id AS companyId, d.contact_id AS contactId,
+                   d.lead_id AS leadId, d.stage, d.value, d.close_date AS closeDate,
+                   d.probability, d.lost_reason AS lostReason, d.owner_id AS ownerId,
+                   t.name AS ownerName, d.branch, d.created_at AS createdAt
+            FROM deals d
+            LEFT JOIN team t ON d.owner_id = t.id
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            {where_sql}
+        """, tuple(params))
+        columns = [col[0] for col in cursor.description]
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Deal not found", "code": "NOT_FOUND"}), 404
+        d = dict(zip(columns, row))
+        d['closeDate'] = to_pht(d.get('closeDate'))
+        d['createdAt'] = to_pht(d.get('createdAt'))
+        d['value'] = float(d['value']) if d.get('value') is not None else None
+        return jsonify({'data': d})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/v1/deals', methods=['POST'])
+@api_key_required(['deals:write'])
+def v1_create_deal():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({"error": "name is required", "code": "VALIDATION_ERROR"}), 400
+    stage = data.get('stage', 'New Opportunity')
+    if stage not in STAGE_PROBABILITY:
+        return jsonify({"error": f"Invalid stage. Valid: {', '.join(STAGE_PROBABILITY.keys())}", "code": "VALIDATION_ERROR"}), 400
+    key = g.api_key
+    owner_id = data.get('ownerId') or key.get('owner_id')
+    deal_id = data.get('id') or str(uuid.uuid4())
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        company_id = data.get('companyId')
+        if company_id:
+            cursor.execute('SELECT id FROM companies WHERE id=%s', (company_id,))
+            if not cursor.fetchone():
+                return jsonify({"error": "companyId not found", "code": "VALIDATION_ERROR"}), 400
+        contact_id = data.get('contactId')
+        if contact_id:
+            cursor.execute('SELECT id FROM contacts WHERE id=%s', (contact_id,))
+            if not cursor.fetchone():
+                return jsonify({"error": "contactId not found", "code": "VALIDATION_ERROR"}), 400
+        if name and company_id:
+            cursor.execute('SELECT id FROM deals WHERE company_id=%s AND LOWER(TRIM(name))=%s', (company_id, name.lower()))
+            if cursor.fetchone():
+                return jsonify({"error": f'A deal named "{name}" already exists for this company.', "code": "CONFLICT"}), 409
+        cursor.execute(
+            """INSERT INTO deals (id, name, company_id, contact_id, lead_id, stage, value, close_date, probability, owner_id)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (deal_id, name, company_id, contact_id,
+             data.get('leadId') or company_id or None,
+             stage, data.get('value', 0),
+             data.get('closeDate') or None,
+             STAGE_PROBABILITY[stage], owner_id)
+        )
+        log_audit(conn, 'deal', deal_id, 'deal_created_via_api', None, stage, owner_id)
+        conn.commit()
+        return jsonify({'data': {'id': deal_id, 'name': name, 'stage': stage,
+                                 'probability': STAGE_PROBABILITY[stage],
+                                 'companyId': company_id, 'contactId': contact_id,
+                                 'value': float(data.get('value', 0)),
+                                 'closeDate': data.get('closeDate'),
+                                 'ownerId': owner_id}}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e), "code": "SERVER_ERROR"}), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/v1/deals/<deal_id>', methods=['PATCH'])
+@api_key_required(['deals:write'])
+def v1_update_deal(deal_id):
+    data = request.get_json() or {}
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        claims = _v1_scope_claims()
+        scope_parts, _, scope_params = build_scope(claims, '', col='LOWER(TRIM(l.branch))', requested_region='')
+        where_parts = list(scope_parts) + ['d.id = %s']
+        params = list(scope_params) + [deal_id]
+        where_sql = 'WHERE ' + ' AND '.join(where_parts)
+        cursor.execute(f"""
+            SELECT d.stage, d.value, d.close_date, d.lost_reason, d.company_id
+            FROM deals d
+            LEFT JOIN leads l ON (d.lead_id = l.id OR d.company_id = l.id)
+            {where_sql}
+        """, tuple(params))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Deal not found", "code": "NOT_FOUND"}), 404
+        old_stage, old_value, old_close, old_lost_reason, company_id = row
+        new_stage = data.get('stage', old_stage)
+        if new_stage not in STAGE_PROBABILITY:
+            return jsonify({"error": f"Invalid stage. Valid: {', '.join(STAGE_PROBABILITY.keys())}", "code": "VALIDATION_ERROR"}), 400
+        new_value = data.get('value', old_value)
+        new_close = data.get('closeDate', old_close)
+        new_lost_reason = data.get('lostReason', old_lost_reason)
+        probability = STAGE_PROBABILITY[new_stage]
+        cursor.execute(
+            """UPDATE deals SET stage=%s, value=%s, close_date=%s, lost_reason=%s, probability=%s
+               WHERE id=%s""",
+            (new_stage, new_value, new_close or None, new_lost_reason, probability, deal_id)
+        )
+        key = g.api_key
+        log_audit(conn, 'deal', deal_id, 'stage_changed_via_api', old_stage, new_stage, key.get('owner_id'))
+        conn.commit()
+        if new_stage in ('Closed Won', 'Closed Lost') and old_stage not in ('Closed Won', 'Closed Lost'):
+            try:
+                fill_pipeline(company_id)
+            except Exception:
+                pass
+        return jsonify({'data': {'id': deal_id, 'stage': new_stage, 'probability': probability,
+                                 'value': float(new_value) if new_value is not None else None,
+                                 'closeDate': to_pht(new_close), 'lostReason': new_lost_reason}})
+    finally:
+        close_connection(conn)
+
+
+# ── v1 Contacts ───────────────────────────────────────────────────────────────
+
+@app.route('/api/v1/contacts', methods=['GET'])
+@api_key_required(['contacts:read'])
+def v1_get_contacts():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        claims = _v1_scope_claims()
+        scope_parts, _, scope_params = build_scope(claims, '', col='LOWER(TRIM(l.branch))', requested_region='')
+        where_parts = list(scope_parts)
+        params = list(scope_params)
+        company_filter = request.args.get('company_id', '').strip()
+        if company_filter:
+            where_parts.append('c.company_id = %s')
+            params.append(company_filter)
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+        page, per_page, offset = _v1_paginate(request.args)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM contacts c
+            LEFT JOIN leads l ON l.id = c.company_id
+            {where_sql}
+        """, tuple(params))
+        total = cursor.fetchone()[0]
+        cursor.execute(f"""
+            SELECT c.id, c.name, c.company_id AS companyId, c.role,
+                   c.email, c.phone, c.owner_id AS ownerId, t.name AS ownerName,
+                   c.status, c.last_touch AS lastTouch, c.created_at AS createdAt
+            FROM contacts c
+            LEFT JOIN team t ON c.owner_id = t.id
+            LEFT JOIN leads l ON l.id = c.company_id
+            {where_sql}
+            ORDER BY c.name
+            LIMIT %s OFFSET %s
+        """, tuple(params) + (per_page, offset))
+        columns = [col[0] for col in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        for r in rows:
+            r['lastTouch'] = to_pht(r.get('lastTouch'))
+            r['createdAt'] = to_pht(r.get('createdAt'))
+        return jsonify({'data': rows, 'meta': {'total': total, 'page': page, 'perPage': per_page}})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/v1/contacts/<contact_id>', methods=['GET'])
+@api_key_required(['contacts:read'])
+def v1_get_contact(contact_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        claims = _v1_scope_claims()
+        scope_parts, _, scope_params = build_scope(claims, '', col='LOWER(TRIM(l.branch))', requested_region='')
+        where_parts = list(scope_parts) + ['c.id = %s']
+        params = list(scope_params) + [contact_id]
+        where_sql = 'WHERE ' + ' AND '.join(where_parts)
+        cursor.execute(f"""
+            SELECT c.id, c.name, c.company_id AS companyId, c.role,
+                   c.email, c.phone, c.owner_id AS ownerId, t.name AS ownerName,
+                   c.status, c.last_touch AS lastTouch, c.created_at AS createdAt
+            FROM contacts c
+            LEFT JOIN team t ON c.owner_id = t.id
+            LEFT JOIN leads l ON l.id = c.company_id
+            {where_sql}
+        """, tuple(params))
+        columns = [col[0] for col in cursor.description]
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Contact not found", "code": "NOT_FOUND"}), 404
+        d = dict(zip(columns, row))
+        d['lastTouch'] = to_pht(d.get('lastTouch'))
+        d['createdAt'] = to_pht(d.get('createdAt'))
+        return jsonify({'data': d})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/v1/contacts', methods=['POST'])
+@api_key_required(['contacts:write'])
+def v1_create_contact():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({"error": "name is required", "code": "VALIDATION_ERROR"}), 400
+    email = (data.get('email') or '').strip() or None
+    phone = (data.get('phone') or '').strip() or None
+    if not email and not phone:
+        return jsonify({"error": "email or phone is required", "code": "VALIDATION_ERROR"}), 400
+    key = g.api_key
+    owner_id = data.get('ownerId') or key.get('owner_id')
+    contact_id = data.get('id') or str(uuid.uuid4())
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        conditions, check_params = [], [name.lower()]
+        if email:
+            conditions.append('email = %s')
+            check_params.append(email)
+        if phone:
+            conditions.append('phone = %s')
+            check_params.append(phone)
+        check_sql = 'SELECT id, name FROM contacts WHERE LOWER(TRIM(name)) = %s AND (' + ' OR '.join(conditions) + ')'
+        cursor.execute(check_sql, tuple(check_params))
+        existing = cursor.fetchone()
+        if existing:
+            return jsonify({"error": f'A contact named "{existing[1]}" already exists with this email/phone.', "code": "CONFLICT"}), 409
+        cursor.execute(
+            """INSERT INTO contacts (id, name, company_id, role, owner_id, email, phone, last_touch, status, created_at)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (contact_id, name, data.get('companyId'), data.get('role'),
+             owner_id, email, phone,
+             data.get('lastTouch') or None, data.get('status', 'Active'), date.today())
+        )
+        log_audit(conn, 'contact', contact_id, 'contact_created_via_api', None, name, owner_id)
+        conn.commit()
+        return jsonify({'data': {'id': contact_id, 'name': name, 'companyId': data.get('companyId'),
+                                 'role': data.get('role'), 'email': email, 'phone': phone,
+                                 'status': data.get('status', 'Active'), 'ownerId': owner_id,
+                                 'createdAt': date.today().isoformat()}}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e), "code": "SERVER_ERROR"}), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/v1/contacts/<contact_id>', methods=['PATCH'])
+@api_key_required(['contacts:write'])
+def v1_update_contact(contact_id):
+    data = request.get_json() or {}
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, name, role, email, phone FROM contacts WHERE id=%s', (contact_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Contact not found", "code": "NOT_FOUND"}), 404
+        _, old_name, old_role, old_email, old_phone = row
+        new_name = (data.get('name') or old_name).strip()
+        new_role = data.get('role', old_role)
+        new_email = (data.get('email') or old_email or '').strip() or None
+        new_phone = (data.get('phone') or old_phone or '').strip() or None
+        if not new_email and not new_phone:
+            return jsonify({"error": "email or phone is required", "code": "VALIDATION_ERROR"}), 400
+        cursor.execute(
+            'UPDATE contacts SET name=%s, role=%s, email=%s, phone=%s WHERE id=%s',
+            (new_name, new_role, new_email, new_phone, contact_id)
+        )
+        key = g.api_key
+        log_audit(conn, 'contact', contact_id, 'contact_updated_via_api', old_name, new_name, key.get('owner_id'))
+        conn.commit()
+        return jsonify({'data': {'id': contact_id, 'name': new_name, 'role': new_role,
+                                 'email': new_email, 'phone': new_phone}})
+    finally:
+        close_connection(conn)
+
+
+# ── v1 Companies ──────────────────────────────────────────────────────────────
+
+@app.route('/api/v1/companies', methods=['GET'])
+@api_key_required(['companies:read'])
+def v1_get_companies():
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        claims = _v1_scope_claims()
+        scope_parts, _, scope_params = build_scope(claims, '', col='LOWER(TRIM(l.branch))', requested_region='')
+        where_parts = list(scope_parts)
+        params = list(scope_params)
+        industry_filter = request.args.get('industry', '').strip()
+        if industry_filter:
+            where_parts.append('c.industry = %s')
+            params.append(industry_filter)
+        where_sql = 'WHERE ' + ' AND '.join(where_parts) if where_parts else ''
+        page, per_page, offset = _v1_paginate(request.args)
+        cursor.execute(f"""
+            SELECT COUNT(*) FROM companies c
+            LEFT JOIN leads l ON l.id = c.id
+            {where_sql}
+        """, tuple(params))
+        total = cursor.fetchone()[0]
+        cursor.execute(f"""
+            SELECT c.id, c.name, c.industry, c.website, c.city,
+                   c.owner_id AS ownerId, t.name AS ownerName, c.status, c.created_at AS createdAt
+            FROM companies c
+            LEFT JOIN team t ON c.owner_id = t.id
+            LEFT JOIN leads l ON l.id = c.id
+            {where_sql}
+            ORDER BY c.name
+            LIMIT %s OFFSET %s
+        """, tuple(params) + (per_page, offset))
+        columns = [col[0] for col in cursor.description]
+        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        for r in rows:
+            r['createdAt'] = to_pht(r.get('createdAt'))
+        return jsonify({'data': rows, 'meta': {'total': total, 'page': page, 'perPage': per_page}})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/v1/companies/<company_id>', methods=['GET'])
+@api_key_required(['companies:read'])
+def v1_get_company(company_id):
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        claims = _v1_scope_claims()
+        scope_parts, _, scope_params = build_scope(claims, '', col='LOWER(TRIM(l.branch))', requested_region='')
+        where_parts = list(scope_parts) + ['c.id = %s']
+        params = list(scope_params) + [company_id]
+        where_sql = 'WHERE ' + ' AND '.join(where_parts)
+        cursor.execute(f"""
+            SELECT c.id, c.name, c.industry, c.website, c.city,
+                   c.owner_id AS ownerId, t.name AS ownerName, c.status, c.created_at AS createdAt
+            FROM companies c
+            LEFT JOIN team t ON c.owner_id = t.id
+            LEFT JOIN leads l ON l.id = c.id
+            {where_sql}
+        """, tuple(params))
+        columns = [col[0] for col in cursor.description]
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Company not found", "code": "NOT_FOUND"}), 404
+        d = dict(zip(columns, row))
+        d['createdAt'] = to_pht(d.get('createdAt'))
+        cursor.execute("""
+            SELECT id, name, role, email, phone, status
+            FROM contacts WHERE company_id=%s ORDER BY name
+        """, (company_id,))
+        cols2 = [col[0] for col in cursor.description]
+        d['contacts'] = [dict(zip(cols2, r)) for r in cursor.fetchall()]
+        return jsonify({'data': d})
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/v1/companies', methods=['POST'])
+@api_key_required(['companies:write'])
+def v1_create_company():
+    data = request.get_json() or {}
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({"error": "name is required", "code": "VALIDATION_ERROR"}), 400
+    key = g.api_key
+    owner_id = data.get('ownerId') or key.get('owner_id')
+    company_id = data.get('id') or str(uuid.uuid4())
+    branch = data.get('branch') or key.get('branch')
+    region = data.get('region') or key.get('region')
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO leads (id, customer_name, branch, region, owner_id, status)
+               VALUES (%s, %s, %s, %s, %s, 'New')
+               ON DUPLICATE KEY UPDATE customer_name=VALUES(customer_name)""",
+            (company_id, name, branch, region, owner_id)
+        )
+        cursor.execute(
+            """INSERT INTO companies (id, name, industry, website, city, owner_id, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)
+               ON DUPLICATE KEY UPDATE name=VALUES(name), owner_id=VALUES(owner_id)""",
+            (company_id, name, data.get('industry'), data.get('website'),
+             data.get('city'), owner_id, data.get('status', 'Active'))
+        )
+        log_audit(conn, 'company', company_id, 'company_created_via_api', None, name, owner_id)
+        conn.commit()
+        return jsonify({'data': {'id': company_id, 'name': name, 'industry': data.get('industry'),
+                                 'website': data.get('website'), 'city': data.get('city'),
+                                 'branch': branch, 'region': region,
+                                 'status': data.get('status', 'Active'), 'ownerId': owner_id}}), 201
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e), "code": "SERVER_ERROR"}), 500
+    finally:
+        close_connection(conn)
+
+
+@app.route('/api/v1/companies/<company_id>', methods=['PATCH'])
+@api_key_required(['companies:write'])
+def v1_update_company(company_id):
+    data = request.get_json() or {}
+    conn = get_db_connection()
+    if not conn:
+        return jsonify(error='DB unavailable'), 503
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, name, industry, website, city FROM companies WHERE id=%s', (company_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Company not found", "code": "NOT_FOUND"}), 404
+        _, old_name, old_industry, old_website, old_city = row
+        new_name = (data.get('name') or old_name).strip()
+        new_industry = data.get('industry', old_industry)
+        new_website = data.get('website', old_website)
+        new_city = data.get('city', old_city)
+        cursor.execute(
+            'UPDATE companies SET name=%s, industry=%s, website=%s, city=%s WHERE id=%s',
+            (new_name, new_industry, new_website, new_city, company_id)
+        )
+        cursor.execute(
+            'UPDATE leads SET customer_name=%s WHERE id=%s',
+            (new_name, company_id)
+        )
+        key = g.api_key
+        log_audit(conn, 'company', company_id, 'company_updated_via_api', old_name, new_name, key.get('owner_id'))
+        conn.commit()
+        return jsonify({'data': {'id': company_id, 'name': new_name, 'industry': new_industry,
+                                 'website': new_website, 'city': new_city}})
     finally:
         close_connection(conn)
 

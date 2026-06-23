@@ -27,6 +27,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
   const [tasks, setTasks] = useState([])
   const [teamMembers, setTeamMembers] = useState([])
   const [dealContactMap, setDealContactMap] = useState({})
+  const [customTaskTypes, setCustomTaskTypes] = useState([])
   const [loading, setLoading] = useState(true)
 
   const abortControllerRef = useRef(null)
@@ -218,13 +219,14 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         apiFetch(`/api/deal-contacts`, { signal }),
         apiFetch(`/api/celebration-music`, { signal }),
         apiFetch(`/api/celebration-animation`, { signal }),
+        apiFetch(`/api/task-type-configs`, { signal }),
       ])
 
       if (responses.some(r => !r.ok)) {
         throw new Error('API or Database error')
       }
 
-      const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes, dealContactsRes, musicRes, animationRes] = responses
+      const [companiesRes, customersRes, contactsRes, leadsRes, dealsRes, activitiesRes, teamRes, dealContactsRes, musicRes, animationRes, taskTypeConfigsRes] = responses
 
       const fetchedLeads = await leadsRes.json()
       const fetchedCompanies = await companiesRes.json()
@@ -235,6 +237,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       const fetchedDealContacts = await dealContactsRes.json()
       const fetchedMusic = await musicRes.json()
       const fetchedAnimation = await animationRes.json()
+      const fetchedTaskTypeConfigs = await taskTypeConfigsRes.json()
 
       const dcm = {}
       fetchedDealContacts.forEach((dc) => {
@@ -253,6 +256,7 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
         lost: fetchedAnimation.lost ?? 'none',
       }
 
+      setCustomTaskTypes(Array.isArray(fetchedTaskTypeConfigs) ? fetchedTaskTypeConfigs : [])
       setLeads(fetchedLeads)
       setCompanies(fetchedCompanies)
       setCustomers(fetchedCustomers)
@@ -481,8 +485,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       companyId: companyIdToUse,
       contactId: contactIdToUse,
       name: dealForm.name.trim(),
-      stage: dealForm.stage || 'Qualified',
-      probability: getProbabilityForStage(dealForm.stage || 'Qualified'),
+      stage: dealForm.stage || 'New Opportunity',
+      probability: getProbabilityForStage(dealForm.stage || 'New Opportunity'),
       ownerId: rsm?.id || dealForm.ownerId || null,
       createdAt: CURRENT_DATE,
     }
@@ -854,53 +858,10 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
-  async function reassignTask(taskId, newOwnerId) {
-    markMutating()
-    try {
-      const res = await apiFetch(`/api/activities/${taskId}/reassign`, {
-        method: 'PATCH',
-        body: JSON.stringify({ newOwnerId }),
-      })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || 'Reassign failed')
-      }
-      const { newOwner } = await res.json()
-      setTasks(current =>
-        current.map(t => t.id === taskId ? { ...t, ownerId: newOwnerId, owner: newOwner } : t)
-      )
-      // Full handover touches leads/customers/deals/tasks — refresh them
-      await Promise.all([fetchTasks(), fetchDeals(), fetchLeads(), fetchCustomers()])
-      setNotice('Customer reassigned to new SR.')
-    } catch (err) {
-      setNotice(`Reassign failed: ${err.message}`)
-      throw err
-    }
-  }
-
   async function acknowledgeCustomer(id) {
     markMutating()
     apiFetch(`/api/customers/${id}/acknowledge`, { method: 'PATCH' }).catch(() => {})
     setCustomers(cur => cur.map(c => c.id === id ? { ...c, reassignedAt: null } : c))
-  }
-
-  async function syncGSheets() {
-    setNotice('Synchronizing with Google Sheets...')
-    try {
-      const res = await apiFetch(`/api/sync/gsheets`, { method: 'POST' })
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Sync failed')
-      
-      loadAll()
-      
-      const count = result.synced_count || 0
-      setNotice(`Sync complete! ${count} new leads were added from Google Sheets.`)
-      showToast(`Successfully synced ${count} new leads!`)
-      return result
-    } catch (err) {
-      setNotice(`Sync failed: ${err.message}`)
-      showToast(`Error: ${err.message}`)
-    }
   }
 
   async function reassignLead(leadId, newOwnerId) {
@@ -924,6 +885,50 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       showToast('Lead reassigned!')
     } catch {
       setNotice('Lead reassign updated locally — backend not reachable.')
+    }
+  }
+
+  async function handleDealReassignment(dealId, newOwnerId) {
+    markMutating()
+    const newOwner = teamMembers.find(m => String(m.id) === String(newOwnerId))
+    const prevDeals = deals
+    setDeals(current => current.map(d =>
+      d.id === dealId ? { ...d, ownerId: newOwnerId, owner: newOwner?.name ?? '' } : d
+    ))
+    try {
+      const res = await apiFetch(`/api/deals/${dealId}/reassign`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newOwnerId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Reassign failed')
+      }
+      fetchDeals()
+      showToast('Deal re-assigned successfully.')
+    } catch (err) {
+      setDeals(prevDeals)
+      setNotice(err.message || 'Deal reassign failed.')
+      throw err
+    }
+  }
+
+  async function handleCompanyReassignment(companyId, newOwnerId) {
+    markMutating()
+    try {
+      const res = await apiFetch(`/api/companies/${companyId}/reassign`, {
+        method: 'PATCH',
+        body: JSON.stringify({ newOwnerId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Company reassign failed')
+      }
+      await Promise.all([fetchDeals(), fetchCustomers(), fetchContacts()])
+      showToast('Company account re-assigned.')
+    } catch (err) {
+      setNotice(err.message || 'Company reassign failed.')
+      throw err
     }
   }
 
@@ -981,8 +986,31 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
     }
   }
 
+  async function createCustomTaskType(id, name) {
+    const res = await apiFetch('/api/task-type-configs', {
+      method: 'POST',
+      body: JSON.stringify({ id, name })
+    })
+    if (!res.ok) {
+      const err = await res.json()
+      throw new Error(err.error || 'Failed to create type')
+    }
+    const created = await res.json()
+    setCustomTaskTypes(prev => [...prev, created])
+    return created
+  }
+
+  async function deleteCustomTaskType(typeId) {
+    const res = await apiFetch(`/api/task-type-configs/${typeId}`, { method: 'DELETE' })
+    if (!res.ok && res.status !== 204) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Failed to delete type')
+    }
+    setCustomTaskTypes(prev => prev.filter(t => t.id !== typeId))
+  }
+
   return {
-    data: { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, loading, activeBranch, activeRegion },
+    data: { companies, customers, contacts, leads, deals, tasks, teamMembers, dealContactMap, customTaskTypes, loading, activeBranch, activeRegion },
     stopAllCelebration,
     getLostAnimationStyle,
     actions: {
@@ -995,10 +1023,10 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       updateDealStage,
       updateDeal,
       toggleTaskStatus,
-      reassignTask,
       acknowledgeCustomer,
-      syncGSheets,
       reassignLead,
+      handleDealReassignment,
+      handleCompanyReassignment,
       setActiveBranch,
       setActiveRegion,
       loadAll,
@@ -1016,6 +1044,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       deleteProfilePhoto,
       savePhotoAdjustment,
       endorseCustomer,
+      createCustomTaskType,
+      deleteCustomTaskType,
     }
   }
 }

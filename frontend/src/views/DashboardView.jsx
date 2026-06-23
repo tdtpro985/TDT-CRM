@@ -151,7 +151,6 @@ function StageDonutChart({ data, hovered, onHover }) {
   const total = activeStages.reduce((sum, s) => sum + s.count, 0)
 
   const STAGE_COLORS = {
-    'Qualified':       '#ff9800',
     'New Opportunity': '#38bdf8',
     'Proposal':        '#34d399',
     'Negotiation':     '#fb7185',
@@ -208,6 +207,7 @@ function StageDonutChart({ data, hovered, onHover }) {
 
 const DEFAULT_LAYOUT = [
   { id: 'kpi_metrics',    enabled: true },
+  { id: 'announcements',  enabled: true },
   { id: 'branch_overview', enabled: true },
   { id: 'top_srs',        enabled: true },
   { id: 'deals_chart',    enabled: true },
@@ -222,6 +222,7 @@ const DEFAULT_LAYOUT = [
 
 const WIDGET_LABELS = {
   kpi_metrics:     'KPI Metrics',
+  announcements:   'Announcements',
   top_srs:         'Top Sales Reps',
   branch_overview: 'Branch Overview',
   deals_chart:     'Deals Won/Lost Chart',
@@ -234,7 +235,7 @@ const WIDGET_LABELS = {
   loss_analysis:   'Loss Analysis',
 }
 
-const HALF_WIDTH = new Set(['deals_chart','stage_donut','record_health','priority_tasks','recent_wins','recent_losses','top_srs','branch_overview'])
+const HALF_WIDTH = new Set(['deals_chart','stage_donut','record_health','priority_tasks','recent_wins','recent_losses','top_srs','branch_overview','announcements'])
 const HISTORY_PAGE_SIZE = 5
 // Approximate per-row height (px). This reserves space for HISTORY_PAGE_SIZE rows
 // so the Prev/Next controls remain at a consistent position below the 5th item.
@@ -282,6 +283,7 @@ export default function DashboardView({
   teamMembers,
   showCustomize,
   setShowCustomize,
+  announcements,
 }) {
   const navigate = useNavigate()
   const isSr = isSrRole(currentUser?.role)
@@ -401,7 +403,6 @@ export default function DashboardView({
   }, [deals, teamMembers])
 
   const PIPELINE_STAGE_COLORS = {
-    'Qualified':       '#ff9800',
     'New Opportunity': '#38bdf8',
     'Proposal':        '#34d399',
     'Negotiation':     '#fb7185',
@@ -946,6 +947,31 @@ export default function DashboardView({
           </Panel>
         </section>
       )
+      case 'announcements': {
+        const visibleAnnouncements = (announcements ?? []).slice(0, 5)
+        const overflow = (announcements ?? []).length - visibleAnnouncements.length
+        return (
+          <Panel key="announcements" kicker="Updates" title="Announcements" detail="Recent reassignments and pending approvals.">
+            {visibleAnnouncements.length === 0 ? (
+              <p className="u-pad-16 u-text-muted u-fs-sm">No announcements right now.</p>
+            ) : (
+              <div className="simple-list">
+                {visibleAnnouncements.map((a, i) => (
+                  <div key={i} className="simple-list__item">
+                    <span className={`admin-role-pill ${a.type === 'pending' ? 'admin-role-pill--warning' : 'admin-role-pill--positive'}`}>
+                      {a.type === 'pending' ? 'Pending' : 'Reassigned'}
+                    </span>
+                    <span className="u-fs-sm u-ml-8">{a.label}</span>
+                  </div>
+                ))}
+                {overflow > 0 && (
+                  <p className="u-fs-10 u-text-muted u-pad-8">+{overflow} more</p>
+                )}
+              </div>
+            )}
+          </Panel>
+        )
+      }
       default: return null
     }
   }

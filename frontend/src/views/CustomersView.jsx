@@ -43,6 +43,7 @@ export default function CustomersView({
   currentUser,
   searchQuery,
   onReassignLead,
+  onCompanyReassign,
   endorseCustomer
 }) {
   const navigate = useNavigate()
@@ -83,6 +84,10 @@ export default function CustomersView({
   const [assigningCustomerId, setAssigningCustomerId] = useState(null)
   const [assignOwnerId, setAssignOwnerId] = useState('')
   const [assignProcessing, setAssignProcessing] = useState(false)
+
+  const [companyReassignTarget, setCompanyReassignTarget] = useState(null)
+  const [companyReassignOwner, setCompanyReassignOwner] = useState('')
+  const [companyReassignProcessing, setCompanyReassignProcessing] = useState(false)
   const isManager = !isSr && currentUser?.role !== 'Branch Account'
   const isRsmOrHos = currentUser?.role === 'Regional Sales Manager' || currentUser?.role === 'Head of Sales'
 
@@ -962,7 +967,42 @@ export default function CustomersView({
       >
         <div className="u-pad-0-24-24">
           <div className="detail-list">
-            {!isSr && <div><span>SR</span><strong>{selectedCustomer?.sr ?? '—'}</strong></div>}
+            {!isSr && (
+              <div>
+                <span>SR</span>
+                {isManager ? (
+                  <select
+                    value={companyReassignOwner || String(selectedCustomer?.ownerId ?? '')}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      if (val && val !== String(selectedCustomer?.ownerId ?? '')) {
+                        setCompanyReassignOwner(val)
+                        setCompanyReassignTarget({
+                          companyId: selectedCustomer.id,
+                          customerName: selectedCustomer.name,
+                          branch: selectedCustomer.branch,
+                        })
+                      }
+                    }}
+                    style={{ fontSize: 'var(--fs-sm)' }}
+                  >
+                    <option value={String(selectedCustomer?.ownerId ?? '')}>
+                      {selectedCustomer?.sr ?? '—'}
+                    </option>
+                    {(teamMembers ?? []).filter(m =>
+                      isSrRole(m.role) &&
+                      selectedCustomer?.branch &&
+                      String(m.id) !== String(selectedCustomer?.ownerId) &&
+                      (m.branch || '').toLowerCase() === selectedCustomer.branch.toLowerCase()
+                    ).map(m => (
+                      <option key={m.id} value={String(m.id)}>{m.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <strong>{selectedCustomer?.sr ?? '—'}</strong>
+                )}
+              </div>
+            )}
             <div><span>Region</span><strong>{selectedCustomer?.city || selectedCustomer?.region || '—'}</strong></div>
             <div><span>Branch</span><strong>{selectedCustomer?.branch ?? '—'}</strong></div>
             <div><span>Address</span><strong>{selectedCustomer?.address ?? '—'}</strong></div>
@@ -1365,6 +1405,73 @@ export default function CustomersView({
           </div>
         </Modal>
       )}
+
+      {/* Company Account Reassignment Warning Modal */}
+      <Modal
+        isOpen={!!companyReassignTarget}
+        onClose={() => { setCompanyReassignTarget(null); setCompanyReassignOwner('') }}
+        title={companyReassignTarget?.customerName ?? ''}
+        kicker="Reassign Company Account"
+      >
+        <div className="form-body">
+          <div
+            style={{
+              border: '1px solid var(--color-danger, #ef4444)',
+              borderRadius: '6px',
+              padding: '12px 16px',
+              marginBottom: '20px',
+              color: 'var(--color-danger, #ef4444)',
+              fontSize: 'var(--fs-sm)',
+              lineHeight: '1.5',
+            }}
+          >
+            Re-assigning this company will transfer all active deals and contacts to the chosen SR. This action cannot be undone individually. Proceed?
+          </div>
+          <div className="field">
+            <span>Transfer to SR</span>
+            <select
+              value={companyReassignOwner}
+              onChange={e => setCompanyReassignOwner(e.target.value)}
+              disabled={companyReassignProcessing}
+            >
+              <option value="">Select SR...</option>
+              {(teamMembers ?? []).filter(m =>
+                isSrRole(m.role) &&
+                companyReassignTarget?.branch &&
+                (m.branch || '').toLowerCase() === companyReassignTarget.branch.toLowerCase()
+              ).map(m => (
+                <option key={m.id} value={String(m.id)}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="form-actions field--span-2">
+            <button
+              type="button"
+              className="primary-button"
+              disabled={companyReassignProcessing || !companyReassignOwner}
+              onClick={async () => {
+                setCompanyReassignProcessing(true)
+                try {
+                  await onCompanyReassign?.(companyReassignTarget.companyId, Number(companyReassignOwner))
+                  setCompanyReassignTarget(null)
+                  setCompanyReassignOwner('')
+                } catch { /* error surfaced via setNotice in useCRMData */ }
+                finally { setCompanyReassignProcessing(false) }
+              }}
+            >
+              {companyReassignProcessing ? (<><span className="spinner-small" /> Saving...</>) : 'Confirm Re-assignment'}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={companyReassignProcessing}
+              onClick={() => { setCompanyReassignTarget(null); setCompanyReassignOwner('') }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   )
 }

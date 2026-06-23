@@ -5,20 +5,19 @@ export function formatPercentage(value) {
 
 export function formatCurrencyCompact(value) {
   const num = Number(value)
-  if (isNaN(num)) return 'PHP 0'
-  
+  if (isNaN(num)) return '₱0'
+
   const formatShort = (v, suffix) => {
     const val = Math.round(v * 10) / 10
-    // If it's a whole number after rounding, don't show .0
     const str = val % 1 === 0 ? val.toFixed(0) : val.toFixed(1)
-    return `PHP ${str}${suffix}`
+    return `₱${str}${suffix}`
   }
 
   if (num >= 1000000000) return formatShort(num / 1000000000, 'B')
   if (num >= 1000000) return formatShort(num / 1000000, 'M')
   if (num >= 1000) return formatShort(num / 1000, 'K')
-  
-  return `PHP ${num.toLocaleString('en-PH')}`
+
+  return `₱${num.toLocaleString('en-PH')}`
 }
 
 export function formatCurrencyFull(value) {
@@ -112,7 +111,6 @@ export function getToneClass(value) {
   const normalizedValue = String(value).toLowerCase()
 
   // Exact stage matches (synchronize with kanban board colors)
-  if (normalizedValue === 'qualified') return 'is-warning'        // Orange
   if (normalizedValue === 'new opportunity') return 'is-open'     // Blue
   if (normalizedValue === 'proposal') return 'is-positive'        // Green
   if (normalizedValue === 'negotiation') return 'is-alert'        // Red/Pink
@@ -210,7 +208,7 @@ export function getPaginatedData(data, page, pageSize) {
 }
 
 export function displayRole(role) {
-  if (role === 'Branch Account' || role === 'Sales Rep' || role === 'Sales Manager') return 'Branch Account'
+  if (role === 'Branch Account' || role === 'Sales Rep') return 'Branch Account'
   return role
 }
 

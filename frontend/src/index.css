@@ -24,6 +24,9 @@
   --alert: #ef4444;
   --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.12);
   --shadow-strong: 0 8px 24px rgba(0, 0, 0, 0.24);
+  --glow-sm: 0 4px 8px rgba(var(--accent-rgb), 0.15);
+  --glow-md: 0 4px 16px rgba(var(--accent-rgb), 0.22);
+  --glow-lg: 0 6px 24px rgba(var(--accent-rgb), 0.30);
   --font-body: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
   --font-heading: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
   --r-sm: 6px;
@@ -52,33 +55,53 @@
 
 [data-theme="light"] {
   color-scheme: only light;
-  --bg: #F8FAFC;
-  --bg-app: #F1F5F9;
-  --bg-card: #ffffff;
-  --bg-card-alt: #ffffff;
-  --bg-surface: #F8FAFC;
-  --bg-input: #ffffff;
-  --bg-soft: #F8FAFC;
-  --accent: #ff9800;
-  --accent-rgb: 255, 152, 0;
-  --accent-strong: #f57c00;
-  --accent-strong-rgb: 247, 124, 0;
-  --accent-soft: rgba(255, 152, 0, 0.12);
-  --text-strong: #0F172A;
-  --text: #1E293B;
-  --text-secondary: #475569;
-  --text-muted: #64748B;
-  --border: #E2E8F0;
-  --border-strong: #CBD5E1;
-  --bg-surface-2: rgba(0, 0, 0, 0.04);
+
+  /* Backgrounds */
+  --bg:            #fafafa;
+  --bg-app:        #f3f3f3;
+  --bg-card:       #ffffff;
+  --bg-card-alt:   #f7f7f7;
+  --bg-surface:    #ffffff;
+  --bg-input:      #ffffff;
+  --bg-soft:       #f0f0f0;
+  --bg-surface-2:  rgba(18, 16, 16, 0.04);
+
+  /* Accent */
+  --accent:             #e67026;
+  --accent-rgb:         230, 112, 38;
+  --accent-strong:      #e15716;
+  --accent-strong-rgb:  225, 87, 22;
+  --accent-soft:        rgba(230, 112, 38, 0.10);
+
+  /* Text */
+  --text-strong:    #121010;
+  --text:           #242423;
+  --text-secondary: #545962;   /* 6.75:1 on #fafafa — WCAG AA */
+  --text-muted:     #a6a6a8;   /* decorative/disabled only */
+  --text-dim:       #66676a;   /* 4.82:1 on #fafafa — WCAG AA */
+
+  /* Borders */
+  --border:        rgba(166, 166, 168, 0.35);
+  --border-strong: rgba(166, 166, 168, 0.65);
+
+  /* Semantic */
   --positive: #10b981;
-  --warning: #f59e0b;
-  --caution: #fbbf24;
-  --alert: #ef4444;
-  --shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
-  --shadow-strong: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
-  --glow-md: 0 0 16px rgba(255, 152, 0, 0.3);
-  --glow-lg: 0 0 24px rgba(255, 152, 0, 0.4);
+  --warning:  #f59e0b;
+  --caution:  #fbbf24;
+  --alert:    #ef4444;
+
+  /* Shadows */
+  --shadow-soft:   0 1px 3px rgba(18, 16, 16, 0.07), 0 1px 2px rgba(18, 16, 16, 0.05);
+  --shadow-strong: 0 4px 12px rgba(18, 16, 16, 0.10), 0 2px 6px rgba(18, 16, 16, 0.06);
+
+  /* Glow */
+  --glow-md: 0 4px 16px rgba(230, 112, 38, 0.20);
+  --glow-lg: 0 6px 24px rgba(230, 112, 38, 0.28);
+
+  /* Typography */
+  --font-body:    'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Manrope', 'Inter', system-ui, -apple-system, sans-serif;
+
   --panel-bg: #ffffff;
 }
 
@@ -193,11 +216,29 @@ body {
 }
 
 [data-theme="light"] body {
-  background:
-    radial-gradient(circle at top left, rgba(255, 152, 0, 0.1), transparent 30%),
-    linear-gradient(180deg, var(--bg) 0%, var(--bg-app) 100%);
-  -webkit-font-smoothing: auto;
+  background: #fafafa;
+  background-image:
+    radial-gradient(ellipse at 15% 0%, rgba(230, 112, 38, 0.06) 0%, transparent 40%),
+    radial-gradient(ellipse at 85% 100%, rgba(230, 112, 38, 0.04) 0%, transparent 35%);
+  -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: auto;
+}
+
+/* ── Light Theme: Placeholder text override (uses text-secondary for readability) ── */
+[data-theme="light"] .field input::placeholder,
+[data-theme="light"] .field textarea::placeholder,
+[data-theme="light"] .search-field input::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+/* ── Light Theme: Standardized focus ring ── */
+[data-theme="light"] .field input:focus,
+[data-theme="light"] .field select:focus,
+[data-theme="light"] .field textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(230, 112, 38, 0.14);
+  outline: none;
 }
 
 [data-theme="neon"] body {
@@ -446,7 +487,7 @@ h1, h2, h3 { margin: 0; color: var(--text-strong); font-family: var(--font-headi
 h2.page-title { font-size: var(--fs-md); }
 p { margin: 0; }
 ::selection { color: #10131f; background: rgba(255, 181, 71, 0.9); }
-[data-theme="light"] ::selection { color: #ffffff; background: rgba(255, 152, 0, 0.8); }
+[data-theme="light"] ::selection { color: #ffffff; background: rgba(230, 112, 38, 0.85); }
 [data-theme="neon"] ::selection { color: #0f0a1a; background: rgba(var(--accent-rgb), 0.9); }
 @keyframes revealUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .u-reveal-up { opacity: 0; transform: translateY(10px); animation: revealUp 0.5s ease forwards; }

@@ -42,8 +42,12 @@
 }
 
 [data-theme="light"] .sidebar {
-  background: #F1F5F9;
+  background: #f3f3f3;
   border-right: 1px solid var(--border);
+}
+
+[data-theme="light"] .nav-section-label {
+  color: var(--text-dim);
 }
 
 .sidebar.is-open {

@@ -659,6 +659,10 @@
   font-weight: 700;
 }
 
+[data-theme="light"] .pipeline-card__details-btn {
+  color: #ffffff;
+}
+
 .pipeline-card__details-btn:hover {
   opacity: 0.85;
 }
@@ -1153,6 +1157,10 @@
    color: #10131f;
 }
 
+[data-theme="light"] .view-button.is-active {
+  color: #ffffff;
+}
+
 [data-theme="neon"] .view-button.is-active {
    color: var(--text-strong);
 }
@@ -1481,6 +1489,10 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+[data-theme="light"] .profile-avatar {
+  color: #ffffff;
 }
 
 .profile-info-text {
@@ -1866,6 +1878,33 @@
 
 .admin-table__region-total .admin-table__name {
   color: var(--accent-strong);
+}
+
+/* ── API key reveal banner ───────────────────────────────────── */
+
+.admin-key-reveal {
+  background: rgba(var(--accent-strong-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-strong-rgb), 0.25);
+  border-radius: var(--r-md);
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.admin-key-reveal__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-key-reveal__code {
+  font-family: monospace;
+  font-size: var(--fs-sm);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  word-break: break-all;
+  flex: 1;
 }
 
 /* ── Number alignment for admin tables ──────────────────────── */
@@ -2356,10 +2395,15 @@
 }
 
 .timeline-notes {
-  margin-top: 4px !important;
-  font-size: var(--fs-xs) !important;
-  color: var(--text-muted) !important;
-  font-style: italic;
+  margin-top: 6px !important;
+  font-size: var(--fs-sm) !important;
+  color: var(--text-strong) !important;
+  font-style: normal;
+  padding: 6px 10px;
+  border-left: 2px solid rgba(var(--accent-strong-rgb), 0.35);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0 4px 4px 0;
+  line-height: 1.5;
 }
 
 /* ── Registry List Customizations ───────────────────────────── */
@@ -2537,6 +2581,16 @@
 .timeline--expanded {
   padding-right: 8px;
   margin-right: -4px;
+}
+
+.change-history-body {
+  max-height: 280px;
+  overflow-y: hidden;
+}
+
+.change-history-body--expanded {
+  max-height: none;
+  overflow-y: visible;
 }
 
 .deal-table-wrap--expanded {
@@ -2888,12 +2942,12 @@
 }
 
 [data-theme="light"] .modal-edit-input {
-  border-color: #D1D5DB;
+  border-color: var(--border-strong);
 }
 
 [data-theme="light"] .modal-edit-input:focus {
-  border-color: #FF8A00;
-  box-shadow: 0 0 0 3px rgba(255, 138, 0, 0.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(230, 112, 38, 0.14);
   outline: none;
 }
 
@@ -3162,6 +3216,12 @@
 .deal-modal__contact-link:hover {
   color: var(--accent-strong);
   text-decoration: underline;
+}
+
+.deal-modal__contact-number {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-strong);
 }
 
 .deal-modal__contact-details svg {
