@@ -161,15 +161,19 @@ export default function App() {
   // ─── Announcements derived from existing lead/task state ─────────────────
   const announcements = useMemo(() => {
     if (!currentUser) return []
+    const isManager = ['Regional Sales Manager', 'Head of Sales', 'Admin'].includes(currentUser.role)
     const items = []
-    leads.filter(l => l.reassignedAt).forEach(l =>
-      items.push({ type: 'reassigned', label: `${l.customerName} was reassigned`, date: l.reassignedAt })
-    )
-    if (['Regional Sales Manager', 'Head of Sales', 'Admin'].includes(currentUser.role)) {
-      leads.filter(l => l.approvalStatus === 'pending').forEach(l =>
+    leads.forEach(l => {
+      if (isManager && l.approvalStatus === 'rejected') {
+        items.push({ type: 'rejected', label: `${l.customerName} was rejected`, date: l.createdAt })
+      } else if (isManager && l.approvalStatus === 'pending') {
         items.push({ type: 'pending', label: `${l.customerName} is pending approval`, date: l.createdAt })
-      )
-    }
+      } else if (l.reassignedAt && l.approvalStatus === 'approved') {
+        items.push({ type: 'approved', label: `${l.customerName} was approved`, date: l.reassignedAt })
+      } else if (l.reassignedAt) {
+        items.push({ type: 'reassigned', label: `${l.customerName} was reassigned`, date: l.reassignedAt })
+      }
+    })
     return items.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
   }, [leads, currentUser])
 
@@ -934,7 +938,7 @@ export default function App() {
                   <div>
                     <strong style={{ fontSize: 'var(--fs-sm)' }}>{a.label}</strong>
                     <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', marginTop: '2px', textTransform: 'capitalize' }}>
-                      {a.type === 'reassigned' ? 'Lead reassignment' : 'Pending approval'}
+                      {a.type === 'reassigned' ? 'Lead reassignment' : a.type === 'approved' ? 'Approved' : a.type === 'rejected' ? 'Rejected' : 'Pending approval'}
                     </div>
                   </div>
                   <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>

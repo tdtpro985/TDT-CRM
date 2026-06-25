@@ -1775,7 +1775,9 @@ def get_leads():
 
         cursor.execute(f'''
             SELECT l.id, l.customer_name AS customerName, l.contact_num AS contactNum,
-                   l.address, l.region, t.name AS sr, l.owner_id AS ownerId, l.branch, l.status, l.created_at AS createdAt
+                   l.address, l.region, t.name AS sr, l.owner_id AS ownerId, l.branch, l.status,
+                   l.created_at AS createdAt, l.reassigned_at AS reassignedAt,
+                   l.approval_status AS approvalStatus
             FROM leads l
             LEFT JOIN team t ON l.owner_id = t.id
             {where_sql}
@@ -3141,7 +3143,7 @@ def admin_analytics():
                   AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
                   AND LOWER(TRIM(l.branch)) = LOWER(TRIM(%s))
                 GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch), t.profile_pic
-                ORDER BY leads_count DESC
+                ORDER BY deals_won DESC
                 LIMIT 20
             ''', (branch_filter,))
         elif region_branches:
@@ -3160,7 +3162,7 @@ def admin_analytics():
                   AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
                   AND LOWER(TRIM(l.branch)) IN ({in_ph})
                 GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch), t.profile_pic
-                ORDER BY leads_count DESC
+                ORDER BY deals_won DESC
                 LIMIT 20
             ''', region_branches)
         else:
@@ -3177,7 +3179,7 @@ def admin_analytics():
                 WHERE (l.owner_id IS NOT NULL OR (l.owner_name IS NOT NULL AND TRIM(l.owner_name) != ''))
                   AND (t.id IS NULL OR t.role IN ('Sales Representative', 'Branch Account', 'Sales Rep'))
                 GROUP BY COALESCE(t.name, l.owner_name), COALESCE(t.branch, l.branch), t.profile_pic
-                ORDER BY leads_count DESC
+                ORDER BY deals_won DESC
                 LIMIT 20
             ''')
         top_srs = rows_to_list(cursor)

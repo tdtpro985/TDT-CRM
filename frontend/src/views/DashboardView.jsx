@@ -8,6 +8,7 @@ import MetricCard from '../components/MetricCard'
 import { formatCurrencyCompact, formatDateLabel, isSrRole, getInitials } from '../utils'
 import { API_BASE } from '../api'
 import { ITEMS_PER_PAGE, REGION_BRANCHES } from '../constants'
+import Pagination from '../components/Pagination'
 
 function WonOverTimeChart({ data, type, mode }) {
   const label = mode === 'won' ? 'won' : 'lost'
@@ -291,6 +292,7 @@ export default function DashboardView({
   const stageListRef = useRef(null)
   const healthRef = useRef(null)
   const [healthVisible, setHealthVisible] = useState(false)
+  const [announcementPage, setAnnouncementPage] = useState(1)
 
   // Layout customization
   const layoutKey = `dashboard_layout_${currentUser?.id}`
@@ -950,26 +952,46 @@ export default function DashboardView({
         </section>
       )
       case 'announcements': {
-        const visibleAnnouncements = (announcements ?? []).slice(0, 5)
-        const overflow = (announcements ?? []).length - visibleAnnouncements.length
+        const totalPages = Math.ceil((announcements ?? []).length / 5) || 1
+        const safePage = Math.min(announcementPage, totalPages)
+        const paged = (announcements ?? []).slice(
+          (safePage - 1) * 5,
+          safePage * 5
+        )
         return (
           <Panel key="announcements" kicker="Updates" title="Announcements" detail="Recent reassignments and pending approvals.">
-            {visibleAnnouncements.length === 0 ? (
+            {announcements.length === 0 ? (
               <p className="u-pad-16 u-text-muted u-fs-sm">No announcements right now.</p>
             ) : (
               <div className="simple-list">
-                {visibleAnnouncements.map((a, i) => (
-                  <div key={i} className="simple-list__item">
-                    <span className={`admin-role-pill ${a.type === 'pending' ? 'admin-role-pill--warning' : 'admin-role-pill--positive'}`}>
-                      {a.type === 'pending' ? 'Pending' : 'Reassigned'}
-                    </span>
-                    <span className="u-fs-sm u-ml-8">{a.label}</span>
-                  </div>
-                ))}
-                {overflow > 0 && (
-                  <p className="u-fs-10 u-text-muted u-pad-8">+{overflow} more</p>
-                )}
+                {Array.from({ length: 5 }).map((_, i) => {
+                  const a = paged[i]
+                  return (
+                    <div key={i} className="simple-list__item" style={!a ? { opacity: 0.3 } : undefined}>
+                      {a ? (
+                        <>
+                          <span className={`admin-role-pill ${a.type === 'pending' ? 'admin-role-pill--warning' : a.type === 'rejected' ? 'admin-role-pill--alert' : 'admin-role-pill--positive'}`}>
+                            {a.type === 'pending' ? 'Pending' : a.type === 'rejected' ? 'Rejected' : a.type === 'approved' ? 'Approved' : 'Reassigned'}
+                          </span>
+                          <span className="u-fs-sm">{a.label}</span>
+                        </>
+                      ) : (
+                        <span className="u-fs-sm u-text-muted">—</span>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
+            )}
+            {totalPages > 1 && (
+              <Pagination
+                currentPage={announcementPage}
+                totalPages={totalPages}
+                onPageChange={setAnnouncementPage}
+                prevLabel="←"
+                nextLabel="→"
+                className="analytics-pagination"
+              />
             )}
           </Panel>
         )

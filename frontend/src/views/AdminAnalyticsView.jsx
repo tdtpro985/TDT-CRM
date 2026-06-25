@@ -263,25 +263,15 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
             }
           >
             <div className="branch-card-grid">
-              {branchRows.map((r) => {
-                const rate = r.leads ? Math.round((r.converted / r.leads) * 100) : 0
-                const barW = rate
-                return (
+              {branchRows.map((r) => (
                   <div key={r.branch} className="branch-card">
                     <div className="branch-card__header">
                       <span className="branch-card__name">{r.branch ?? '—'}</span>
-                      <span className={`admin-role-pill ${rate >= 50 ? 'admin-role-pill--accent' : rate >= 20 ? 'admin-role-pill--alt' : 'admin-role-pill--surface'}`}>
-                        {rate}% conv.
-                      </span>
                     </div>
                     <div className="branch-card__stats">
                       <div className="branch-card__stat">
                         <span className="branch-card__stat-label">Leads</span>
                         <span className="branch-card__stat-value">{r.leads}</span>
-                      </div>
-                      <div className="branch-card__stat">
-                        <span className="branch-card__stat-label">Converted</span>
-                        <span className="branch-card__stat-value">{r.converted}</span>
                       </div>
                       <div className="branch-card__stat">
                         <span className="branch-card__stat-label">Active Deals</span>
@@ -300,12 +290,8 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
                         <span className="branch-card__stat-value">{r.avg_deal_value != null ? formatCurrencyCompact(r.avg_deal_value) : '—'}</span>
                       </div>
                     </div>
-                    <div className="analytics-bar-track">
-                      <div className="analytics-bar-fill" style={{ width: `${barW}%` }} />
-                    </div>
                   </div>
-                )
-              })}
+              ))}
             </div>
           </Panel>
 
@@ -415,7 +401,7 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
               title="Top Sales Reps"
               action={
                 <div style={{ display: 'flex', gap: '2px' }}>
-                  {[['Won', 'deals_won'], ['Conv.', 'converted'], ['Leads', 'leads_count']].map(([label, key]) => (
+                  {[['Won', 'deals_won']].map(([label, key]) => (
                     <button
                       key={key}
                       type="button"
@@ -455,12 +441,7 @@ export default function AdminAnalyticsView({ activeBranch = '', activeRegion = '
                             <div className="sr-rank-branch">{sr.branch}</div>
                           </div>
                           <div className="sr-rank-stats">
-                            {srSort !== 'leads_count' && (
-                              <span className="admin-role-pill admin-role-pill--surface">{sr.leads_count} leads</span>
-                            )}
-                            {srSort === 'deals_won'   && <span className="admin-role-pill admin-role-pill--accent">{sr.deals_won} won</span>}
-                            {srSort === 'converted'   && <span className="admin-role-pill admin-role-pill--accent">{sr.converted} conv.</span>}
-                            {srSort === 'leads_count' && <span className="admin-role-pill admin-role-pill--accent">{sr.leads_count} leads</span>}
+                            <span className="admin-role-pill admin-role-pill--accent">{sr.deals_won} won</span>
                           </div>
                         </div>
                       ))}
