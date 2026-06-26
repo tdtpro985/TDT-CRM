@@ -485,8 +485,8 @@ export default function useCRMData({ setNotice, showToast, currentUser }) {
       companyId: companyIdToUse,
       contactId: contactIdToUse,
       name: dealForm.name.trim(),
-      stage: dealForm.stage || 'Qualified',
-      probability: getProbabilityForStage(dealForm.stage || 'Qualified'),
+      stage: dealForm.stage || 'New Opportunity',
+      probability: getProbabilityForStage(dealForm.stage || 'New Opportunity'),
       ownerId: rsm?.id || dealForm.ownerId || null,
       createdAt: CURRENT_DATE,
     }

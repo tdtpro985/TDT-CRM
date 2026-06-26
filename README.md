@@ -23,7 +23,7 @@ The application is built with a modern, decoupled architecture:
 - **Database**: MySQL; `backend/database/schema.sql` is the source of truth
 - **Auth**: JWT (flask-jwt-extended), 8-hour tokens stored in `sessionStorage`
 - **API**: RESTful JSON endpoints with role-based access control
-- **Rate Limiting**: 1000/day, 200/hour globally; 5/min on login, 2/min on Google Sheets sync
+- **Rate Limiting**: 1000/day, 200/hour globally; 5/min on login
 
 ### Role Hierarchy
 | Role | Scope |
@@ -41,9 +41,25 @@ The application is built with a modern, decoupled architecture:
 
 #### 1. Environment & Database
 
-- Ensure a MySQL server is running.
-- Create `backend/.env` from the provided template — ask your administrator for the correct values.
-  > We use `FLASK_PORT=5001` to avoid common conflicts on port 5000.
+Ensure a MySQL server is running, then create `backend/.env` with the following variables:
+
+```bash
+# backend/.env
+DB_HOST=localhost
+DB_NAME=tdt_crm
+DB_USER=root
+DB_PASSWORD=your_mysql_password
+
+JWT_SECRET_KEY=change-this-in-production
+FRONTEND_URL=http://localhost:5173
+FLASK_PORT=5001
+
+# Default passwords set by bootstrap_users
+DEFAULT_BRANCH_PASSWORD=TDTpowersteel2024
+DEFAULT_ADMIN_PASSWORD=TDTpowersteel2024
+```
+
+> We use `FLASK_PORT=5001` to avoid common conflicts on port 5000.
 
 #### 2. Database Initialization (run from `backend/`)
 
@@ -58,7 +74,7 @@ python -m database.bootstrap_users
 python -m database.bootstrap_users --reset-passwords
 ```
 
-#### 3. Populate the Pipeline — "Agos" Flow (optional)
+#### 3. Populate the Pipeline (optional)
 
 ```bash
 python -m database.sync_pipeline
@@ -70,6 +86,7 @@ python -m database.sync_pipeline
 
 ```bash
 cd backend
+pip install -r requirements.txt
 python app.py
 ```
 
@@ -87,31 +104,20 @@ Frontend runs at `http://localhost:5173`. Vite proxies all `/api` requests to po
 
 ---
 
-## Google Sheets Synchronization
-
-The CRM syncs lead data with a centralized Google Sheet. To enable it:
-
-1. **Obtain Credentials**: Ask your administrator for the `credentials.json` service account file.
-2. **Place the File**: Save `credentials.json` in the `backend/` directory.
-3. **Configure `.env`**: Ensure `GOOGLE_CREDENTIALS_JSON_PATH=credentials.json` is set.
-4. **Trigger Sync**: Hit `POST /api/sync/gsheets` (Admin only) or create a lead — sync runs automatically in the background.
-
----
-
 ## Core Features
 
 - **Dashboard**: Live KPIs — weighted forecast, active deals, conversion rate, pipeline value, and deals by stage.
 - **Sales Pipeline**: Kanban and table view of deals across stages: Qualified → New Opp → Proposal → Negotiation → Closed Won/Lost. Tracks value, probability, and close date.
 - **Customer Database**: Company and contact records with full deal and activity history.
 - **Activity Logging**: Tasks and follow-ups linked to deals. Tracks calls, quotes, meetings, and site visits with urgency scoring.
-- **Admin Panel**: User management, branch assignment, org-wide analytics, and Google Sheets sync trigger.
+- **Admin Panel**: User management, branch assignment, and org-wide analytics.
 - **Audit Trail**: Every entity change is logged with old/new values, timestamp, and the user who made the change.
 
 ---
 
 ## Development & Maintenance
 
-This CRM started as a mock frontend and was progressively refactored into a full-stack application. The frontend uses single-responsibility components to allow safe extension without layout breakage.
+The frontend uses single-responsibility components to allow safe extension without layout breakage.
 
 **Useful commands:**
 
@@ -127,7 +133,7 @@ py -c "import requests; print(requests.get('http://127.0.0.1:5001/api/health').s
 
 ## Security Note
 
-- Never commit `.env`, `credentials.json`, or any file containing secrets.
+- Never commit `.env` or any file containing secrets.
 - All sensitive configuration must reside in environment variables.
 - Audit your repo before pushing to ensure no sensitive files are included.
 

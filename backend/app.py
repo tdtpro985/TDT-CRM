@@ -408,7 +408,6 @@ def handle_exception(e):
     return jsonify(error="An internal error occurred"), 500
 
 STAGE_PROBABILITY = {
-    'Qualified':       20,
     'New Opportunity': 40,
     'Proposal':        60,
     'Negotiation':     80,
@@ -792,7 +791,7 @@ def get_customers():
                     SUM(CASE WHEN stage = 'Closed Won' THEN value ELSE 0 END) AS closedWonValue,
                     SUM(CASE WHEN stage = 'Closed Lost' THEN value ELSE 0 END) AS closedLostValue,
                     SUM(CASE WHEN stage IN ('Proposal', 'Negotiation') THEN 1 ELSE 0 END) AS hasNegotiation,
-                    SUM(CASE WHEN stage IN ('New Opportunity', 'Qualified') THEN 1 ELSE 0 END) AS hasProspect
+                    SUM(CASE WHEN stage = 'New Opportunity' THEN 1 ELSE 0 END) AS hasProspect
                 FROM deals
                 GROUP BY company_id
             ) deal_stats ON c.id = deal_stats.company_id
@@ -886,7 +885,7 @@ def get_customer_detail(customer_id):
                     SUM(CASE WHEN stage = 'Closed Won' THEN value ELSE 0 END) AS closedWonValue,
                     SUM(CASE WHEN stage = 'Closed Lost' THEN value ELSE 0 END) AS closedLostValue,
                     SUM(CASE WHEN stage IN ('Proposal', 'Negotiation') THEN 1 ELSE 0 END) AS hasNegotiation,
-                    SUM(CASE WHEN stage IN ('New Opportunity', 'Qualified') THEN 1 ELSE 0 END) AS hasProspect
+                    SUM(CASE WHEN stage = 'New Opportunity' THEN 1 ELSE 0 END) AS hasProspect
                 FROM deals
                 GROUP BY company_id
             ) deal_stats ON c.id = deal_stats.company_id
@@ -2083,7 +2082,7 @@ def create_deal():
     if not all(k in data for k in ['id', 'name']):
         return jsonify({'error': 'id and name are required'}), 400
 
-    stage = data.get('stage', 'Qualified')
+    stage = data.get('stage', 'New Opportunity')
     probability = STAGE_PROBABILITY.get(stage, 20)
 
     conn = get_db_connection()
